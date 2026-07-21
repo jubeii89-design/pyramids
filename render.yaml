@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: crossword-pyramids
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.2
