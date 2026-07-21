@@ -32,7 +32,7 @@ async function main() {
     setTimeout(() => rej(new Error('server start timeout')), 15000);
   });
 
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
   try {
     require('fs').mkdirSync(SHOTS, { recursive: true });
 
