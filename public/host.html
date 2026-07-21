@@ -55,11 +55,15 @@
 
   <!-- GAME -->
   <div id="gamearea" class="gamegrid hidden">
-    <div><div class="board" id="board"></div></div>
+    <div class="board3d"><div class="board" id="board"></div></div>
     <div>
       <div class="panel" style="margin-bottom: 14px">
         <h3 class="gold" style="margin-bottom:8px">Scores</h3>
         <div id="scores"></div>
+      </div>
+      <div class="panel" style="margin-bottom: 14px">
+        <h3 class="gold" style="margin-bottom:8px">Pyramid Tracker</h3>
+        <div id="tracker"></div>
       </div>
       <div class="panel">
         <h3 class="gold" style="margin-bottom:8px">Words Played</h3>
@@ -102,7 +106,7 @@ function onMsg(msg) {
     hide('lobby'); show('gamearea');
     renderGame();
   } else if (msg.type === 'played') {
-    toast(`${names[msg.color] || msg.color} spelled ${msg.word.toUpperCase()} for ${msg.points} pts!`, true);
+    toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()} for ${msg.points} pts!`, true);
   } else if (msg.type === 'error') {
     toast(msg.error);
   }
@@ -120,21 +124,24 @@ function renderLobby() {
   document.getElementById('waitmsg').style.display = room.players.length >= 2 ? 'none' : '';
 }
 
+function pname(c) { return names[c] || COLOR_NAMES[c] || c; }
+
 function renderGame() {
   renderBoard(document.getElementById('board'), state);
+  renderTracker(document.getElementById('tracker'), state, names);
   document.getElementById('scores').innerHTML = state.players.map(c =>
     `<div class="score ${state.phase === 'playing' && state.current === c ? 'current' : ''}">
-      <span><span class="chip ${c}"></span>${names[c] || c}</span><b>${state.scores[c]}</b></div>`).join('');
+      <span><span class="chip ${c}"></span>${pname(c)}</span><b>${state.scores[c]}</b></div>`).join('');
   document.getElementById('log').innerHTML = state.log.slice().reverse().map(e =>
     e.pass
-      ? `<div><span class="chip ${e.color}"></span>${names[e.color] || e.color} passed</div>`
+      ? `<div><span class="chip ${e.color}"></span>${pname(e.color)} passed</div>`
       : `<div><span class="chip ${e.color}"></span><b>${e.word.toUpperCase()}</b> — ${e.points} pts</div>`).join('');
   if (state.phase === 'over') {
     show('over');
     const f = state.finalScores;
     document.getElementById('finals').innerHTML =
-      `<p style="margin-bottom:12px">&#127942; <b>${names[state.winner] || state.winner}</b> wins!</p>` +
-      state.players.map(c => `<div class="score"><span><span class="chip ${c}"></span>${names[c] || c}</span><b>${f[c]}</b></div>`).join('');
+      `<p style="margin-bottom:12px">&#127942; <b>${pname(state.winner)}</b> wins!</p>` +
+      state.players.map(c => `<div class="score"><span><span class="chip ${c}"></span>${pname(c)}</span><b>${f[c]}</b></div>`).join('');
   }
 }
 

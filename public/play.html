@@ -55,7 +55,7 @@
       <span id="roomcode" style="letter-spacing:.2em; color:var(--gold)"></span>
     </div>
     <div class="turnbanner" id="turnbanner"></div>
-    <div class="board" id="board"></div>
+    <div class="board3d"><div class="board" id="board"></div></div>
     <div class="controls" id="controls">
       <div class="row">
         <button class="dirbtn active" id="dirH">Across &#8594;</button>
@@ -71,6 +71,10 @@
       <div class="hint" id="selhint">Tap the square where your word starts.</div>
     </div>
     <div class="scoresmini" id="scoresmini"></div>
+    <div class="panel" style="margin-top:12px; padding:12px">
+      <b class="gold" style="font-size:.9rem">PYRAMID TRACKER</b>
+      <div id="tracker"></div>
+    </div>
   </div>
 
   <!-- OVER -->
@@ -126,7 +130,7 @@ function onMsg(msg) {
   if (msg.type === 'joined') {
     myColor = msg.color;
     document.getElementById('roomcode').textContent = msg.code;
-    document.getElementById('mycolor').innerHTML = `You are <span class="chip ${myColor}"></span><b style="text-transform:capitalize">${myColor}</b>`;
+    document.getElementById('mycolor').innerHTML = `You are <span class="chip ${myColor}"></span><b>${COLOR_NAMES[myColor]}</b>`;
     show('waitview'); hide('joinview');
   } else if (msg.type === 'room') {
     names = {};
@@ -169,10 +173,10 @@ function hintCells() {
 }
 
 function renderGame() {
-  document.getElementById('me').innerHTML = `<span class="chip ${myColor}"></span>${myName}`;
+  document.getElementById('me').innerHTML = `<span class="chip ${myColor}"></span>${myName} (${COLOR_NAMES[myColor]})`;
   const tb = document.getElementById('turnbanner');
   if (myTurn()) { tb.textContent = '▲ Your turn! Spell a word.'; tb.classList.add('mine'); }
-  else { tb.textContent = `Waiting for ${names[state.current] || state.current}…`; tb.classList.remove('mine'); }
+  else { tb.textContent = `Waiting for ${names[state.current] || COLOR_NAMES[state.current]}…`; tb.classList.remove('mine'); }
   renderBoard(document.getElementById('board'), state, {
     selected: sel,
     hintCells: myTurn() ? hintCells() : [],
@@ -183,15 +187,16 @@ function renderGame() {
     ? `Start: row ${sel.r + 1}, col ${sel.c + 1} — ${dir === 'H' ? 'Across' : 'Down'}`
     : 'Tap the square where your word starts.';
   document.getElementById('scoresmini').innerHTML = state.players.map(c =>
-    `<span><span class="chip ${c}"></span>${names[c] || c}: <b>${state.scores[c]}</b></span>`).join('');
+    `<span><span class="chip ${c}"></span>${names[c] || COLOR_NAMES[c]}: <b>${state.scores[c]}</b></span>`).join('');
+  renderTracker(document.getElementById('tracker'), state, names);
 }
 
 function renderOver() {
   show('overview'); hide('gameview');
   const f = state.finalScores;
   document.getElementById('finals').innerHTML =
-    `<p style="margin-bottom:10px">&#127942; <b>${names[state.winner] || state.winner}</b> wins!</p>` +
-    state.players.map(c => `<div><span class="chip ${c}"></span>${names[c] || c}: <b>${f[c]}</b></div>`).join('');
+    `<p style="margin-bottom:10px">&#127942; <b>${names[state.winner] || COLOR_NAMES[state.winner]}</b> wins!</p>` +
+    state.players.map(c => `<div><span class="chip ${c}"></span>${names[c] || COLOR_NAMES[c]}: <b>${f[c]}</b></div>`).join('');
 }
 
 document.getElementById('dirH').addEventListener('click', () => { dir = 'H'; setDir(); });

@@ -324,7 +324,19 @@ function finish(state) {
 
 // Public serialization sent to clients
 function serialize(state) {
+  // Pyramid tracker: remaining on board + captured, per color (incl. house)
+  const remaining = { red: 0, blue: 0, green: 0, yellow: 0, house: 0 };
+  for (const row of state.cells)
+    for (const cell of row)
+      for (const p of cell.stack) remaining[p.o]++;
+  const captured = {};
+  for (const c of state.players) {
+    captured[c] = { total: state.collected[c].length, byOwner: { red: 0, blue: 0, green: 0, yellow: 0, house: 0 } };
+    for (const p of state.collected[c]) captured[c].byOwner[p.o]++;
+  }
   return {
+    remaining,
+    captured,
     size: SIZE,
     phase: state.phase,
     players: state.players,

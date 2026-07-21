@@ -46,13 +46,18 @@ function wsClient() {
   const ws = new WebSocket(`ws://localhost:${PORT}/ws`);
   const queue = [];
   const waiters = [];
+  const stats = { bytes: 0, messages: 0, maxMsg: 0 };
   ws.on('message', (raw) => {
+    stats.bytes += raw.length;
+    stats.messages++;
+    if (raw.length > stats.maxMsg) stats.maxMsg = raw.length;
     const msg = JSON.parse(raw);
     if (waiters.length) waiters.shift()(msg);
     else queue.push(msg);
   });
   return {
     ws,
+    stats,
     send: (m) => ws.send(JSON.stringify(m)),
     next: (timeout = 15000) =>
       new Promise((resolve, reject) => {
@@ -175,9 +180,15 @@ async function playGame(gameNo, numPlayers) {
     check(finalState.finalScores && Object.keys(finalState.finalScores).length === numPlayers, 'final scores for all players');
     const sorted = finalState.players.slice().sort((a, b) => finalState.finalScores[b] - finalState.finalScores[a]);
     check(sorted[0] === finalState.winner || finalState.finalScores[sorted[0]] === finalState.finalScores[finalState.winner], 'winner has top score');
+    // Bandwidth: host connection receives every broadcast — the worst case
+    const kb = (host.stats.bytes / 1024).toFixed(1);
+    const perTurn = (host.stats.bytes / Math.max(turns, 1) / 1024).toFixed(2);
+    const maxKb = (host.stats.maxMsg / 1024).toFixed(2);
     console.log(`  finished in ${turns} turns (${wordsPlayed} words, ${passes} passes) in ${secs}s`);
+    console.log(`  bandwidth: ${kb} KB total to host, ~${perTurn} KB/turn, largest message ${maxKb} KB`);
     console.log(`  winner: ${finalState.winner}  finals: ${JSON.stringify(finalState.finalScores)}`);
-    results.push({ game: gameNo, players: numPlayers, turns, wordsPlayed, passes, secs, winner: finalState.winner, finals: finalState.finalScores });
+    check(host.stats.maxMsg < 64 * 1024, 'largest ws message under 64 KB');
+    results.push({ game: gameNo, players: numPlayers, turns, wordsPlayed, passes, secs, winner: finalState.winner, finals: finalState.finalScores, kb, perTurn, maxKb });
   }
 
   host.close();
@@ -231,7 +242,7 @@ async function main() {
 
   console.log('\n================ SUMMARY ================');
   for (const r of results) {
-    console.log(`Game ${r.game} (${r.players}p): winner ${r.winner}, ${r.turns} turns, ${r.wordsPlayed} words, ${r.secs}s, finals ${JSON.stringify(r.finals)}`);
+    console.log(`Game ${r.game} (${r.players}p): winner ${r.winner}, ${r.turns} turns, ${r.wordsPlayed} words, ${r.secs}s, ${r.kb} KB (${r.perTurn} KB/turn, max msg ${r.maxKb} KB), finals ${JSON.stringify(r.finals)}`);
   }
   console.log(failures === 0 ? `\nALL CHECKS PASSED (${NUM_GAMES} games)` : `\n${failures} CHECKS FAILED`);
   process.exit(failures === 0 && results.length === NUM_GAMES ? 0 : 1);

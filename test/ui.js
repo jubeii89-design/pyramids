@@ -50,7 +50,7 @@ async function main() {
     console.log('B) Host + phone join');
     const host = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await host.goto(`${BASE}/host.html`);
-    await host.waitForFunction(() => document.getElementById('code').textContent.length === 4);
+    await host.waitForFunction(() => /^[A-Z]{4}$/.test(document.getElementById('code').textContent));
     const code = await host.locator('#code').textContent();
     check(/^[A-Z]{4}$/.test(code), `room code shown (${code})`);
     const qrSrc = await host.locator('#qr').getAttribute('src');
@@ -64,7 +64,7 @@ async function main() {
     await phone.fill('#namein', 'Cleo');
     await phone.click('#joinBtn');
     await phone.waitForSelector('#waitview:not(.hidden)');
-    check(await phone.locator('#mycolor').textContent().then((t) => t.includes('red')), 'phone got red (first seat)');
+    check(await phone.locator('#mycolor').textContent().then((t) => /red/i.test(t)), 'phone got red (first seat)');
     await host.waitForFunction(() => document.querySelectorAll('#players li').length === 1);
     check((await host.locator('#players li').first().textContent()).includes('Cleo'), 'host lobby shows Cleo');
     await host.screenshot({ path: path.join(SHOTS, 'host-lobby.png') });
@@ -82,6 +82,12 @@ async function main() {
     await host.click('#startBtn');
     await host.waitForSelector('#gamearea:not(.hidden)');
     check((await host.locator('#board .cell').count()) === 100, 'board renders 100 cells');
+    const pyrCount = await host.locator('#board .pyr').count();
+    check(pyrCount >= 60, `3D pyramid pieces render (${pyrCount} on board)`);
+    check((await host.locator('#board .pyr .peak').first().textContent()).match(/^[1-9]$/), 'peak value plates visible');
+    check((await host.locator('#board .pyr .cnt').count()) >= 20, 'stack count chips visible on stacks');
+    check((await host.locator('#tracker .trk').count()) === 5, 'pyramid tracker shows 4 colors + house');
+    check((await host.locator('#tracker').textContent()).includes('Gold'), 'Gold color naming in tracker');
     await host.screenshot({ path: path.join(SHOTS, 'host-game.png') });
     await host.waitForSelector('#over:not(.hidden)', { timeout: 180000 });
     const finals = await host.locator('#finals').textContent();
@@ -92,7 +98,7 @@ async function main() {
     console.log('D) Rejoin check');
     const host2 = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await host2.goto(`${BASE}/host.html`);
-    await host2.waitForFunction(() => document.getElementById('code').textContent.length === 4);
+    await host2.waitForFunction(() => /^[A-Z]{4}$/.test(document.getElementById('code').textContent));
     const code2 = await host2.locator('#code').textContent();
     const p1 = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await p1.goto(`${BASE}/play.html?room=${code2}`);
@@ -104,6 +110,8 @@ async function main() {
     await host2.click('#startBtn');
     await p1.waitForSelector('#gameview:not(.hidden)');
     check((await p1.locator('#board .cell').count()) === 100, 'phone renders live board');
+    check((await p1.locator('#board .pyr').count()) >= 60, 'phone renders 3D pyramids');
+    check((await p1.locator('#tracker .trk').count()) === 5, 'phone shows pyramid tracker');
     await p1.screenshot({ path: path.join(SHOTS, 'phone-game.png') });
     await p1.close(); // simulate phone dropping mid-game
     const p2 = await browser.newPage({ viewport: { width: 390, height: 844 } });

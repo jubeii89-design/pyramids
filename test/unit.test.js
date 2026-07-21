@@ -170,6 +170,25 @@ test('serialize exposes only public info and correct tops', () => {
   assert.ok(!JSON.stringify(s).includes('"stack"'));
 });
 
+test('pyramid tracker: remaining counts start full and drop as words capture', () => {
+  const st = g.createGame(['red', 'blue'], seeded(14));
+  let s = g.serialize(st);
+  assert.deepStrictEqual(s.remaining, { red: 30, blue: 30, green: 30, yellow: 30, house: 36 });
+  assert.strictEqual(s.captured.red.total, 0);
+  const botWords = [...DICT].filter((w) => w.length >= 3 && w.length <= 5);
+  const cur = st.players[st.turn];
+  const mv = g.findMove(st, cur, botWords, seeded(15));
+  assert.ok(mv);
+  const res = g.playWord(st, cur, mv, DICT);
+  assert.ok(res.ok);
+  s = g.serialize(st);
+  const totalRemaining = Object.values(s.remaining).reduce((a, b) => a + b, 0);
+  assert.strictEqual(totalRemaining, 156 - res.collected, 'remaining drops by exactly the captured count');
+  assert.strictEqual(s.captured[cur].total, res.collected);
+  const byOwnerSum = Object.values(s.captured[cur].byOwner).reduce((a, b) => a + b, 0);
+  assert.strictEqual(byOwnerSum, res.collected);
+});
+
 test('moved pyramids come only from pre-turn tops (uncovered rule)', () => {
   // one source cell may contribute at most one pyramid per turn
   const st = g.createGame(['red', 'blue'], seeded(12));
