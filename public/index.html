@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crossword Pyramids — Spell to Win!</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .hero { text-align: center; padding: 48px 20px 24px; }
+  .hero h1 { font-size: clamp(2.2rem, 7vw, 4.4rem); color: var(--gold); text-shadow: 0 3px 0 #5a4211, 0 8px 24px rgba(0,0,0,.6); text-transform: uppercase; }
+  .hero .tag { font-size: clamp(1rem, 3vw, 1.5rem); color: var(--sand); font-style: italic; margin-top: 10px; }
+  .pyr-scene { display: flex; justify-content: center; align-items: flex-end; gap: 8px; margin: 30px auto 10px; max-width: 640px; }
+  .cta { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; margin: 34px 0 10px; }
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; max-width: 980px; margin: 40px auto; padding: 0 20px; }
+  .features .panel h3 { color: var(--gold); margin-bottom: 8px; }
+  .features .panel p { line-height: 1.5; color: var(--sand); }
+  .joinbox { max-width: 420px; margin: 0 auto; display: none; }
+  .joinbox.open { display: block; }
+  .joinbox .row { display: flex; gap: 10px; margin-top: 12px; }
+  footer { text-align: center; color: #8a7a58; padding: 30px; font-style: italic; }
+  .tri { filter: drop-shadow(0 6px 8px rgba(0,0,0,.5)); }
+</style>
+</head>
+<body>
+  <div class="hero">
+    <div class="pyr-scene" aria-hidden="true">
+      <svg class="tri" width="110" height="90" viewBox="0 0 110 90"><polygon points="55,0 110,90 0,90" fill="#d64541"/><polygon points="55,0 110,90 55,90" fill="#a33330"/><text x="45" y="72" font-size="34" fill="#fff" font-family="Georgia" font-weight="bold">S</text></svg>
+      <svg class="tri" width="150" height="122" viewBox="0 0 150 122"><polygon points="75,0 150,122 0,122" fill="#e6e0d2"/><polygon points="75,0 150,122 75,122" fill="#b8b2a4"/><text x="60" y="100" font-size="46" fill="#2e8b4f" font-family="Georgia" font-weight="bold">P</text></svg>
+      <svg class="tri" width="190" height="155" viewBox="0 0 190 155"><polygon points="95,0 190,155 0,155" fill="#2b2b2b"/><polygon points="95,0 190,155 95,155" fill="#171717"/><text x="76" y="126" font-size="58" fill="#e8d5a3" font-family="Georgia" font-weight="bold">E</text></svg>
+      <svg class="tri" width="150" height="122" viewBox="0 0 150 122"><polygon points="75,0 150,122 0,122" fill="#3f7fd6"/><polygon points="75,0 150,122 75,122" fill="#2c5c9e"/><text x="60" y="100" font-size="46" fill="#fff" font-family="Georgia" font-weight="bold">L</text></svg>
+      <svg class="tri" width="110" height="90" viewBox="0 0 110 90"><polygon points="55,0 110,90 0,90" fill="#e0b229"/><polygon points="55,0 110,90 55,90" fill="#ab861c"/><text x="45" y="72" font-size="34" fill="#3a2b00" font-family="Georgia" font-weight="bold">L</text></svg>
+    </div>
+    <h1>Crossword Pyramids</h1>
+    <div class="tag">Stack. Steal. Spell to Win!</div>
+    <div class="cta">
+      <button class="btn" onclick="location.href='/host.html'">&#9650; Host Game</button>
+      <button class="btn secondary" onclick="document.getElementById('join').classList.toggle('open'); document.getElementById('code').focus()">Join Game</button>
+    </div>
+    <div class="joinbox panel" id="join">
+      <h3 class="gold">Enter Room Code</h3>
+      <div class="row">
+        <input type="text" id="code" maxlength="4" placeholder="ABCD" autocomplete="off">
+        <button class="btn" onclick="joinGo()">Go</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="features">
+    <div class="panel"><h3>&#9650; Party Play, Jackbox Style</h3><p>Host on the big screen. Everyone joins from their phone with a QR code or a 4-letter room code. 2&ndash;4 players &mdash; add AI opponents to fill seats.</p></div>
+    <div class="panel"><h3>&#9650; A Crossword in 3D</h3><p>120 letter pyramids stacked across a 10&times;10 board. Spell across or down using any exposed letter &mdash; even the ones printed on the board itself.</p></div>
+    <div class="panel"><h3>&#9650; Steal to Win</h3><p>Your opponents' pyramids are fair game. Every word must use one of <em>your</em> letters and one black house letter &mdash; the rest is plunder.</p></div>
+    <div class="panel"><h3>&#9650; Score the Tips</h3><p>Every pyramid you capture scores its tip value. Empty your color from the board to end the game &mdash; leftover pyramids count against you!</p></div>
+  </div>
+
+  <footer>Please remember to have fun &mdash; but most importantly, always spell to win.</footer>
+<script>
+  function joinGo() {
+    const code = document.getElementById('code').value.trim().toUpperCase();
+    if (code.length === 4) location.href = '/play.html?room=' + code;
+  }
+  document.getElementById('code').addEventListener('keydown', e => { if (e.key === 'Enter') joinGo(); });
+</script>
+</body>
+</html>

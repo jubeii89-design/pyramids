@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crossword Pyramids — Host</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 18px; }
+  header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+  header h1 { color: var(--gold); font-size: 1.6rem; }
+  .code-big { font-size: 2rem; letter-spacing: .3em; color: var(--ink); background: #0d0a06; padding: 4px 16px; border-radius: 10px; border: 2px solid var(--gold); }
+  .lobby { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 760px) { .lobby { grid-template-columns: 1fr; } }
+  .qr { background: #fff; padding: 14px; border-radius: 14px; display: inline-block; }
+  .qr img { display: block; width: 280px; height: 280px; }
+  .playerlist li { list-style: none; font-size: 1.3rem; padding: 8px 4px; }
+  .gamegrid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; }
+  @media (max-width: 900px) { .gamegrid { grid-template-columns: 1fr; } }
+  .score { display: flex; justify-content: space-between; font-size: 1.2rem; padding: 7px 8px; border-radius: 8px; }
+  .score.current { background: #3a2e1c; outline: 2px solid var(--gold); }
+  .loglist { max-height: 300px; overflow-y: auto; font-size: .95rem; }
+  .loglist div { padding: 4px 2px; border-bottom: 1px solid #3a2e1c; }
+  .overlay { position: fixed; inset: 0; background: rgba(10,7,3,.88); display: flex; align-items: center; justify-content: center; z-index: 40; }
+  .overlay .panel { text-align: center; max-width: 480px; }
+  .hidden { display: none !important; }
+  .joinurl { color: #b9a87c; word-break: break-all; margin-top: 10px; font-size: .9rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>&#9650; Crossword Pyramids</h1>
+    <span>Room:</span><span class="code-big" id="code">....</span>
+  </header>
+
+  <!-- LOBBY -->
+  <div id="lobby" class="lobby">
+    <div class="panel" style="text-align:center">
+      <h2 class="gold">Scan to Join</h2>
+      <p style="margin: 10px 0; color: var(--sand)">Point your phone camera at the code</p>
+      <div class="qr"><img id="qr" alt="Join QR code"></div>
+      <div class="joinurl" id="joinurl"></div>
+    </div>
+    <div class="panel">
+      <h2 class="gold">Players</h2>
+      <ul class="playerlist" id="players"></ul>
+      <p id="waitmsg" style="color: var(--sand); margin: 10px 0">Waiting for players (2&ndash;4)&hellip;</p>
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:14px">
+        <button class="btn" id="startBtn" disabled>Start Game</button>
+        <button class="btn secondary" id="botBtn">+ Add AI Player</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div id="gamearea" class="gamegrid hidden">
+    <div><div class="board" id="board"></div></div>
+    <div>
+      <div class="panel" style="margin-bottom: 14px">
+        <h3 class="gold" style="margin-bottom:8px">Scores</h3>
+        <div id="scores"></div>
+      </div>
+      <div class="panel">
+        <h3 class="gold" style="margin-bottom:8px">Words Played</h3>
+        <div class="loglist" id="log"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME OVER -->
+  <div id="over" class="overlay hidden">
+    <div class="panel">
+      <h1 class="gold" style="font-size:2.2rem">&#9650; Game Over!</h1>
+      <div id="finals" style="margin: 18px 0; font-size: 1.3rem"></div>
+      <button class="btn" id="againBtn">Play Again</button>
+    </div>
+  </div>
+</div>
+
+<script src="/board.js"></script>
+<script>
+let room = null, state = null, names = {};
+
+const ws = connectWS(onMsg, (ws) => {
+  sendWS(ws, { type: 'host_create', origin: location.origin });
+});
+
+function onMsg(msg) {
+  if (msg.type === 'hosted') {
+    document.getElementById('code').textContent = msg.code;
+    document.getElementById('qr').src = msg.qr;
+    document.getElementById('joinurl').textContent = msg.joinUrl;
+  } else if (msg.type === 'room') {
+    room = msg;
+    names = {};
+    for (const p of msg.players) names[p.color] = p.name;
+    renderLobby();
+    if (msg.phase === 'lobby') { show('lobby'); hide('gamearea'); hide('over'); state = null; }
+  } else if (msg.type === 'state') {
+    state = msg.state;
+    hide('lobby'); show('gamearea');
+    renderGame();
+  } else if (msg.type === 'played') {
+    toast(`${names[msg.color] || msg.color} spelled ${msg.word.toUpperCase()} for ${msg.points} pts!`, true);
+  } else if (msg.type === 'error') {
+    toast(msg.error);
+  }
+}
+
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
+
+function renderLobby() {
+  const ul = document.getElementById('players');
+  ul.innerHTML = room.players.map(p =>
+    `<li><span class="chip ${p.color}"></span>${p.name}${p.connected ? '' : ' (disconnected)'}</li>`).join('');
+  document.getElementById('startBtn').disabled = room.players.length < 2;
+  document.getElementById('botBtn').disabled = room.players.length >= 4;
+  document.getElementById('waitmsg').style.display = room.players.length >= 2 ? 'none' : '';
+}
+
+function renderGame() {
+  renderBoard(document.getElementById('board'), state);
+  document.getElementById('scores').innerHTML = state.players.map(c =>
+    `<div class="score ${state.phase === 'playing' && state.current === c ? 'current' : ''}">
+      <span><span class="chip ${c}"></span>${names[c] || c}</span><b>${state.scores[c]}</b></div>`).join('');
+  document.getElementById('log').innerHTML = state.log.slice().reverse().map(e =>
+    e.pass
+      ? `<div><span class="chip ${e.color}"></span>${names[e.color] || e.color} passed</div>`
+      : `<div><span class="chip ${e.color}"></span><b>${e.word.toUpperCase()}</b> — ${e.points} pts</div>`).join('');
+  if (state.phase === 'over') {
+    show('over');
+    const f = state.finalScores;
+    document.getElementById('finals').innerHTML =
+      `<p style="margin-bottom:12px">&#127942; <b>${names[state.winner] || state.winner}</b> wins!</p>` +
+      state.players.map(c => `<div class="score"><span><span class="chip ${c}"></span>${names[c] || c}</span><b>${f[c]}</b></div>`).join('');
+  }
+}
+
+document.getElementById('startBtn').addEventListener('click', () => sendWS(ws, { type: 'start' }));
+document.getElementById('botBtn').addEventListener('click', () => sendWS(ws, { type: 'add_bot' }));
+document.getElementById('againBtn').addEventListener('click', () => { hide('over'); sendWS(ws, { type: 'again' }); });
+</script>
+</body>
+</html>
