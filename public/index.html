@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crossword Pyramids — Spell to Win!</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .hero { text-align: center; padding: 44px 20px 24px; }
+  .hero h1 {
+    font-size: clamp(2.2rem, 7vw, 4.6rem);
+    color: var(--gold);
+    text-shadow: 0 4px 0 #6b4e10, 0 10px 30px rgba(0,0,0,.65);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  .hero .tag { font-size: clamp(1rem, 3vw, 1.5rem); color: var(--sand); font-style: italic; margin-top: 10px; }
+  /* hero built from the real 3D game pieces */
+  .pyr-scene { display: flex; justify-content: center; align-items: center; gap: 14px; margin: 26px auto 6px; perspective: 700px; }
+  .pyr-scene .slot { position: relative; transform: rotateX(24deg); animation: float 3.2s ease-in-out infinite; }
+  .pyr-scene .slot:nth-child(2) { animation-delay: .3s; }
+  .pyr-scene .slot:nth-child(3) { animation-delay: .6s; }
+  .pyr-scene .slot:nth-child(4) { animation-delay: .9s; }
+  .pyr-scene .slot:nth-child(5) { animation-delay: 1.2s; }
+  @keyframes float { 0%,100% { transform: rotateX(24deg) translateY(0); } 50% { transform: rotateX(24deg) translateY(-8px); } }
+  .cta { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; margin: 32px 0 10px; }
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; max-width: 980px; margin: 40px auto; padding: 0 20px; }
+  .features .panel h3 { color: var(--gold); margin-bottom: 8px; }
+  .features .panel p { line-height: 1.5; color: var(--sand); }
+  .joinbox { max-width: 420px; margin: 0 auto; display: none; }
+  .joinbox.open { display: block; }
+  .joinbox .row { display: flex; gap: 10px; margin-top: 12px; }
+  footer { text-align: center; color: #9a8ab0; padding: 26px 20px 40px; }
+  footer .motto { font-style: italic; margin-bottom: 18px; }
+  .badge { display: inline-flex; align-items: center; gap: 12px; opacity: .95; }
+  .badge .co { text-align: left; font-family: Georgia, serif; }
+  .badge .co b { color: var(--sand); letter-spacing: .08em; }
+  .badge .co small { display: block; color: #9a8ab0; letter-spacing: .05em; }
+</style>
+</head>
+<body>
+  <div class="hero">
+    <div class="pyr-scene" aria-hidden="true">
+      <div class="slot" style="width:74px;height:74px"><div class="pyr"><i class="f fn"></i><i class="f fe"></i><i class="f fs"></i><i class="f fw"></i><b class="peak">1</b><span class="pl ink-red" style="font-size:26px">S</span></div></div>
+      <div class="slot" style="width:92px;height:92px"><div class="pyr"><i class="f fn"></i><i class="f fe"></i><i class="f fs"></i><i class="f fw"></i><b class="peak">5</b><span class="pl ink-blue" style="font-size:32px">P</span></div></div>
+      <div class="slot" style="width:112px;height:112px"><div class="pyr house"><i class="f fn"></i><i class="f fe"></i><i class="f fs"></i><i class="f fw"></i><b class="peak">1</b><span class="pl ink-house" style="font-size:40px">E</span></div></div>
+      <div class="slot" style="width:92px;height:92px"><div class="pyr"><i class="f fn"></i><i class="f fe"></i><i class="f fs"></i><i class="f fw"></i><b class="peak">2</b><span class="pl ink-green" style="font-size:32px">L</span></div></div>
+      <div class="slot" style="width:74px;height:74px"><div class="pyr"><i class="f fn"></i><i class="f fe"></i><i class="f fs"></i><i class="f fw"></i><b class="peak">2</b><span class="pl ink-yellow" style="font-size:26px">L</span></div></div>
+    </div>
+    <h1>Crossword Pyramids</h1>
+    <div class="tag">Stack. Steal. Spell to Win!</div>
+    <div class="cta">
+      <button class="btn" onclick="location.href='/host.html'">&#9650; Host Game</button>
+      <button class="btn secondary" onclick="document.getElementById('join').classList.toggle('open'); document.getElementById('code').focus()">Join Game</button>
+    </div>
+    <div class="joinbox panel" id="join">
+      <h3 class="gold">Enter Room Code</h3>
+      <div class="row">
+        <input type="text" id="code" maxlength="4" placeholder="ABCD" autocomplete="off">
+        <button class="btn" onclick="joinGo()">Go</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="features">
+    <div class="panel"><h3>&#9650; Party Play, Jackbox Style</h3><p>Host on the big screen. Everyone joins from their phone with a QR code or a 4-letter room code. 2&ndash;4 players &mdash; add AI opponents to fill seats.</p></div>
+    <div class="panel"><h3>&#9650; A Crossword in 3D</h3><p>120 white letter pyramids in Red, Blue, Green &amp; Gold, stacked five high across a 10&times;10 board. Every peak shows its point value, and the tracker shows every pyramid left in play.</p></div>
+    <div class="panel"><h3>&#9650; Steal to Win</h3><p>Your opponents' pyramids are fair game. Every word must use one of <em>your</em> letters and one black house letter &mdash; the rest is plunder.</p></div>
+    <div class="panel"><h3>&#9650; Score the Peaks</h3><p>Every pyramid you capture scores its peak value. Empty your color from the board to end the game &mdash; leftover pyramids count against you!</p></div>
+  </div>
+
+  <footer>
+    <div class="motto">Please remember to have fun &mdash; but most importantly, always spell to win.</div>
+    <div class="badge">
+      <svg width="64" height="64" viewBox="0 0 100 100" aria-label="Strategic Titans logo">
+        <circle cx="50" cy="50" r="48" fill="#f2ead6" stroke="#b08d3f" stroke-width="3"/>
+        <circle cx="50" cy="50" r="41" fill="none" stroke="#b08d3f" stroke-width="1.5"/>
+        <path d="M50 18 c-10 0 -18 8 -18 19 v10 c0 4 2 8 6 10 l4 -14 h16 l4 14 c4 -2 6 -6 6 -10 v-10 c0 -11 -8 -19 -18 -19 z" fill="#2d3f66"/>
+        <path d="M50 12 c3 0 6 4 6 8 l-3 6 h-6 l-3 -6 c0 -4 3 -8 6 -8 z" fill="#c9a24a"/>
+        <rect x="46" y="46" width="8" height="14" rx="2" fill="#2d3f66"/>
+        <path d="M50 64 l4 8 6 -3 -3 7 6 4 -7 2 1 8 -7 -5 -7 5 1 -8 -7 -2 6 -4 -3 -7 6 3 z" fill="#c33b2e"/>
+      </svg>
+      <div class="co"><b>STRATEGIC TITANS</b><small>Canadian Board Game Company</small></div>
+    </div>
+  </footer>
+<script>
+  function joinGo() {
+    const code = document.getElementById('code').value.trim().toUpperCase();
+    if (code.length === 4) location.href = '/play.html?room=' + code;
+  }
+  document.getElementById('code').addEventListener('keydown', e => { if (e.key === 'Enter') joinGo(); });
+</script>
+</body>
+</html>

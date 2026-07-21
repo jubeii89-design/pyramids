@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Crossword Pyramids — Play</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .wrap { max-width: 560px; margin: 0 auto; padding: 14px; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .topbar .me { font-size: 1.1rem; }
+  .turnbanner { text-align: center; padding: 10px; border-radius: 10px; margin-bottom: 10px; font-size: 1.1rem; background: #241d14; }
+  .turnbanner.mine { background: #3a5a2c; color: #eaffdc; font-weight: bold; }
+  .controls { margin-top: 12px; }
+  .controls .row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .dirbtn { flex: 0 0 auto; padding: 12px 16px; background: #33291a; color: var(--sand); border: 2px solid #4a3d28; }
+  .dirbtn.active { background: var(--gold); color: #241a05; font-weight: bold; }
+  .hint { color: #b9a87c; font-size: .9rem; margin-top: 6px; line-height: 1.4; }
+  .scoresmini { display: flex; gap: 12px; flex-wrap: wrap; font-size: .95rem; margin-top: 10px; }
+  .hidden { display: none !important; }
+  .namebox { text-align: center; padding-top: 8vh; }
+  .namebox input { margin: 14px 0; text-align: center; }
+  .waiting { text-align: center; padding-top: 10vh; }
+  .rules-mini { font-size: .88rem; color: #b9a87c; line-height: 1.5; margin-top: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- JOIN -->
+  <div id="joinview" class="namebox">
+    <h1 class="gold">&#9650; Join Game</h1>
+    <p id="roomlabel" style="margin-top:8px; color: var(--sand)"></p>
+    <input type="text" id="codein" maxlength="4" placeholder="ROOM CODE" autocomplete="off">
+    <input type="text" id="namein" maxlength="16" placeholder="YOUR NAME" autocomplete="off" style="text-transform:none">
+    <br><button class="btn" id="joinBtn">Join</button>
+  </div>
+
+  <!-- LOBBY WAIT -->
+  <div id="waitview" class="waiting hidden">
+    <h2 class="gold">You're in!</h2>
+    <p id="mycolor" style="font-size:1.3rem; margin:14px 0"></p>
+    <p style="color:var(--sand)">Waiting for the host to start the game&hellip;</p>
+    <div class="rules-mini panel" style="margin-top:20px; text-align:left">
+      <b class="gold">How to play:</b> On your turn, tap the square where your word starts,
+      pick Across or Down, type the word, and play it. The game moves exposed pyramids
+      for you. Every word needs one of <b>your</b> pyramids and one <b>black</b> letter.
+      Captured pyramids score their tip numbers!
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div id="gameview" class="hidden">
+    <div class="topbar">
+      <span class="me" id="me"></span>
+      <span id="roomcode" style="letter-spacing:.2em; color:var(--gold)"></span>
+    </div>
+    <div class="turnbanner" id="turnbanner"></div>
+    <div class="board3d"><div class="board" id="board"></div></div>
+    <div class="controls" id="controls">
+      <div class="row">
+        <button class="dirbtn active" id="dirH">Across &#8594;</button>
+        <button class="dirbtn" id="dirV">Down &#8595;</button>
+      </div>
+      <div class="row">
+        <input type="text" id="wordin" placeholder="WORD" autocomplete="off" autocapitalize="characters">
+      </div>
+      <div class="row">
+        <button class="btn" id="playBtn" style="flex:1">Play Word</button>
+        <button class="btn secondary" id="passBtn">Pass</button>
+      </div>
+      <div class="hint" id="selhint">Tap the square where your word starts.</div>
+    </div>
+    <div class="scoresmini" id="scoresmini"></div>
+    <div class="panel" style="margin-top:12px; padding:12px">
+      <b class="gold" style="font-size:.9rem">PYRAMID TRACKER</b>
+      <div id="tracker"></div>
+    </div>
+  </div>
+
+  <!-- OVER -->
+  <div id="overview" class="waiting hidden">
+    <h1 class="gold">&#9650; Game Over</h1>
+    <div id="finals" style="margin:18px 0; font-size:1.2rem"></div>
+    <p style="color:var(--sand)">The host can start a new game.</p>
+  </div>
+</div>
+
+<script src="/board.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+let myColor = null, myName = null, state = null, names = {};
+let sel = null, dir = 'H';
+
+const codein = document.getElementById('codein');
+if (params.get('room')) {
+  codein.value = params.get('room').toUpperCase();
+  document.getElementById('roomlabel').textContent = 'Room ' + codein.value;
+  codein.classList.add('hidden');
+}
+
+let ws = null, joinedCode = null;
+function ensureWS(cb) {
+  if (ws && ws.readyState === 1) return cb();
+  ws = connectWS(onMsg, cb);
+  ws.onclose = scheduleRejoin;
+}
+
+function scheduleRejoin() {
+  if (!joinedCode || !myName) return;
+  setTimeout(() => {
+    if (ws && ws.readyState === 1) return;
+    ws = connectWS(onMsg, () => sendWS(ws, { type: 'join', code: joinedCode, name: myName }));
+    ws.onclose = scheduleRejoin;
+  }, 1500);
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && joinedCode && (!ws || ws.readyState !== 1)) scheduleRejoin();
+});
+
+document.getElementById('joinBtn').addEventListener('click', () => {
+  const code = codein.value.trim().toUpperCase();
+  const name = document.getElementById('namein').value.trim() || 'Player';
+  if (code.length !== 4) return toast('Enter the 4-letter room code.');
+  myName = name;
+  joinedCode = code;
+  ensureWS(() => sendWS(ws, { type: 'join', code, name }));
+});
+
+function onMsg(msg) {
+  if (msg.type === 'joined') {
+    myColor = msg.color;
+    document.getElementById('roomcode').textContent = msg.code;
+    document.getElementById('mycolor').innerHTML = `You are <span class="chip ${myColor}"></span><b>${COLOR_NAMES[myColor]}</b>`;
+    show('waitview'); hide('joinview');
+  } else if (msg.type === 'room') {
+    names = {};
+    for (const p of msg.players) names[p.color] = p.name;
+    if (msg.phase === 'lobby' && myColor && !state) { show('waitview'); hide('gameview'); hide('overview'); }
+    if (msg.phase === 'lobby') state = null;
+  } else if (msg.type === 'state') {
+    state = msg.state;
+    hide('waitview'); hide('joinview');
+    if (state.phase === 'over') { renderOver(); } else { show('gameview'); hide('overview'); renderGame(); }
+  } else if (msg.type === 'reject') {
+    toast(msg.error);
+  } else if (msg.type === 'played') {
+    if (msg.color === myColor) {
+      document.getElementById('wordin').value = '';
+      sel = null;
+      toast(`You spelled ${msg.word.toUpperCase()} for ${msg.points} points!`, true);
+    } else toast(`${names[msg.color] || msg.color} spelled ${msg.word.toUpperCase()} (+${msg.points})`, true);
+  } else if (msg.type === 'error') {
+    toast(msg.error);
+  }
+}
+
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
+
+function myTurn() { return state && state.phase === 'playing' && state.current === myColor; }
+
+function hintCells() {
+  if (!sel) return [];
+  const word = document.getElementById('wordin').value.trim();
+  const len = Math.max(word.length, 2);
+  const out = [];
+  for (let i = 0; i < len; i++) {
+    const r = dir === 'V' ? sel.r + i : sel.r;
+    const c = dir === 'H' ? sel.c + i : sel.c;
+    if (r < state.size && c < state.size) out.push([r, c]);
+  }
+  return out;
+}
+
+function renderGame() {
+  document.getElementById('me').innerHTML = `<span class="chip ${myColor}"></span>${myName} (${COLOR_NAMES[myColor]})`;
+  const tb = document.getElementById('turnbanner');
+  if (myTurn()) { tb.textContent = '▲ Your turn! Spell a word.'; tb.classList.add('mine'); }
+  else { tb.textContent = `Waiting for ${names[state.current] || COLOR_NAMES[state.current]}…`; tb.classList.remove('mine'); }
+  renderBoard(document.getElementById('board'), state, {
+    selected: sel,
+    hintCells: myTurn() ? hintCells() : [],
+    onCell: (r, c) => { if (myTurn()) { sel = { r, c }; renderGame(); } },
+  });
+  document.getElementById('controls').style.opacity = myTurn() ? 1 : 0.45;
+  document.getElementById('selhint').textContent = sel
+    ? `Start: row ${sel.r + 1}, col ${sel.c + 1} — ${dir === 'H' ? 'Across' : 'Down'}`
+    : 'Tap the square where your word starts.';
+  document.getElementById('scoresmini').innerHTML = state.players.map(c =>
+    `<span><span class="chip ${c}"></span>${names[c] || COLOR_NAMES[c]}: <b>${state.scores[c]}</b></span>`).join('');
+  renderTracker(document.getElementById('tracker'), state, names);
+}
+
+function renderOver() {
+  show('overview'); hide('gameview');
+  const f = state.finalScores;
+  document.getElementById('finals').innerHTML =
+    `<p style="margin-bottom:10px">&#127942; <b>${names[state.winner] || COLOR_NAMES[state.winner]}</b> wins!</p>` +
+    state.players.map(c => `<div><span class="chip ${c}"></span>${names[c] || COLOR_NAMES[c]}: <b>${f[c]}</b></div>`).join('');
+}
+
+document.getElementById('dirH').addEventListener('click', () => { dir = 'H'; setDir(); });
+document.getElementById('dirV').addEventListener('click', () => { dir = 'V'; setDir(); });
+function setDir() {
+  document.getElementById('dirH').classList.toggle('active', dir === 'H');
+  document.getElementById('dirV').classList.toggle('active', dir === 'V');
+  if (state) renderGame();
+}
+document.getElementById('wordin').addEventListener('input', () => { if (state && myTurn()) renderGame(); });
+
+document.getElementById('playBtn').addEventListener('click', () => {
+  if (!myTurn()) return toast('Not your turn yet.');
+  if (!sel) return toast('Tap the square where your word starts.');
+  const word = document.getElementById('wordin').value.trim();
+  if (word.length < 3) return toast('Words must be at least 3 letters.');
+  sendWS(ws, { type: 'play', r: sel.r, c: sel.c, dir, word });
+});
+document.getElementById('passBtn').addEventListener('click', () => {
+  if (!myTurn()) return toast('Not your turn yet.');
+  if (confirm('Pass your turn?')) sendWS(ws, { type: 'pass' });
+});
+document.getElementById('wordin').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('playBtn').click(); });
+</script>
+</body>
+</html>
