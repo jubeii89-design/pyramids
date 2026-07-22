@@ -170,6 +170,27 @@ test('serialize exposes only public info and correct tops', () => {
   assert.ok(!JSON.stringify(s).includes('"stack"'));
 });
 
+test('scores stay hidden until the game is over', () => {
+  const st = g.createGame(['red', 'blue'], seeded(21));
+  let s = g.serialize(st);
+  assert.strictEqual(s.scores, null, 'no running scores exposed during play');
+  // word log entries carry no point values while playing
+  const botWords = [...DICT].filter((w) => w.length >= 3 && w.length <= 5);
+  const cur = st.players[st.turn];
+  const mv = g.findMove(st, cur, botWords, seeded(22));
+  assert.ok(mv && g.playWord(st, cur, mv, DICT).ok);
+  s = g.serialize(st);
+  assert.strictEqual(s.scores, null);
+  for (const e of s.log) if (!e.pass) assert.strictEqual(e.points, undefined, 'log hides points mid-game');
+  // end the game via passes; finals should now be revealed
+  for (let i = 0; i < 4 && st.phase === 'playing'; i++) g.passTurn(st, st.players[st.turn]);
+  s = g.serialize(st);
+  if (st.phase === 'over') {
+    assert.ok(s.scores && typeof s.scores[cur] === 'number', 'scores revealed at game over');
+    assert.ok(s.finalScores);
+  }
+});
+
 test('pyramid tracker: remaining counts start full and drop as words capture', () => {
   const st = g.createGame(['red', 'blue'], seeded(14));
   let s = g.serialize(st);

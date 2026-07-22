@@ -41,10 +41,11 @@
     <p id="mycolor" style="font-size:1.3rem; margin:14px 0"></p>
     <p style="color:var(--sand)">Waiting for the host to start the game&hellip;</p>
     <div class="rules-mini panel" style="margin-top:20px; text-align:left">
-      <b class="gold">How to play:</b> On your turn, tap the square where your word starts,
-      pick Across or Down, type the word, and play it. The game moves exposed pyramids
-      for you. Every word needs one of <b>your</b> pyramids and one <b>black</b> letter.
-      Captured pyramids score their tip numbers!
+      <b class="gold">How to play:</b> On your turn, <b>tap</b> the square where your word
+      starts, then <b>swipe</b> across or down to aim it — the squares light up and show
+      your letters filling in. Type the word and hit Play. Every word needs one of
+      <b>your</b> pyramids and one <b>black</b> letter; the game grabs and moves the
+      exposed pyramids for you. Focus on spelling — points are tallied at the end!
     </div>
   </div>
 
@@ -88,7 +89,7 @@
 <script src="/board.js"></script>
 <script>
 const params = new URLSearchParams(location.search);
-let myColor = null, myName = null, state = null, names = {};
+let myColor = null, myName = null, state = null, names = {}, turnDeadline = null;
 let sel = null, dir = 'H';
 
 const codein = document.getElementById('codein');
@@ -139,6 +140,7 @@ function onMsg(msg) {
     if (msg.phase === 'lobby') state = null;
   } else if (msg.type === 'state') {
     state = msg.state;
+    turnDeadline = msg.turnDeadline || null;
     hide('waitview'); hide('joinview');
     if (state.phase === 'over') { renderOver(); } else { show('gameview'); hide('overview'); renderGame(); }
   } else if (msg.type === 'reject') {
@@ -147,8 +149,10 @@ function onMsg(msg) {
     if (msg.color === myColor) {
       document.getElementById('wordin').value = '';
       sel = null;
-      toast(`You spelled ${msg.word.toUpperCase()} for ${msg.points} points!`, true);
-    } else toast(`${names[msg.color] || msg.color} spelled ${msg.word.toUpperCase()} (+${msg.points})`, true);
+      toast(`You spelled ${msg.word.toUpperCase()}!`, true);
+    } else toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}`, true);
+  } else if (msg.type === 'skipped') {
+    if (msg.color === myColor) { sel = null; document.getElementById('wordin').value = ''; toast('Time up — your turn was skipped.'); }
   } else if (msg.type === 'error') {
     toast(msg.error);
   }
@@ -159,7 +163,9 @@ function hide(id) { document.getElementById(id).classList.add('hidden'); }
 
 function myTurn() { return state && state.phase === 'playing' && state.current === myColor; }
 
-function hintCells() {
+// Cells covered by the word being spelled, from the start square in the
+// chosen direction (used for the glowing preview).
+function spellPath() {
   if (!sel) return [];
   const word = document.getElementById('wordin').value.trim();
   const len = Math.max(word.length, 2);
@@ -175,28 +181,47 @@ function hintCells() {
 function renderGame() {
   document.getElementById('me').innerHTML = `<span class="chip ${myColor}"></span>${myName} (${COLOR_NAMES[myColor]})`;
   const tb = document.getElementById('turnbanner');
-  if (myTurn()) { tb.textContent = '▲ Your turn! Spell a word.'; tb.classList.add('mine'); }
-  else { tb.textContent = `Waiting for ${names[state.current] || COLOR_NAMES[state.current]}…`; tb.classList.remove('mine'); }
+  if (myTurn()) { tb.classList.add('mine'); }
+  else { tb.innerHTML = `Waiting for ${names[state.current] || COLOR_NAMES[state.current]}&hellip;`; tb.classList.remove('mine'); }
+  const word = document.getElementById('wordin').value.trim();
   renderBoard(document.getElementById('board'), state, {
     selected: sel,
-    hintCells: myTurn() ? hintCells() : [],
+    spelling: myTurn() && sel ? { path: spellPath(), word } : null,
     onCell: (r, c) => { if (myTurn()) { sel = { r, c }; renderGame(); } },
   });
   document.getElementById('controls').style.opacity = myTurn() ? 1 : 0.45;
-  document.getElementById('selhint').textContent = sel
-    ? `Start: row ${sel.r + 1}, col ${sel.c + 1} — ${dir === 'H' ? 'Across' : 'Down'}`
-    : 'Tap the square where your word starts.';
-  document.getElementById('scoresmini').innerHTML = state.players.map(c =>
-    `<span><span class="chip ${c}"></span>${names[c] || COLOR_NAMES[c]}: <b>${state.scores[c]}</b></span>`).join('');
+  document.getElementById('selhint').innerHTML = !myTurn()
+    ? 'Waiting for your turn&hellip;'
+    : sel
+      ? `Start: row ${sel.r + 1}, col ${sel.c + 1} — <b>${dir === 'H' ? 'Across →' : 'Down ↓'}</b>. Swipe on the board to change direction.`
+      : 'Tap the square where your word starts, then swipe the direction.';
+  // Scores stay hidden until the end — this row just shows who is connected.
+  document.getElementById('scoresmini').innerHTML = state.players.map(c => {
+    const p = names[c] || COLOR_NAMES[c];
+    const turn = state.current === c ? ' ▲' : '';
+    return `<span><span class="chip ${c}"></span>${p}${turn}</span>`;
+  }).join('');
   renderTracker(document.getElementById('tracker'), state, names);
+  updateClock();
 }
+
+function updateClock() {
+  const tb = document.getElementById('turnbanner');
+  if (!myTurn()) return;
+  if (!turnDeadline) { tb.textContent = '▲ Your turn! Spell a word.'; return; }
+  const left = Math.max(0, Math.ceil((turnDeadline - Date.now()) / 1000));
+  tb.textContent = `▲ Your turn! ${left}s to spell`;
+  tb.style.background = left <= 10 ? '#5a2c2c' : '';
+}
+setInterval(() => { if (state && state.phase === 'playing') updateClock(); }, 1000);
 
 function renderOver() {
   show('overview'); hide('gameview');
   const f = state.finalScores;
+  const ranked = state.players.slice().sort((a, b) => f[b] - f[a]);
   document.getElementById('finals').innerHTML =
     `<p style="margin-bottom:10px">&#127942; <b>${names[state.winner] || COLOR_NAMES[state.winner]}</b> wins!</p>` +
-    state.players.map(c => `<div><span class="chip ${c}"></span>${names[c] || COLOR_NAMES[c]}: <b>${f[c]}</b></div>`).join('');
+    ranked.map(c => `<div><span class="chip ${c}"></span>${names[c] || COLOR_NAMES[c]}: <b>${f[c]}</b></div>`).join('');
 }
 
 document.getElementById('dirH').addEventListener('click', () => { dir = 'H'; setDir(); });
@@ -207,6 +232,23 @@ function setDir() {
   if (state) renderGame();
 }
 document.getElementById('wordin').addEventListener('input', () => { if (state && myTurn()) renderGame(); });
+
+// Finger-swipe on the board sets the spelling direction (and start square).
+(function () {
+  const board = document.getElementById('board');
+  let sx = 0, sy = 0;
+  board.addEventListener('touchstart', (e) => {
+    const t = e.changedTouches[0]; sx = t.clientX; sy = t.clientY;
+  }, { passive: true });
+  board.addEventListener('touchend', (e) => {
+    if (!myTurn()) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - sx, dy = t.clientY - sy;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) return; // a tap, not a swipe
+    dir = Math.abs(dx) >= Math.abs(dy) ? 'H' : 'V';
+    setDir();
+  }, { passive: true });
+})();
 
 document.getElementById('playBtn').addEventListener('click', () => {
   if (!myTurn()) return toast('Not your turn yet.');
