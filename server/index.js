@@ -45,7 +45,12 @@ function roomSnapshot(room) {
     type: 'room',
     code: room.code,
     phase: room.phase,
-    players: room.players.map((p) => ({ name: p.name, color: p.color, bot: !!p.bot, connected: p.bot || (p.ws && p.ws.readyState === 1) })),
+    players: room.players.map((p) => ({
+      name: p.name,
+      color: p.color,
+      bot: !!p.bot,
+      connected: !!(p.bot || (p.ws && p.ws.readyState === 1)),
+    })),
   };
 }
 
@@ -54,9 +59,47 @@ function broadcast(room, msg) {
   for (const p of room.players) if (p.ws) send(p.ws, msg);
 }
 
+const TURN_MS = 60 * 1000;        // a human gets 60s to act, then auto-skip
+const GRACE_MS = 2 * 60 * 1000;   // disconnected seat is held this long
+
 function broadcastAll(room) {
   broadcast(room, roomSnapshot(room));
-  if (room.state) broadcast(room, { type: 'state', state: game.serialize(room.state) });
+  if (room.state) {
+    broadcast(room, { type: 'state', state: game.serialize(room.state), turnDeadline: room.turnDeadline || null });
+    armTurn(room);
+  }
+}
+
+// Give the current human player a countdown; if they don't act in time (or
+// they're disconnected), skip to the next player so the game never stalls.
+// Bots are driven by scheduleBots, so they don't get a turn timer.
+function armTurn(room) {
+  if (!room.state || room.state.phase !== 'playing') { clearTurn(room); return; }
+  const cur = room.state.players[room.state.turn];
+  const player = room.players.find((p) => p.color === cur);
+  if (!player || player.bot) { clearTurn(room); return; }
+  if (room.armedFor === cur && room.turnTimer) return; // already counting for this turn
+  clearTurn(room);
+  room.armedFor = cur;
+  room.turnDeadline = Date.now() + TURN_MS;
+  room.turnTimer = setTimeout(() => {
+    room.turnTimer = null;
+    room.turnDeadline = null;
+    room.armedFor = null;
+    if (!room.state || room.state.phase !== 'playing') return;
+    if (room.state.players[room.state.turn] !== cur) return;
+    game.passTurn(room.state, cur);
+    broadcast(room, { type: 'skipped', color: cur });
+    broadcastAll(room);
+    scheduleBots(room);
+  }, TURN_MS);
+}
+
+function clearTurn(room) {
+  if (room.turnTimer) clearTimeout(room.turnTimer);
+  room.turnTimer = null;
+  room.turnDeadline = null;
+  room.armedFor = null;
 }
 
 function scheduleBots(room) {
@@ -72,7 +115,7 @@ function scheduleBots(room) {
     let result;
     if (move) {
       result = game.playWord(room.state, current, move, DICT);
-      if (result.ok) broadcast(room, { type: 'played', color: current, word: move.word, points: result.points, bot: true });
+      if (result.ok) broadcast(room, { type: 'played', color: current, word: move.word, bot: true });
     }
     if (!move || !result.ok) game.passTurn(room.state, current);
     broadcastAll(room);
@@ -126,6 +169,7 @@ wss.on('connection', (ws) => {
             );
             if (!seat) return send(ws, { type: 'error', error: 'That game already started.' });
             seat.ws = ws;
+            seat.disconnectedAt = null;
             ws.roomCode = code;
             ws.role = 'player';
             ws.color = seat.color;
@@ -167,7 +211,8 @@ wss.on('connection', (ws) => {
           if (!room || ws.role !== 'player' || !room.state) return;
           const result = game.playWord(room.state, ws.color, { r: msg.r, c: msg.c, dir: msg.dir, word: msg.word }, DICT);
           if (!result.ok) return send(ws, { type: 'reject', error: result.error });
-          broadcast(room, { type: 'played', color: ws.color, word: result.word, points: result.points });
+          // Focus is on spelling, not points — announce the word, not the score
+          broadcast(room, { type: 'played', color: ws.color, word: result.word });
           broadcastAll(room);
           scheduleBots(room);
           break;
@@ -200,12 +245,20 @@ wss.on('connection', (ws) => {
     if (ws.role === 'host') {
       broadcast(room, { type: 'error', error: 'Host disconnected. Room closed.' });
       if (room.botTimer) clearTimeout(room.botTimer);
+      clearTurn(room);
       rooms.delete(room.code);
     } else {
       const p = room.players.find((x) => x.ws === ws);
       if (p) {
-        if (room.phase === 'lobby') room.players = room.players.filter((x) => x !== p);
-        else p.ws = null; // seat stays during a game; they can't rejoin mid-game (kept simple)
+        if (room.phase === 'lobby') {
+          room.players = room.players.filter((x) => x !== p);
+        } else {
+          // Hold the seat: they can rejoin by name (same color, same collected
+          // pyramids, same log) within the grace window. The turn timer keeps
+          // the game moving if it's their turn while they're gone.
+          p.ws = null;
+          p.disconnectedAt = Date.now();
+        }
       }
       broadcastAll(room);
     }
