@@ -7,8 +7,12 @@
 //
 // Usage: node test/e2e.js [numGames]
 
+// Usage against a live deployment (no local server spawned):
+//   REMOTE_URL=https://crossword-pyramids.onrender.com node test/e2e.js 5
+
 const { spawn } = require('child_process');
 const http = require('http');
+const https = require('https');
 const WebSocket = require('ws');
 const jsQR = require('jsqr');
 const { PNG } = require('pngjs');
@@ -16,8 +20,10 @@ const fs = require('fs');
 const path = require('path');
 const game = require('../server/game');
 
+const REMOTE_URL = process.env.REMOTE_URL ? process.env.REMOTE_URL.replace(/\/$/, '') : null;
 const PORT = 3123;
-const BASE = `http://localhost:${PORT}`;
+const BASE = REMOTE_URL || `http://localhost:${PORT}`;
+const WS_BASE = BASE.replace(/^http/, 'ws');
 const NUM_GAMES = parseInt(process.argv[2] || '5', 10);
 
 const words = fs.readFileSync(path.join(__dirname, '..', 'data', 'words.txt'), 'utf8').split('\n').filter(Boolean);
@@ -33,8 +39,9 @@ function check(cond, label) {
 }
 
 function httpGet(url) {
+  const lib = url.startsWith('https') ? https : http;
   return new Promise((resolve, reject) => {
-    http.get(url, (res) => {
+    lib.get(url, (res) => {
       let body = '';
       res.on('data', (d) => (body += d));
       res.on('end', () => resolve({ status: res.statusCode, body }));
@@ -43,7 +50,7 @@ function httpGet(url) {
 }
 
 function wsClient() {
-  const ws = new WebSocket(`ws://localhost:${PORT}/ws`);
+  const ws = new WebSocket(`${WS_BASE}/ws`);
   const queue = [];
   const waiters = [];
   const stats = { bytes: 0, messages: 0, maxMsg: 0 };
@@ -212,20 +219,36 @@ function publicToEngine(st) {
 }
 
 async function main() {
-  console.log('Starting server…');
-  const proc = spawn('node', ['server/index.js'], {
-    cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(PORT) },
-    stdio: ['ignore', 'pipe', 'inherit'],
-  });
-  await new Promise((resolve, reject) => {
-    proc.stdout.on('data', (d) => { process.stdout.write('  [server] ' + d); if (String(d).includes('listening')) resolve(); });
-    proc.on('exit', (c) => reject(new Error('server exited early: ' + c)));
-    setTimeout(() => reject(new Error('server start timeout')), 15000);
-  });
+  let proc = null;
+  if (REMOTE_URL) {
+    console.log(`Testing LIVE deployment: ${BASE}`);
+    console.log('(free-tier hosts may need ~30-60s to wake from sleep on the first request)');
+  } else {
+    console.log('Starting local server…');
+    proc = spawn('node', ['server/index.js'], {
+      cwd: path.join(__dirname, '..'),
+      env: { ...process.env, PORT: String(PORT) },
+      stdio: ['ignore', 'pipe', 'inherit'],
+    });
+    await new Promise((resolve, reject) => {
+      proc.stdout.on('data', (d) => { process.stdout.write('  [server] ' + d); if (String(d).includes('listening')) resolve(); });
+      proc.on('exit', (c) => reject(new Error('server exited early: ' + c)));
+      setTimeout(() => reject(new Error('server start timeout')), 15000);
+    });
+  }
 
-  const health = await httpGet(`${BASE}/health`);
-  check(health.status === 200 && JSON.parse(health.body).ok, 'health endpoint');
+  // Free-tier hosts can be asleep; retry the wake-up request for up to ~90s
+  let health;
+  const wakeDeadline = Date.now() + 90000;
+  for (;;) {
+    try {
+      health = await httpGet(`${BASE}/health`);
+      if (health.status === 200) break;
+    } catch { /* connection refused while waking up */ }
+    if (Date.now() > wakeDeadline) { health = health || { status: 0, body: '' }; break; }
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  check(health.status === 200 && JSON.parse(health.body || '{}').ok, 'health endpoint');
   for (const page of ['/', '/host.html', '/play.html', '/style.css', '/board.js']) {
     const res = await httpGet(BASE + page);
     check(res.status === 200 && res.body.length > 100, `page serves: ${page}`);
@@ -237,7 +260,7 @@ async function main() {
       await playGame(i + 1, sizes[i % sizes.length]);
     }
   } finally {
-    proc.kill();
+    if (proc) proc.kill();
   }
 
   console.log('\n================ SUMMARY ================');
