@@ -30,6 +30,14 @@
   .joinbox { max-width: 420px; margin: 0 auto; display: none; }
   .joinbox.open { display: block; }
   .joinbox .row { display: flex; gap: 10px; margin-top: 12px; }
+  #bgboard {
+    position: fixed; inset: 0; z-index: 0;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none; opacity: .16; filter: blur(1px) saturate(1.1);
+    overflow: hidden;
+  }
+  #bgboard .board3d { width: min(140vh, 150vw); transform: rotateX(20deg) scale(1.15); }
+  .hero, .features, footer { position: relative; z-index: 1; }
   footer { text-align: center; color: #9a8ab0; padding: 26px 20px 40px; }
   footer .motto { font-style: italic; margin-bottom: 18px; }
   .badge { display: inline-flex; align-items: center; gap: 12px; opacity: .95; }
@@ -39,6 +47,7 @@
 </style>
 </head>
 <body>
+  <div id="bgboard" aria-hidden="true"><div class="board3d"><div class="board" id="bgb"></div></div></div>
   <div class="hero">
     <div class="pyr-scene" aria-hidden="true">
       <div class="slot" style="width:74px;height:74px"><div class="pyr"><i class="f fn"></i><i class="f fe"></i><i class="f fs"></i><i class="f fw"></i><b class="peak">1</b><span class="pl ink-red" style="font-size:26px">S</span></div></div>
@@ -83,12 +92,33 @@
       <div class="co"><b>STRATEGIC TITANS</b><small>Canadian Board Game Company</small></div>
     </div>
   </footer>
+<script src="/board.js"></script>
 <script>
   function joinGo() {
     const code = document.getElementById('code').value.trim().toUpperCase();
     if (code.length === 4) location.href = '/play.html?room=' + code;
   }
   document.getElementById('code').addEventListener('keydown', e => { if (e.key === 'Enter') joinGo(); });
+
+  // Decorative game board behind the hero — a plausible mid-game snapshot
+  (function () {
+    const VALS = { a:1,e:1,i:1,o:1,u:1,n:1,r:1,s:1,t:1,l:2,d:2,b:3,c:3,m:3,h:3,f:4,g:4,p:5,y:5,k:6,v:7,w:7,j:7,x:8,q:9,z:9 };
+    const L = 'aeiourstnlbcmhdgfpykvwjxqz'.split('');
+    const owners = ['red','blue','green','yellow','house','house','house'];
+    const rnd = (a) => a[Math.floor(Math.random() * a.length)];
+    const cells = [];
+    for (let r = 0; r < 10; r++) {
+      const row = [];
+      for (let c = 0; c < 10; c++) {
+        const runway = r === 0 || r === 9 || c === 0 || c === 9;
+        if (runway || Math.random() < 0.12) { row.push({ p: null, n: 0, t: null }); continue; }
+        const l = rnd(L);
+        row.push({ p: null, n: 1 + Math.floor(Math.random() * 5), t: { l, v: VALS[l], o: rnd(owners) } });
+      }
+      cells.push(row);
+    }
+    renderBoard(document.getElementById('bgb'), { size: 10, cells });
+  })();
 </script>
 </body>
 </html>

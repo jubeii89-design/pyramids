@@ -161,7 +161,7 @@ async function playGame(gameNo, numPlayers) {
     if (msg.type === 'played') { wordsPlayed++; continue; }
     if (msg.type !== 'state') continue;
     const st = msg.state;
-    for (const c of st.players) seenScores[c] = st.scores[c];
+    if (st.scores) for (const c of st.players) seenScores[c] = st.scores[c];
 
     if (st.phase === 'over') { finalState = st; break outer; }
     turns++;

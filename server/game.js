@@ -334,6 +334,15 @@ function serialize(state) {
     captured[c] = { total: state.collected[c].length, byOwner: { red: 0, blue: 0, green: 0, yellow: 0, house: 0 } };
     for (const p of state.collected[c]) captured[c].byOwner[p.o]++;
   }
+  // Focus is on spelling, not counting: point scores stay hidden until the
+  // game is over. During play we expose only the word log (no point values)
+  // and the pyramid-remaining tracker.
+  const over = state.phase === 'over';
+  const publicLog = state.log.slice(-12).map((e) =>
+    e.pass
+      ? { color: e.color, pass: true }
+      : { color: e.color, word: e.word, pyramids: e.pyramids, points: over ? e.points : undefined }
+  );
   return {
     remaining,
     captured,
@@ -342,10 +351,10 @@ function serialize(state) {
     players: state.players,
     turn: state.turn,
     current: state.players[state.turn],
-    scores: state.scores,
+    scores: over ? state.scores : null,
     finalScores: state.finalScores,
     winner: state.winner,
-    log: state.log.slice(-12),
+    log: publicLog,
     cells: state.cells.map((row) =>
       row.map((cell) => ({
         p: cell.printed,

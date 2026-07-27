@@ -47,6 +47,31 @@ function renderBoard(el, state, opts = {}) {
       el.appendChild(div);
     }
   }
+
+  // Spelling preview: glow the path and show the letters being spelled filling
+  // into each square. The start square gets a stronger ring; squares whose
+  // letter must be stolen/moved in show a "ghost" incoming letter.
+  if (opts.spelling && opts.spelling.path) {
+    const { path, word } = opts.spelling;
+    path.forEach(([r, c], i) => {
+      const div = el.children[r * size + c];
+      if (!div) return;
+      div.classList.add('glow');
+      if (i === 0) div.classList.add('glow-start');
+      const ch = (word[i] || '').toUpperCase();
+      if (!ch) return;
+      const cell = state.cells[r][c];
+      const here = cell.t ? cell.t.l.toUpperCase() : (cell.p ? cell.p.toUpperCase() : null);
+      if (here === ch) {
+        div.classList.add('glow-match'); // already the right letter in place
+      } else {
+        const ghost = document.createElement('span');
+        ghost.className = 'ghost-letter';
+        ghost.textContent = ch;
+        div.appendChild(ghost);
+      }
+    });
+  }
 }
 
 // Pyramid tracker: how many of each color remain on the board (+ house),

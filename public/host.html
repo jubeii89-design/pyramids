@@ -84,7 +84,7 @@
 
 <script src="/board.js"></script>
 <script>
-let room = null, state = null, names = {};
+let room = null, state = null, names = {}, turnDeadline = null;
 
 const ws = connectWS(onMsg, (ws) => {
   sendWS(ws, { type: 'host_create', origin: location.origin });
@@ -103,10 +103,13 @@ function onMsg(msg) {
     if (msg.phase === 'lobby') { show('lobby'); hide('gamearea'); hide('over'); state = null; }
   } else if (msg.type === 'state') {
     state = msg.state;
+    turnDeadline = msg.turnDeadline || null;
     hide('lobby'); show('gamearea');
     renderGame();
   } else if (msg.type === 'played') {
-    toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()} for ${msg.points} pts!`, true);
+    toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}!`, true);
+  } else if (msg.type === 'skipped') {
+    toast(`${names[msg.color] || COLOR_NAMES[msg.color]} ran out of time — skipped.`);
   } else if (msg.type === 'error') {
     toast(msg.error);
   }
@@ -126,24 +129,45 @@ function renderLobby() {
 
 function pname(c) { return names[c] || COLOR_NAMES[c] || c; }
 
+function connOf(c) {
+  const p = room && room.players.find((x) => x.color === c);
+  return p ? p.connected : true;
+}
+
 function renderGame() {
   renderBoard(document.getElementById('board'), state);
   renderTracker(document.getElementById('tracker'), state, names);
-  document.getElementById('scores').innerHTML = state.players.map(c =>
-    `<div class="score ${state.phase === 'playing' && state.current === c ? 'current' : ''}">
-      <span><span class="chip ${c}"></span>${pname(c)}</span><b>${state.scores[c]}</b></div>`).join('');
+  // Scores stay hidden until the end — spelling is the focus. During play this
+  // panel shows turn order, whose turn it is, and who is reconnecting.
+  document.getElementById('scores').innerHTML = state.players.map(c => {
+    const isTurn = state.phase === 'playing' && state.current === c;
+    const off = !connOf(c) ? ' <small style="color:#e0a">(reconnecting…)</small>' : '';
+    return `<div class="score ${isTurn ? 'current' : ''}">
+      <span><span class="chip ${c}"></span>${pname(c)}${off}</span>
+      <b>${isTurn ? '<span id="turnclock">▲</span>' : ''}</b></div>`;
+  }).join('');
   document.getElementById('log').innerHTML = state.log.slice().reverse().map(e =>
     e.pass
       ? `<div><span class="chip ${e.color}"></span>${pname(e.color)} passed</div>`
-      : `<div><span class="chip ${e.color}"></span><b>${e.word.toUpperCase()}</b> — ${e.points} pts</div>`).join('');
+      : `<div><span class="chip ${e.color}"></span><b>${e.word.toUpperCase()}</b></div>`).join('');
   if (state.phase === 'over') {
     show('over');
     const f = state.finalScores;
+    const ranked = state.players.slice().sort((a, b) => f[b] - f[a]);
     document.getElementById('finals').innerHTML =
       `<p style="margin-bottom:12px">&#127942; <b>${pname(state.winner)}</b> wins!</p>` +
-      state.players.map(c => `<div class="score"><span><span class="chip ${c}"></span>${pname(c)}</span><b>${f[c]}</b></div>`).join('');
+      ranked.map(c => `<div class="score"><span><span class="chip ${c}"></span>${pname(c)}</span><b>${f[c]}</b></div>`).join('');
   }
 }
+
+// Turn countdown ticker — updates the ▲ next to the active player each second
+setInterval(() => {
+  const el = document.getElementById('turnclock');
+  if (!el || !turnDeadline) return;
+  const left = Math.max(0, Math.ceil((turnDeadline - Date.now()) / 1000));
+  el.textContent = left <= 20 ? `${left}s` : '▲';
+  el.style.color = left <= 10 ? '#e0413c' : '';
+}, 1000);
 
 document.getElementById('startBtn').addEventListener('click', () => sendWS(ws, { type: 'start' }));
 document.getElementById('botBtn').addEventListener('click', () => sendWS(ws, { type: 'add_bot' }));
