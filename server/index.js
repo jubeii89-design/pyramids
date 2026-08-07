@@ -65,8 +65,10 @@ const GRACE_MS = 2 * 60 * 1000;   // disconnected seat is held this long
 function broadcastAll(room) {
   broadcast(room, roomSnapshot(room));
   if (room.state) {
-    broadcast(room, { type: 'state', state: game.serialize(room.state), turnDeadline: room.turnDeadline || null });
+    // Arm first so the state we send carries the current turn's deadline —
+    // otherwise clients receive the previous turn's (or a null) deadline.
     armTurn(room);
+    broadcast(room, { type: 'state', state: game.serialize(room.state), turnDeadline: room.turnDeadline || null });
   }
 }
 
