@@ -24,9 +24,28 @@
   .pyr-scene .slot:nth-child(5) { animation-delay: 1.2s; }
   @keyframes float { 0%,100% { transform: rotateX(24deg) translateY(0); } 50% { transform: rotateX(24deg) translateY(-8px); } }
   .cta { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; margin: 32px 0 10px; }
-  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; max-width: 980px; margin: 40px auto; padding: 0 20px; }
-  .features .panel h3 { color: var(--gold); margin-bottom: 8px; }
-  .features .panel p { line-height: 1.5; color: var(--sand); }
+  .btn.ghost { background: none; color: var(--sand); box-shadow: none; border: 2px solid var(--panel-edge); padding: 13px 26px; font-size: 1rem; }
+  .btn.ghost:hover { border-color: var(--gold); color: var(--gold); }
+  /* compact feature strip — four tight lines, no big cards */
+  .features {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 2px 22px; max-width: 900px; margin: 26px auto 30px; padding: 14px 20px;
+    background: rgba(36,27,51,.55); border: 1px solid var(--panel-edge); border-radius: 16px;
+  }
+  .features div { display: flex; gap: 9px; align-items: baseline; padding: 7px 0; font-size: .88rem; line-height: 1.4; color: var(--sand); }
+  .features b { color: var(--gold); font-family: Georgia, serif; white-space: nowrap; }
+  .features i { color: var(--gold); font-style: normal; }
+  /* rules dialog */
+  dialog#rules {
+    max-width: 640px; width: calc(100% - 32px); max-height: 82vh; margin: auto; overflow: auto; color: var(--ink);
+    background: var(--panel); border: 2px solid var(--panel-edge); border-radius: 18px; padding: 24px;
+  }
+  dialog#rules::backdrop { background: rgba(10,7,3,.8); }
+  dialog#rules h2 { color: var(--gold); margin-bottom: 4px; }
+  dialog#rules h3 { color: var(--sand); font-size: 1rem; margin: 18px 0 6px; }
+  dialog#rules ol, dialog#rules ul { margin: 0 0 0 20px; line-height: 1.55; font-size: .92rem; color: var(--sand); }
+  dialog#rules li { margin-bottom: 6px; }
+  dialog#rules .close { display: block; margin: 20px auto 0; }
   .joinbox { max-width: 420px; margin: 0 auto; display: none; }
   .joinbox.open { display: block; }
   .joinbox .row { display: flex; gap: 10px; margin-top: 12px; }
@@ -61,6 +80,7 @@
     <div class="cta">
       <button class="btn" onclick="location.href='/host.html'">&#9650; Host Game</button>
       <button class="btn secondary" onclick="document.getElementById('join').classList.toggle('open'); document.getElementById('code').focus()">Join Game</button>
+      <button class="btn ghost" onclick="document.getElementById('rules').showModal()">&#9650; How to Play</button>
     </div>
     <div class="joinbox panel" id="join">
       <h3 class="gold">Enter Room Code</h3>
@@ -72,11 +92,40 @@
   </div>
 
   <div class="features">
-    <div class="panel"><h3>&#9650; Party Play, Jackbox Style</h3><p>Host on the big screen. Everyone joins from their phone with a QR code or a 4-letter room code. 2&ndash;4 players &mdash; add AI opponents to fill seats.</p></div>
-    <div class="panel"><h3>&#9650; A Crossword in 3D</h3><p>120 white letter pyramids in Red, Blue, Green &amp; Gold, stacked five high across a 10&times;10 board. Every peak shows its point value, and the tracker shows every pyramid left in play.</p></div>
-    <div class="panel"><h3>&#9650; Steal to Win</h3><p>Your opponents' pyramids are fair game. Every word must use one of <em>your</em> letters and one black house letter &mdash; the rest is plunder.</p></div>
-    <div class="panel"><h3>&#9650; Score the Peaks</h3><p>Every pyramid you capture scores its peak value. Empty your color from the board to end the game &mdash; leftover pyramids count against you!</p></div>
+    <div><i>&#9650;</i><span><b>Party play.</b> Big screen + phones, 2&ndash;4 players. Bots fill empty seats.</span></div>
+    <div><i>&#9650;</i><span><b>3D crossword.</b> 120 letter pyramids stacked five high on a 10&times;10 board.</span></div>
+    <div><i>&#9650;</i><span><b>Steal freely.</b> Opponents' letters are fair game &mdash; spell with their pieces.</span></div>
+    <div><i>&#9650;</i><span><b>Score the peaks.</b> Capture pyramids for their tip value. Leftovers cost you.</span></div>
   </div>
+
+  <dialog id="rules">
+    <h2>How to Play</h2>
+    <p style="color:var(--sand);font-style:italic">Stack. Steal. Spell to win.</p>
+
+    <h3>The board</h3>
+    <ul>
+      <li>10&times;10 grid. The outer ring is the <b>Word Runway</b>.</li>
+      <li>The inner squares carry printed letters covered by black <b>house pyramids</b>.</li>
+      <li>Each color starts with 30 pyramids in six stacks of five. Only the top of a stack is in play.</li>
+    </ul>
+
+    <h3>Your turn</h3>
+    <ol>
+      <li>Tap the square where your word starts and pick <b>Across</b> or <b>Down</b>.</li>
+      <li>Type a word of 3+ letters. Matching exposed letters are used in place; other exposed pyramids &mdash; yours <em>or</em> your opponents' &mdash; slide in to finish it.</li>
+      <li>Every word must be a real word, use at least <b>one of your own pyramids</b> and <b>one black letter</b>, and move at least one pyramid.</li>
+      <li>Illegal words are simply rejected &mdash; no penalty, try again.</li>
+    </ol>
+
+    <h3>Scoring</h3>
+    <ul>
+      <li>Every pyramid used in your word is captured and scores the value on its <b>peak</b> (1&ndash;9). Printed board letters score nothing.</li>
+      <li>The game ends when a player's color is fully cleared from the board, or after two full rounds of passes.</li>
+      <li>Your pyramids still on the board <b>count against</b> your score. Highest score wins.</li>
+    </ul>
+
+    <button class="btn close" onclick="document.getElementById('rules').close()">Got it</button>
+  </dialog>
 
   <footer>
     <div class="motto">Please remember to have fun &mdash; but most importantly, always spell to win.</div>
