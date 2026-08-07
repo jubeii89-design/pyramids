@@ -24,9 +24,43 @@
   .pyr-scene .slot:nth-child(5) { animation-delay: 1.2s; }
   @keyframes float { 0%,100% { transform: rotateX(24deg) translateY(0); } 50% { transform: rotateX(24deg) translateY(-8px); } }
   .cta { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; margin: 32px 0 10px; }
-  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; max-width: 980px; margin: 40px auto; padding: 0 20px; }
-  .features .panel h3 { color: var(--gold); margin-bottom: 8px; }
-  .features .panel p { line-height: 1.5; color: var(--sand); }
+  .btn.ghost { background: none; color: var(--sand); box-shadow: none; border: 2px solid var(--panel-edge); padding: 13px 26px; font-size: 1rem; }
+  .btn.ghost:hover { border-color: var(--gold); color: var(--gold); }
+  /* marketing pitch */
+  .pitch { max-width: 780px; margin: 34px auto 6px; padding: 0 20px; text-align: center; }
+  .pitch h2 {
+    font-size: clamp(1.5rem, 4vw, 2.3rem); color: var(--gold);
+    text-shadow: 0 3px 0 #6b4e10, 0 6px 18px rgba(0,0,0,.5); margin-bottom: 14px;
+  }
+  .pitch p { font-size: clamp(1rem, 2.2vw, 1.2rem); line-height: 1.65; color: var(--sand); }
+  .pitch p + p { margin-top: 12px; }
+  .pitch .kicker { color: var(--ink); font-weight: bold; font-style: italic; }
+  /* three cards showing the game at different points */
+  .shots {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px; max-width: 1080px; margin: 34px auto 40px; padding: 0 20px;
+  }
+  .shot {
+    background: var(--panel); border: 2px solid var(--panel-edge); border-radius: 18px;
+    overflow: hidden; box-shadow: 0 12px 28px rgba(0,0,0,.4);
+    transition: transform .15s, border-color .15s;
+  }
+  .shot:hover { transform: translateY(-4px); border-color: var(--gold); }
+  .shot img { display: block; width: 100%; aspect-ratio: 1 / .92; object-fit: cover; background: #1a1426; }
+  .shot .cap { padding: 14px 16px 16px; }
+  .shot .cap b { display: block; color: var(--gold); font-family: Georgia, serif; font-size: 1.1rem; margin-bottom: 5px; }
+  .shot .cap span { color: var(--sand); font-size: .92rem; line-height: 1.5; }
+  /* rules dialog */
+  dialog#rules {
+    max-width: 640px; width: calc(100% - 32px); max-height: 82vh; margin: auto; overflow: auto; color: var(--ink);
+    background: var(--panel); border: 2px solid var(--panel-edge); border-radius: 18px; padding: 24px;
+  }
+  dialog#rules::backdrop { background: rgba(10,7,3,.8); }
+  dialog#rules h2 { color: var(--gold); margin-bottom: 4px; }
+  dialog#rules h3 { color: var(--sand); font-size: 1rem; margin: 18px 0 6px; }
+  dialog#rules ol, dialog#rules ul { margin: 0 0 0 20px; line-height: 1.55; font-size: .92rem; color: var(--sand); }
+  dialog#rules li { margin-bottom: 6px; }
+  dialog#rules .close { display: block; margin: 20px auto 0; }
   .joinbox { max-width: 420px; margin: 0 auto; display: none; }
   .joinbox.open { display: block; }
   .joinbox .row { display: flex; gap: 10px; margin-top: 12px; }
@@ -37,7 +71,7 @@
     overflow: hidden;
   }
   #bgboard .board3d { width: min(140vh, 150vw); transform: rotateX(20deg) scale(1.15); }
-  .hero, .features, footer { position: relative; z-index: 1; }
+  .hero, .pitch, .shots, footer { position: relative; z-index: 1; }
   footer { text-align: center; color: #9a8ab0; padding: 26px 20px 40px; }
   footer .motto { font-style: italic; margin-bottom: 18px; }
   .badge { display: inline-flex; align-items: center; gap: 12px; opacity: .95; }
@@ -61,6 +95,7 @@
     <div class="cta">
       <button class="btn" onclick="location.href='/host.html'">&#9650; Host Game</button>
       <button class="btn secondary" onclick="document.getElementById('join').classList.toggle('open'); document.getElementById('code').focus()">Join Game</button>
+      <button class="btn ghost" onclick="document.getElementById('rules').showModal()">&#9650; How to Play</button>
     </div>
     <div class="joinbox panel" id="join">
       <h3 class="gold">Enter Room Code</h3>
@@ -71,12 +106,59 @@
     </div>
   </div>
 
-  <div class="features">
-    <div class="panel"><h3>&#9650; Party Play, Jackbox Style</h3><p>Host on the big screen. Everyone joins from their phone with a QR code or a 4-letter room code. 2&ndash;4 players &mdash; add AI opponents to fill seats.</p></div>
-    <div class="panel"><h3>&#9650; A Crossword in 3D</h3><p>120 white letter pyramids in Red, Blue, Green &amp; Gold, stacked five high across a 10&times;10 board. Every peak shows its point value, and the tracker shows every pyramid left in play.</p></div>
-    <div class="panel"><h3>&#9650; Steal to Win</h3><p>Your opponents' pyramids are fair game. Every word must use one of <em>your</em> letters and one black house letter &mdash; the rest is plunder.</p></div>
-    <div class="panel"><h3>&#9650; Score the Peaks</h3><p>Every pyramid you capture scores its peak value. Empty your color from the board to end the game &mdash; leftover pyramids count against you!</p></div>
+  <div class="pitch">
+    <h2>The Word Game Where You Rob Your Friends</h2>
+    <p>Everyone gathers around one screen, phones in hand. Somebody spots a word.
+    They grab a letter off <em>your</em> stack to spell it &mdash; and the whole table groans.</p>
+    <p>Every pyramid you lift uncovers a new letter underneath, so the board keeps
+    shifting and the words keep coming. No math, no waiting, no scorekeeping to slow
+    you down &mdash; <span class="kicker">just spell fast and steal often.</span></p>
+    <p>Set up in seconds: one screen, a QR code, and 2&ndash;4 players.</p>
   </div>
+
+  <div class="shots">
+    <div class="shot">
+      <img src="/assets/stage-early.png" alt="The board at the start of a game, every stack five pyramids high" loading="lazy">
+      <div class="cap"><b>&#9650; The Opening</b><span>120 pyramids stacked five high. Four colors, one board, and a whole alphabet buried under them.</span></div>
+    </div>
+    <div class="shot">
+      <img src="/assets/stage-mid.png" alt="The board mid-game, with gaps opening where words were played" loading="lazy">
+      <div class="cap"><b>&#9650; The Scramble</b><span>Words carve holes in the board. Every capture uncovers fresh letters &mdash; and new chances to raid.</span></div>
+    </div>
+    <div class="shot">
+      <img src="/assets/stage-late.png" alt="The board late in a game, mostly cleared with a few pyramids left" loading="lazy">
+      <div class="cap"><b>&#9650; The Finish</b><span>Empty your color to end it. Now the peaks get counted &mdash; and everyone finds out who really won.</span></div>
+    </div>
+  </div>
+
+  <dialog id="rules">
+    <h2>How to Play</h2>
+    <p style="color:var(--sand);font-style:italic">Stack. Steal. Spell to win.</p>
+
+    <h3>The board</h3>
+    <ul>
+      <li>10&times;10 grid. The outer ring is the <b>Word Runway</b>.</li>
+      <li>The inner squares carry printed letters covered by black <b>house pyramids</b>.</li>
+      <li>Each color starts with 30 pyramids in six stacks of five. Only the top of a stack is in play.</li>
+    </ul>
+
+    <h3>Your turn</h3>
+    <ol>
+      <li>Tap the square where your word starts and pick <b>Across</b> or <b>Down</b>.</li>
+      <li>Type a word of 3+ letters. Matching exposed letters are used in place; other exposed pyramids &mdash; yours <em>or</em> your opponents' &mdash; slide in to finish it.</li>
+      <li>Every word must be a real word, use at least <b>one of your own pyramids</b> and <b>one black letter</b>, and move at least one pyramid.</li>
+      <li>Illegal words are simply rejected &mdash; no penalty, try again.</li>
+    </ol>
+
+    <h3>Scoring</h3>
+    <ul>
+      <li>Every pyramid used in your word is captured and scores the value on its <b>peak</b> (1&ndash;9). Printed board letters score nothing.</li>
+      <li>The game ends when a player's color is fully cleared from the board, or after two full rounds of passes.</li>
+      <li>Your pyramids still on the board <b>count against</b> your score. Highest score wins.</li>
+    </ul>
+
+    <button class="btn close" onclick="document.getElementById('rules').close()">Got it</button>
+  </dialog>
 
   <footer>
     <div class="motto">Please remember to have fun &mdash; but most importantly, always spell to win.</div>

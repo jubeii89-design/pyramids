@@ -121,6 +121,47 @@ async function main() {
     await p2.waitForSelector('#gameview:not(.hidden)', { timeout: 15000 });
     check(true, 'disconnected player rejoined mid-game and sees the board');
     await host2.close(); await p2.close();
+
+    // --- E: spelling glow preview + scores hidden until the end
+    console.log('E) Spelling glow + hidden scores');
+    const host3 = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await host3.goto(`${BASE}/host.html`);
+    await host3.waitForFunction(() => /^[A-Z]{4}$/.test(document.getElementById('code').textContent));
+    const code3 = await host3.locator('#code').textContent();
+    const ph = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await ph.goto(`${BASE}/play.html?room=${code3}`);
+    await ph.fill('#namein', 'Cleo');
+    await ph.click('#joinBtn');
+    await ph.waitForSelector('#waitview:not(.hidden)');
+    await host3.click('#botBtn');
+    await host3.waitForFunction(() => document.querySelectorAll('#players li').length === 2);
+    await host3.click('#startBtn');
+    await ph.waitForSelector('#gameview:not(.hidden)');
+
+    // No point values anywhere on either screen mid-game
+    const hostTxt = await host3.locator('#scores').textContent();
+    check(!/\d/.test(hostTxt), 'host shows no point numbers during play');
+    const phoneTxt = await ph.locator('#scoresmini').textContent();
+    check(!/:\s*\d/.test(phoneTxt), 'phone shows no point numbers during play');
+
+    // Wait for the phone's turn, then tap a start square and type a word
+    await ph.waitForFunction(
+      () => document.getElementById('turnbanner').classList.contains('mine'),
+      { timeout: 30000 }
+    );
+    await ph.evaluate(() => document.querySelectorAll('#board .cell')[43].click());
+    await ph.fill('#wordin', 'CAT');
+    await ph.waitForTimeout(300);
+    const glowCount = await ph.locator('#board .cell.glow').count();
+    check(glowCount === 3, `spelling path glows for each letter (${glowCount} of 3)`);
+    check((await ph.locator('#board .cell.glow-start').count()) === 1, 'start square is marked');
+    const previewed = await ph.locator('#board .ghost-letter').count();
+    const matched = await ph.locator('#board .cell.glow-match').count();
+    check(previewed + matched === 3, `all 3 letters previewed on the board (${previewed} ghost + ${matched} in place)`);
+    // Countdown timer is running on the player's turn
+    check(/\d+s to spell/.test(await ph.locator('#turnbanner').textContent()), 'turn countdown shown on phone');
+    await ph.screenshot({ path: path.join(SHOTS, 'phone-spelling.png') });
+    await host3.close(); await ph.close();
   } finally {
     await browser.close();
     proc.kill();

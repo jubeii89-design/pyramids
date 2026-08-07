@@ -13,7 +13,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "http://local_proxy@127.0.0.1:41729/git/jubeii89-design/pyramids"
+    "url": "git+https://github.com/jubeii89-design/pyramids.git"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "keywords": [],
   "author": "",
