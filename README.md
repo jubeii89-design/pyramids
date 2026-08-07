@@ -6,7 +6,13 @@ QR code or entering a 4-letter room code.
 
 ## Quick start
 
+Requires Node 18+. Run both commands **from inside the cloned repo folder** —
+npm reads `package.json` from the current directory, so running them anywhere
+else fails with `ENOENT: no such file or directory, open '...package.json'`.
+
 ```bash
+git clone https://github.com/jubeii89-design/pyramids.git
+cd pyramids        # ← npm start only works from here
 npm install
 npm start          # serves on http://localhost:3000
 ```
@@ -15,6 +21,18 @@ npm start          # serves on http://localhost:3000
 - The host screen generates a **room code + QR code**; phones that scan it land
   directly in the room
 - 2–4 players; the host can add **AI opponents** to fill seats
+
+### Playing with phones on your network
+
+The server listens on all interfaces, and the QR code is built from whatever
+address the host screen is open at. So open the host page at your machine's LAN
+address — `http://192.168.1.23:3000/host.html`, not `localhost` — and the QR
+code your phones scan will point back at that same address. A QR generated from
+a `localhost` host screen will not work on a phone. Find your LAN address with
+`ipconfig` on Windows or `ipconfig getifaddr en0` on macOS, and allow Node
+through the firewall if Windows prompts you.
+
+Change the port with `PORT=8080 npm start` (PowerShell: `$env:PORT=8080; npm start`).
 
 ## How it plays
 
