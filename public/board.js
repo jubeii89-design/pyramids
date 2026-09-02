@@ -11,6 +11,14 @@ function connectWS(onMessage, onOpen) {
 
 function sendWS(ws, msg) { ws.send(JSON.stringify(msg)); }
 
+// Free hosting plans spin a service down after ~15 minutes with no HTTP
+// requests, and an open WebSocket doesn't always count as traffic. A ping
+// every 10 minutes keeps the server up for as long as a game screen is open,
+// so a lobby waiting for players — or a slow round — never goes to sleep.
+function keepAwake() {
+  setInterval(() => { fetch('/health', { cache: 'no-store' }).catch(() => {}); }, 10 * 60 * 1000);
+}
+
 const COLOR_NAMES = { red: 'Red', blue: 'Blue', green: 'Green', yellow: 'Gold', house: 'House' };
 
 // Build one 3D pyramid piece: four shaded faces meeting at a peak plate that

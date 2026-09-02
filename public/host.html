@@ -89,6 +89,7 @@
 <script>
 let room = null, state = null, names = {}, turnDeadline = null;
 
+keepAwake();
 const ws = connectWS(onMsg, (ws) => {
   sendWS(ws, { type: 'host_create', origin: location.origin });
 });

@@ -103,6 +103,7 @@ if (params.get('room')) {
   codein.classList.add('hidden');
 }
 
+keepAwake();
 let ws = null, joinedCode = null;
 function ensureWS(cb) {
   if (ws && ws.readyState === 1) return cb();
