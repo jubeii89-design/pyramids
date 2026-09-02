@@ -62,6 +62,37 @@ Change the port with `PORT=8080 npm start` (PowerShell: `$env:PORT=8080; npm sta
 - "Lowest exposed tips goes first" is applied; the tie-break recount uses seat
   order instead of removing a layer.
 
+## Deploying a public link
+
+`render.yaml` is a Render blueprint for the free plan. Connect the repo at
+[dashboard.render.com](https://dashboard.render.com) → **New → Blueprint**, and
+Render builds `main` and serves it at a permanent URL:
+
+```
+https://crossword-pyramids.onrender.com          ← host screen: /host.html
+```
+
+That URL never changes — not between deploys, not when the service sleeps — so
+it is safe to share or bookmark. Rooms live in memory, so a restart ends any
+game in progress; the link itself stays put.
+
+**The one catch on the free plan:** a free service spins down after 15 minutes
+with no traffic, and the next request takes about a minute to wake it. The QR
+code your players scan is only handed out by an awake server, so:
+
+1. Open `/host.html` yourself a minute or two before anyone joins. The first
+   load is the slow one; the room code appears once the server is up.
+2. Then show the QR. Phones scanning it hit a warm server and join instantly.
+3. While any host or player screen is open it pings `/health` every 10 minutes,
+   so the service will not fall asleep between rounds or during a long turn.
+
+If waiting on that first load is not acceptable — a link you want live at any
+moment, unannounced — the options are Render's Starter plan at $7/month (no
+spin-down), or a free external uptime pinger (cron-job.org and similar) hitting
+`/health` every 10 minutes. Note that pinging around the clock consumes roughly
+744 of the 750 free instance-hours a workspace gets each month, so schedule the
+pings for the hours you actually play rather than 24/7.
+
 ## Tech
 
 - Node.js + Express + `ws` (no build step); vanilla JS frontend
