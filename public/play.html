@@ -82,7 +82,11 @@
   <div id="overview" class="waiting hidden">
     <h1 class="gold">&#9650; Game Over</h1>
     <div id="finals" style="margin:18px 0; font-size:1.2rem"></div>
-    <p style="color:var(--sand)">The host can start a new game.</p>
+    <p style="color:var(--sand)" id="againhint">Waiting for the host to start a new game&hellip;</p>
+    <div style="display:flex; justify-content:center; gap:12px; margin-top:14px; flex-wrap:wrap">
+      <button class="btn" id="againBtn">Play Again</button>
+      <button class="btn secondary" id="menuBtn">Main Menu</button>
+    </div>
   </div>
 </div>
 
@@ -136,8 +140,13 @@ function onMsg(msg) {
   } else if (msg.type === 'room') {
     names = {};
     for (const p of msg.players) names[p.color] = p.name;
-    if (msg.phase === 'lobby' && myColor && !state) { show('waitview'); hide('gameview'); hide('overview'); }
-    if (msg.phase === 'lobby') state = null;
+    // A new round: the host went back to the lobby, so drop the finished game
+    // and put everyone (including anyone still on the results screen) back on
+    // the waiting screen.
+    if (msg.phase === 'lobby') {
+      state = null;
+      if (myColor) { show('waitview'); hide('gameview'); hide('overview'); }
+    }
   } else if (msg.type === 'state') {
     state = msg.state;
     turnDeadline = msg.turnDeadline || null;
@@ -223,6 +232,16 @@ function renderOver() {
     `<p style="margin-bottom:10px">&#127942; <b>${names[state.winner] || COLOR_NAMES[state.winner]}</b> wins!</p>` +
     ranked.map(c => `<div><span class="chip ${c}"></span>${names[c] || COLOR_NAMES[c]}: <b>${f[c]}</b></div>`).join('');
 }
+
+// Game-over options: sit tight for the host's next round, or bail out to the
+// home screen (which also drops the socket, freeing the seat).
+document.getElementById('againBtn').addEventListener('click', () => {
+  hide('overview');
+  show('waitview');
+  document.getElementById('mycolor').innerHTML =
+    `You are <span class="chip ${myColor}"></span><b>${COLOR_NAMES[myColor]}</b>`;
+});
+document.getElementById('menuBtn').addEventListener('click', () => { location.href = '/'; });
 
 document.getElementById('dirH').addEventListener('click', () => { dir = 'H'; setDir(); });
 document.getElementById('dirV').addEventListener('click', () => { dir = 'V'; setDir(); });

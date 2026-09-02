@@ -162,6 +162,58 @@ async function main() {
     check(/\d+s to spell/.test(await ph.locator('#turnbanner').textContent()), 'turn countdown shown on phone');
     await ph.screenshot({ path: path.join(SHOTS, 'phone-spelling.png') });
     await host3.close(); await ph.close();
+
+    // --- F: game-over options (play again / main menu) on both screens
+    console.log('F) Game over options');
+    const host4 = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await host4.goto(`${BASE}/host.html`);
+    await host4.waitForFunction(() => /^[A-Z]{4}$/.test(document.getElementById('code').textContent));
+    const code4 = await host4.locator('#code').textContent();
+    const phones = [];
+    for (const name of ['Cleo', 'Memphis']) {
+      const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      p.on('dialog', (d) => d.accept()); // the Pass confirm()
+      await p.goto(`${BASE}/play.html?room=${code4}`);
+      await p.fill('#namein', name);
+      await p.click('#joinBtn');
+      await p.waitForSelector('#waitview:not(.hidden)');
+      phones.push(p);
+    }
+    await host4.waitForFunction(() => document.querySelectorAll('#players li').length === 2);
+    await host4.click('#startBtn');
+    for (const p of phones) await p.waitForSelector('#gameview:not(.hidden)');
+    // Two full rounds of passes is a stalemate, which ends the game right away
+    for (let i = 0; i < 8; i++) {
+      const over = await host4.evaluate(() => !document.getElementById('over').classList.contains('hidden'));
+      if (over) break;
+      for (const p of phones) {
+        const mine = await p.evaluate(() => state && state.phase === 'playing' && state.current === myColor);
+        if (mine) await p.click('#passBtn');
+      }
+      await host4.waitForTimeout(200);
+    }
+    await host4.waitForSelector('#over:not(.hidden)', { timeout: 20000 });
+    check(await host4.locator('#againBtn').isVisible(), 'host game over offers Play Again');
+    check(await host4.locator('#menuBtn').isVisible(), 'host game over offers Main Menu');
+    for (const p of phones) await p.waitForSelector('#overview:not(.hidden)');
+    check(await phones[0].locator('#againBtn').isVisible(), 'phone game over offers Play Again');
+    check(await phones[0].locator('#menuBtn').isVisible(), 'phone game over offers Main Menu');
+    await phones[0].screenshot({ path: path.join(SHOTS, 'phone-gameover.png') });
+
+    // Main Menu takes a player home and frees their seat
+    await phones[1].click('#menuBtn');
+    await phones[1].waitForURL(`${BASE}/`);
+    check(await phones[1].locator('.btn', { hasText: 'Host Game' }).isVisible(), 'Main Menu returns to the home screen');
+
+    // Host restarts: everyone still here lands back in the lobby
+    await host4.click('#againBtn');
+    await host4.waitForSelector('#lobby:not(.hidden)');
+    await phones[0].waitForSelector('#waitview:not(.hidden)', { timeout: 10000 });
+    check(await phones[0].locator('#overview').isHidden(), 'phone leaves the results screen on a new round');
+    await host4.waitForFunction(() => document.querySelectorAll('#players li').length === 1);
+    check(true, 'the player who went to the main menu is no longer seated');
+    await host4.close();
+    for (const p of phones) await p.close();
   } finally {
     await browser.close();
     proc.kill();
