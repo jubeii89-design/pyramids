@@ -229,9 +229,25 @@ wss.on('connection', (ws) => {
         }
         case 'again': {
           if (!room || ws.role !== 'host') return;
-          room.phase = 'lobby';
-          room.state = null;
-          broadcastAll(room);
+          clearTurn(room);
+          if (room.botTimer) { clearTimeout(room.botTimer); room.botTimer = null; }
+          // Anyone who dropped out during the last game doesn't get a seat in
+          // the next one; bots and everyone still connected keep theirs.
+          room.players = room.players.filter((p) => p.bot || p.ws);
+          if (room.players.length >= 2) {
+            // Straight into the next game on the same room code — no second
+            // trip through the lobby for the people who are already here.
+            room.phase = 'playing';
+            room.state = game.createGame(room.players.map((p) => p.color));
+            broadcastAll(room);
+            scheduleBots(room);
+          } else {
+            // Not enough players left to deal a board — back to the lobby so
+            // the host can wait for more phones to join.
+            room.phase = 'lobby';
+            room.state = null;
+            broadcastAll(room);
+          }
           break;
         }
       }
@@ -252,7 +268,9 @@ wss.on('connection', (ws) => {
     } else {
       const p = room.players.find((x) => x.ws === ws);
       if (p) {
-        if (room.phase === 'lobby') {
+        // Nothing to hold a seat for before the game starts, or once it's
+        // finished (someone tapping "Main Menu" on the results screen).
+        if (room.phase === 'lobby' || (room.state && room.state.phase === 'over')) {
           room.players = room.players.filter((x) => x !== p);
         } else {
           // Hold the seat: they can rejoin by name (same color, same collected
