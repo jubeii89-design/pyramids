@@ -170,7 +170,7 @@ async function main() {
     await host4.waitForFunction(() => /^[A-Z]{4}$/.test(document.getElementById('code').textContent));
     const code4 = await host4.locator('#code').textContent();
     const phones = [];
-    for (const name of ['Cleo', 'Memphis']) {
+    for (const name of ['Cleo', 'Memphis', 'Sais']) {
       const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
       p.on('dialog', (d) => d.accept()); // the Pass confirm()
       await p.goto(`${BASE}/play.html?room=${code4}`);
@@ -179,20 +179,24 @@ async function main() {
       await p.waitForSelector('#waitview:not(.hidden)');
       phones.push(p);
     }
-    await host4.waitForFunction(() => document.querySelectorAll('#players li').length === 2);
+    await host4.waitForFunction(() => document.querySelectorAll('#players li').length === 3);
     await host4.click('#startBtn');
     for (const p of phones) await p.waitForSelector('#gameview:not(.hidden)');
+
     // Two full rounds of passes is a stalemate, which ends the game right away
-    for (let i = 0; i < 8; i++) {
-      const over = await host4.evaluate(() => !document.getElementById('over').classList.contains('hidden'));
-      if (over) break;
-      for (const p of phones) {
-        const mine = await p.evaluate(() => state && state.phase === 'playing' && state.current === myColor);
-        if (mine) await p.click('#passBtn');
+    const passToGameOver = async (players) => {
+      for (let i = 0; i < 12; i++) {
+        const over = await host4.evaluate(() => !document.getElementById('over').classList.contains('hidden'));
+        if (over) break;
+        for (const p of players) {
+          const mine = await p.evaluate(() => state && state.phase === 'playing' && state.current === myColor);
+          if (mine) await p.click('#passBtn');
+        }
+        await host4.waitForTimeout(200);
       }
-      await host4.waitForTimeout(200);
-    }
-    await host4.waitForSelector('#over:not(.hidden)', { timeout: 20000 });
+      await host4.waitForSelector('#over:not(.hidden)', { timeout: 20000 });
+    };
+    await passToGameOver(phones);
     check(await host4.locator('#againBtn').isVisible(), 'host game over offers Play Again');
     check(await host4.locator('#menuBtn').isVisible(), 'host game over offers Main Menu');
     for (const p of phones) await p.waitForSelector('#overview:not(.hidden)');
@@ -201,17 +205,33 @@ async function main() {
     await phones[0].screenshot({ path: path.join(SHOTS, 'phone-gameover.png') });
 
     // Main Menu takes a player home and frees their seat
-    await phones[1].click('#menuBtn');
-    await phones[1].waitForURL(`${BASE}/`);
-    check(await phones[1].locator('.btn', { hasText: 'Host Game' }).isVisible(), 'Main Menu returns to the home screen');
+    await phones[2].click('#menuBtn');
+    await phones[2].waitForURL(`${BASE}/`);
+    check(await phones[2].locator('.btn', { hasText: 'Host Game' }).isVisible(), 'Main Menu returns to the home screen');
+    await host4.waitForFunction(() => document.querySelectorAll('#players li').length === 2);
+    check(true, 'the player who went to the main menu is no longer seated');
 
-    // Host restarts: everyone still here lands back in the lobby
+    // Host hits Play Again: the phones still connected go straight into a new
+    // game on the same room code — no second trip through the lobby.
+    const staying = [phones[0], phones[1]];
+    await host4.click('#againBtn');
+    for (const p of staying) await p.waitForSelector('#gameview:not(.hidden)', { timeout: 10000 });
+    check(await host4.locator('#gamearea').isVisible() && await host4.locator('#over').isHidden(),
+      'host goes straight to a fresh board on Play Again');
+    check((await staying[0].locator('#board .cell').count()) === 100, 'phone renders the new board');
+    check(await staying[0].evaluate(() => state.phase === 'playing' && state.log.length === 0), 'the new game starts clean');
+    check((await staying[0].locator('#roomcode').textContent()) === code4, 'same room code carries over');
+    check(await staying[0].evaluate(() => state.players.includes(myColor)), 'the player keeps a seat in the new game');
+    check(await staying[0].locator('#overview').isHidden(), 'phone leaves the results screen on a new round');
+
+    // With too few players left for a board, Play Again falls back to the lobby
+    await passToGameOver(staying);
+    await staying[1].click('#menuBtn');
+    await staying[1].waitForURL(`${BASE}/`);
     await host4.click('#againBtn');
     await host4.waitForSelector('#lobby:not(.hidden)');
-    await phones[0].waitForSelector('#waitview:not(.hidden)', { timeout: 10000 });
-    check(await phones[0].locator('#overview').isHidden(), 'phone leaves the results screen on a new round');
-    await host4.waitForFunction(() => document.querySelectorAll('#players li').length === 1);
-    check(true, 'the player who went to the main menu is no longer seated');
+    await staying[0].waitForSelector('#waitview:not(.hidden)', { timeout: 10000 });
+    check(true, 'Play Again with only one player left waits in the lobby');
     await host4.close();
     for (const p of phones) await p.close();
   } finally {

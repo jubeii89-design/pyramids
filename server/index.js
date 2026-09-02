@@ -229,14 +229,25 @@ wss.on('connection', (ws) => {
         }
         case 'again': {
           if (!room || ws.role !== 'host') return;
-          room.phase = 'lobby';
-          room.state = null;
           clearTurn(room);
           if (room.botTimer) { clearTimeout(room.botTimer); room.botTimer = null; }
           // Anyone who dropped out during the last game doesn't get a seat in
-          // the next one; bots stay so the host can start straight away.
+          // the next one; bots and everyone still connected keep theirs.
           room.players = room.players.filter((p) => p.bot || p.ws);
-          broadcastAll(room);
+          if (room.players.length >= 2) {
+            // Straight into the next game on the same room code — no second
+            // trip through the lobby for the people who are already here.
+            room.phase = 'playing';
+            room.state = game.createGame(room.players.map((p) => p.color));
+            broadcastAll(room);
+            scheduleBots(room);
+          } else {
+            // Not enough players left to deal a board — back to the lobby so
+            // the host can wait for more phones to join.
+            room.phase = 'lobby';
+            room.state = null;
+            broadcastAll(room);
+          }
           break;
         }
       }

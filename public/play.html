@@ -138,20 +138,28 @@ function onMsg(msg) {
     document.getElementById('mycolor').innerHTML = `You are <span class="chip ${myColor}"></span><b>${COLOR_NAMES[myColor]}</b>`;
     show('waitview'); hide('joinview');
   } else if (msg.type === 'room') {
+    if (joinedCode && msg.code !== joinedCode) return; // not our room
     names = {};
     for (const p of msg.players) names[p.color] = p.name;
-    // A new round: the host went back to the lobby, so drop the finished game
-    // and put everyone (including anyone still on the results screen) back on
-    // the waiting screen.
+    document.getElementById('roomcode').textContent = msg.code;
+    // Back to the lobby (the host restarted without enough players for a
+    // board): drop the finished game and put everyone — including anyone
+    // still on the results screen — back on the waiting screen.
     if (msg.phase === 'lobby') {
       state = null;
       if (myColor) { show('waitview'); hide('gameview'); hide('overview'); }
     }
   } else if (msg.type === 'state') {
+    const prev = state;
     state = msg.state;
     turnDeadline = msg.turnDeadline || null;
     hide('waitview'); hide('joinview');
-    if (state.phase === 'over') { renderOver(); } else { show('gameview'); hide('overview'); renderGame(); }
+    if (state.phase === 'over') { renderOver(); return; }
+    // A fresh board (the host hit Play Again): clear the last game's typing
+    // and jump straight back in, as long as we still hold a seat in it.
+    if (!prev || prev.phase === 'over') { sel = null; document.getElementById('wordin').value = ''; }
+    if (!state.players.includes(myColor)) { hide('gameview'); hide('overview'); show('waitview'); return; }
+    show('gameview'); hide('overview'); renderGame();
   } else if (msg.type === 'reject') {
     toast(msg.error);
   } else if (msg.type === 'played') {

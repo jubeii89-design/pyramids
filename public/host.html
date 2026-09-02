@@ -108,6 +108,7 @@ function onMsg(msg) {
     state = msg.state;
     turnDeadline = msg.turnDeadline || null;
     hide('lobby'); show('gamearea');
+    if (state.phase !== 'over') hide('over'); // a fresh board after Play Again
     renderGame();
   } else if (msg.type === 'played') {
     toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}!`, true);
