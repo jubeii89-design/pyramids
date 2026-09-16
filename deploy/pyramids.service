@@ -1,0 +1,18 @@
+[Unit]
+Description=Crossword Pyramids game server
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/pyramids
+Environment=NODE_ENV=production
+Environment=PORT=3000
+ExecStart=/usr/bin/node server/index.js
+Restart=always
+RestartSec=3
+# Rooms are in-memory, so a crash loses games in progress; restarting fast is
+# the best we can do. Nothing is written to disk, so no state dir is needed.
+
+[Install]
+WantedBy=multi-user.target
