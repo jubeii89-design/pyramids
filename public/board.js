@@ -15,18 +15,6 @@ function sendWS(ws, msg) { ws.send(JSON.stringify(msg)); }
 // requests, and an open WebSocket doesn't always count as traffic. A ping
 // every 10 minutes keeps the server up for as long as a game screen is open,
 // so a lobby waiting for players — or a slow round — never goes to sleep.
-// The server sends the epoch time a turn ends, once, and each screen runs its
-// own countdown against it — no ticking number is ever synced. These two keep
-// that honest when a device's clock disagrees with the server's: clockSkew()
-// measures the offset from a state message, msLeft() applies it.
-let _skew = 0;
-function clockSkew(serverNow) {
-  if (typeof serverNow === 'number') _skew = serverNow - Date.now();
-}
-function msLeft(deadline) {
-  return Math.max(0, deadline - (Date.now() + _skew));
-}
-
 function keepAwake() {
   setInterval(() => { fetch('/health', { cache: 'no-store' }).catch(() => {}); }, 10 * 60 * 1000);
 }

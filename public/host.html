@@ -87,7 +87,7 @@
 
 <script src="/board.js"></script>
 <script>
-let room = null, state = null, names = {}, turnDeadline = null;
+let room = null, state = null, names = {};
 
 keepAwake();
 const ws = connectWS(onMsg, (ws) => {
@@ -107,15 +107,13 @@ function onMsg(msg) {
     if (msg.phase === 'lobby') { show('lobby'); hide('gamearea'); hide('over'); state = null; }
   } else if (msg.type === 'state') {
     state = msg.state;
-    turnDeadline = msg.turnDeadline || null;
-    clockSkew(msg.now);
     hide('lobby'); show('gamearea');
     if (state.phase !== 'over') hide('over'); // a fresh board after Play Again
     renderGame();
   } else if (msg.type === 'played') {
     toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}!`, true);
   } else if (msg.type === 'skipped') {
-    toast(`${names[msg.color] || COLOR_NAMES[msg.color]} ran out of time — skipped.`);
+    toast(`${names[msg.color] || COLOR_NAMES[msg.color]} dropped off — turn skipped.`);
   } else if (msg.type === 'error') {
     toast(msg.error);
   }
@@ -150,7 +148,7 @@ function renderGame() {
     const off = !connOf(c) ? ' <small style="color:#e0a">(reconnecting…)</small>' : '';
     return `<div class="score ${isTurn ? 'current' : ''}">
       <span><span class="chip ${c}"></span>${pname(c)}${off}</span>
-      <b>${isTurn ? '<span id="turnclock">▲</span>' : ''}</b></div>`;
+      <b>${isTurn ? '▲' : ''}</b></div>`;
   }).join('');
   document.getElementById('log').innerHTML = state.log.slice().reverse().map(e =>
     e.pass
@@ -165,15 +163,6 @@ function renderGame() {
       ranked.map(c => `<div class="score"><span><span class="chip ${c}"></span>${pname(c)}</span><b>${f[c]}</b></div>`).join('');
   }
 }
-
-// Turn countdown ticker — updates the ▲ next to the active player each second
-setInterval(() => {
-  const el = document.getElementById('turnclock');
-  if (!el || !turnDeadline) return;
-  const left = Math.ceil(msLeft(turnDeadline) / 1000);
-  el.textContent = left <= 20 ? `${left}s` : '▲';
-  el.style.color = left <= 10 ? '#e0413c' : '';
-}, 1000);
 
 document.getElementById('startBtn').addEventListener('click', () => sendWS(ws, { type: 'start' }));
 document.getElementById('botBtn').addEventListener('click', () => sendWS(ws, { type: 'add_bot' }));

@@ -93,7 +93,7 @@
 <script src="/board.js"></script>
 <script>
 const params = new URLSearchParams(location.search);
-let myColor = null, myName = null, state = null, names = {}, turnDeadline = null;
+let myColor = null, myName = null, state = null, names = {};
 let sel = null, dir = 'H';
 
 const codein = document.getElementById('codein');
@@ -153,8 +153,6 @@ function onMsg(msg) {
   } else if (msg.type === 'state') {
     const prev = state;
     state = msg.state;
-    turnDeadline = msg.turnDeadline || null;
-    clockSkew(msg.now);
     hide('waitview'); hide('joinview');
     if (state.phase === 'over') { renderOver(); return; }
     // A fresh board (the host hit Play Again): clear the last game's typing
@@ -171,7 +169,7 @@ function onMsg(msg) {
       toast(`You spelled ${msg.word.toUpperCase()}!`, true);
     } else toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}`, true);
   } else if (msg.type === 'skipped') {
-    if (msg.color === myColor) { sel = null; document.getElementById('wordin').value = ''; toast('Time up — your turn was skipped.'); }
+    if (msg.color === myColor) { sel = null; document.getElementById('wordin').value = ''; toast('You dropped off — your turn was skipped.'); }
   } else if (msg.type === 'error') {
     toast(msg.error);
   }
@@ -200,7 +198,7 @@ function spellPath() {
 function renderGame() {
   document.getElementById('me').innerHTML = `<span class="chip ${myColor}"></span>${myName} (${COLOR_NAMES[myColor]})`;
   const tb = document.getElementById('turnbanner');
-  if (myTurn()) { tb.classList.add('mine'); }
+  if (myTurn()) { tb.textContent = '▲ Your turn — take your time. Play a word, or Pass.'; tb.classList.add('mine'); }
   else { tb.innerHTML = `Waiting for ${names[state.current] || COLOR_NAMES[state.current]}&hellip;`; tb.classList.remove('mine'); }
   const word = document.getElementById('wordin').value.trim();
   renderBoard(document.getElementById('board'), state, {
@@ -221,18 +219,7 @@ function renderGame() {
     return `<span><span class="chip ${c}"></span>${p}${turn}</span>`;
   }).join('');
   renderTracker(document.getElementById('tracker'), state, names);
-  updateClock();
 }
-
-function updateClock() {
-  const tb = document.getElementById('turnbanner');
-  if (!myTurn()) return;
-  if (!turnDeadline) { tb.textContent = '▲ Your turn! Spell a word.'; return; }
-  const left = Math.ceil(msLeft(turnDeadline) / 1000);
-  tb.textContent = `▲ Your turn! ${left}s to spell`;
-  tb.style.background = left <= 10 ? '#5a2c2c' : '';
-}
-setInterval(() => { if (state && state.phase === 'playing') updateClock(); }, 1000);
 
 function renderOver() {
   show('overview'); hide('gameview');

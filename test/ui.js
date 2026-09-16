@@ -159,7 +159,10 @@ async function main() {
     const matched = await ph.locator('#board .cell.glow-match').count();
     check(previewed + matched === 3, `all 3 letters previewed on the board (${previewed} ghost + ${matched} in place)`);
     // Countdown timer is running on the player's turn
-    check(/\d+s to spell/.test(await ph.locator('#turnbanner').textContent()), 'turn countdown shown on phone');
+    // No turn clock anywhere: a player takes as long as they like
+    const banner = await ph.locator('#turnbanner').textContent();
+    check(/take your time/.test(banner) && !/\d+s/.test(banner), 'no countdown on the phone, just the turn prompt');
+    check(!/\d+s/.test(await host3.locator('#scores').textContent()), 'no countdown on the big screen');
     await ph.screenshot({ path: path.join(SHOTS, 'phone-spelling.png') });
     await host3.close(); await ph.close();
 
