@@ -59,37 +59,32 @@ function broadcast(room, msg) {
   for (const p of room.players) if (p.ws) send(p.ws, msg);
 }
 
-const TURN_MS = 60 * 1000;        // a human gets 60s to act, then auto-skip
-const GRACE_MS = 2 * 60 * 1000;   // disconnected seat is held this long
+const GONE_MS = 30 * 1000;        // a turn belonging to a dropped phone is skipped after this
 
 function broadcastAll(room) {
   broadcast(room, roomSnapshot(room));
   if (room.state) {
-    // Arm first so the state we send carries the current turn's deadline —
-    // otherwise clients receive the previous turn's (or a null) deadline.
     armTurn(room);
-    // `now` travels with the deadline so clients can correct for a device
-    // clock that disagrees with the server's; without it a phone set a few
-    // minutes fast shows a wrong (or already expired) countdown.
-    broadcast(room, { type: 'state', state: game.serialize(room.state), turnDeadline: room.turnDeadline || null, now: Date.now() });
+    broadcast(room, { type: 'state', state: game.serialize(room.state) });
   }
 }
 
-// Give the current human player a countdown; if they don't act in time (or
-// they're disconnected), skip to the next player so the game never stalls.
-// Bots are driven by scheduleBots, so they don't get a turn timer.
+// There is no turn clock: a player takes as long as they like, and ends their
+// turn by playing a word or pressing Pass. The only timer is a safety net for
+// a phone that has dropped off — its turn is skipped so the room isn't stuck
+// waiting on someone who isn't there. Reconnecting cancels it (the join
+// broadcast re-arms and finds them connected again); bots are driven by
+// scheduleBots and never need one.
 function armTurn(room) {
   if (!room.state || room.state.phase !== 'playing') { clearTurn(room); return; }
   const cur = room.state.players[room.state.turn];
   const player = room.players.find((p) => p.color === cur);
-  if (!player || player.bot) { clearTurn(room); return; }
+  if (!player || player.bot || player.ws) { clearTurn(room); return; }
   if (room.armedFor === cur && room.turnTimer) return; // already counting for this turn
   clearTurn(room);
   room.armedFor = cur;
-  room.turnDeadline = Date.now() + TURN_MS;
   room.turnTimer = setTimeout(() => {
     room.turnTimer = null;
-    room.turnDeadline = null;
     room.armedFor = null;
     if (!room.state || room.state.phase !== 'playing') return;
     if (room.state.players[room.state.turn] !== cur) return;
@@ -97,13 +92,12 @@ function armTurn(room) {
     broadcast(room, { type: 'skipped', color: cur });
     broadcastAll(room);
     scheduleBots(room);
-  }, TURN_MS);
+  }, GONE_MS);
 }
 
 function clearTurn(room) {
   if (room.turnTimer) clearTimeout(room.turnTimer);
   room.turnTimer = null;
-  room.turnDeadline = null;
   room.armedFor = null;
 }
 
