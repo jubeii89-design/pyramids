@@ -64,6 +64,13 @@ Change the port with `PORT=8080 npm start` (PowerShell: `$env:PORT=8080; npm sta
 
 ## Deploying a public link
 
+**On AWS:** see [`deploy/aws.md`](deploy/aws.md) — one small always-on instance
+(Lightsail's $5 plan or an EC2 `t4g.small`), with `deploy/pyramids.service` and
+`deploy/Caddyfile` for systemd and HTTPS. Always awake, so there is no cold
+start to warm up before players join.
+
+**Free fallback:**
+
 `render.yaml` is a Render blueprint for the free plan. Connect the repo at
 [dashboard.render.com](https://dashboard.render.com) → **New → Blueprint**, and
 Render builds `main` and serves it at a permanent URL:

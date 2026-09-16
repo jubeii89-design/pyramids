@@ -1,0 +1,11 @@
+# Caddy fetches and renews a Let's Encrypt certificate for this name on its
+# own, and proxies WebSocket upgrades through without extra configuration.
+# Phones need HTTPS: the host screen builds its QR code from its own origin,
+# and a page served over HTTPS can only open a wss:// socket.
+#
+# Replace the name with your domain (or a free dynamic-DNS name) pointed at
+# the instance's static IP, then:
+#   sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+pyramids.example.com {
+	reverse_proxy localhost:3000
+}
