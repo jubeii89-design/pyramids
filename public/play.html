@@ -154,6 +154,7 @@ function onMsg(msg) {
     const prev = state;
     state = msg.state;
     turnDeadline = msg.turnDeadline || null;
+    clockSkew(msg.now);
     hide('waitview'); hide('joinview');
     if (state.phase === 'over') { renderOver(); return; }
     // A fresh board (the host hit Play Again): clear the last game's typing
@@ -227,7 +228,7 @@ function updateClock() {
   const tb = document.getElementById('turnbanner');
   if (!myTurn()) return;
   if (!turnDeadline) { tb.textContent = '▲ Your turn! Spell a word.'; return; }
-  const left = Math.max(0, Math.ceil((turnDeadline - Date.now()) / 1000));
+  const left = Math.ceil(msLeft(turnDeadline) / 1000);
   tb.textContent = `▲ Your turn! ${left}s to spell`;
   tb.style.background = left <= 10 ? '#5a2c2c' : '';
 }

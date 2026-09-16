@@ -68,7 +68,10 @@ function broadcastAll(room) {
     // Arm first so the state we send carries the current turn's deadline —
     // otherwise clients receive the previous turn's (or a null) deadline.
     armTurn(room);
-    broadcast(room, { type: 'state', state: game.serialize(room.state), turnDeadline: room.turnDeadline || null });
+    // `now` travels with the deadline so clients can correct for a device
+    // clock that disagrees with the server's; without it a phone set a few
+    // minutes fast shows a wrong (or already expired) countdown.
+    broadcast(room, { type: 'state', state: game.serialize(room.state), turnDeadline: room.turnDeadline || null, now: Date.now() });
   }
 }
 
