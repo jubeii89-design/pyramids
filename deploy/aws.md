@@ -23,12 +23,17 @@ walk away. The credits expire; the instance does not stop itself.
 
 ## Set it up
 
-Ubuntu 22.04+ instance, ports 80 and 443 open in the firewall (Lightsail:
-Networking → IPv4 Firewall; EC2: the security group). Port 3000 stays closed —
-Caddy is the only thing the internet talks to.
+Pick the **Ubuntu 24.04 LTS** image. It carries Node 18 and Caddy 2.6 in its
+own archive, so the install is three `apt` packages and nothing else. (On
+22.04, `apt install nodejs` gives you Node 12, which is too old for this app —
+you would have to add the NodeSource repo. Save yourself the detour.)
+
+Open ports 80 and 443 in the firewall (Lightsail: Networking → IPv4 Firewall;
+EC2: the security group). Port 3000 stays closed — Caddy is the only thing the
+internet talks to.
 
 ```bash
-sudo apt update && sudo apt install -y nodejs npm caddy
+sudo apt update && sudo apt install -y nodejs npm caddy git
 git clone https://github.com/jubeii89-design/pyramids.git
 cd pyramids && npm install --omit=dev
 
@@ -36,6 +41,10 @@ sudo cp deploy/pyramids.service /etc/systemd/system/
 sudo systemctl enable --now pyramids
 curl -s localhost:3000/health          # {"ok":true}
 ```
+
+If `systemctl status pyramids` is not `active (running)`, `journalctl -u
+pyramids -n 50` shows why — almost always a wrong `WorkingDirectory` or `User`
+in the unit file if you cloned somewhere other than `/home/ubuntu/pyramids`.
 
 Point a domain (or a free dynamic-DNS name) at the instance's static IP, put
 that name in `deploy/Caddyfile`, then:
