@@ -76,10 +76,10 @@ function createGame(playerColors, rng = Math.random) {
   for (let r = 2; r <= 7; r++)
     for (let c = 2; c <= 7; c++) cells[r][c].printed = PRINTED_INNER[r - 2][c - 2];
   // Corner printed letters (S/P of "PYRAMIDS")
-  cells[1][1].printed = 's';
-  cells[1][8].printed = 'p';
-  cells[8][1].printed = 'p';
-  cells[8][8].printed = 's';
+  cells[1][1].printed = 'p';
+  cells[1][8].printed = 's';
+  cells[8][1].printed = 's';
+  cells[8][8].printed = 'p';
 
   // All four colors are set up even with fewer players (per the rules)
   for (const color of COLORS) {
@@ -289,7 +289,7 @@ function passTurn(state, color) {
 }
 
 function advanceTurn(state) {
-  state.turn = (state.turn + 1) % state.players.length; // clockwise
+  state.turn = (state.turn + 1) % state.players.length; // seat order (COLORS), not table-clockwise
 }
 
 function remainingOnBoard(state, color) {
@@ -401,9 +401,12 @@ function findMove(state, color, botWords, rng = Math.random, maxFound = 4) {
 
   const words = shuffle(botWords, rng);
   const found = [];
-  const deadline = Date.now() + 3000;
+  // Node is single-threaded: every millisecond spent here freezes every other
+  // room. A real move is found in tens of ms; this budget only bites on a
+  // hopeless scan, where passing is the right answer anyway.
+  const deadline = Date.now() + 750;
   for (const word of words) {
-    if (Date.now() > deadline && found.length) break;
+    if (Date.now() > deadline) break; // hard stop: a hopeless scan must not block the server
     if (found.length >= maxFound) break;
     if (!fits(word)) continue;
     for (let dir of ['H', 'V']) {

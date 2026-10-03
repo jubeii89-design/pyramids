@@ -90,12 +90,34 @@
 let room = null, state = null, names = {};
 
 keepAwake();
-const ws = connectWS(onMsg, (ws) => {
-  sendWS(ws, { type: 'host_create', origin: location.origin });
+
+// The host screen reconnects on its own and asks for its old room back, so a
+// slept laptop or a dropped wifi link doesn't end the party. The room code is
+// remembered across a full browser restart; the server only hands the room
+// back if nobody else is hosting it, and otherwise opens a fresh one.
+const ROOM_KEY = 'cp_host_room';
+function rememberedRoom() {
+  try { return localStorage.getItem(ROOM_KEY) || ''; } catch { return ''; }
+}
+function rememberRoom(code) {
+  try { localStorage.setItem(ROOM_KEY, code); } catch { /* private mode */ }
+}
+
+let ws = null;
+function openHostWS() {
+  ws = connectWS(onMsg, (sock) => {
+    sendWS(sock, { type: 'host_create', origin: location.origin, resume: rememberedRoom() });
+  });
+  ws.onclose = () => setTimeout(() => { if (!ws || ws.readyState !== 1) openHostWS(); }, 1500);
+}
+openHostWS();
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && (!ws || ws.readyState !== 1)) openHostWS();
 });
 
 function onMsg(msg) {
   if (msg.type === 'hosted') {
+    rememberRoom(msg.code);
     document.getElementById('code').textContent = msg.code;
     document.getElementById('qr').src = msg.qr;
     document.getElementById('joinurl').textContent = msg.joinUrl;

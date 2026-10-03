@@ -237,6 +237,40 @@ async function main() {
     check(true, 'Play Again with only one player left waits in the lobby');
     await host4.close();
     for (const p of phones) await p.close();
+
+    // --- G: the host screen can die and come back without ending the game
+    console.log('G) Host reconnect');
+    // Same browser profile across both host pages — that is what "the host
+    // reopens the tab" means, and localStorage only persists within a context.
+    const hostCtx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const host5 = await hostCtx.newPage();
+    await host5.goto(`${BASE}/host.html`);
+    await host5.waitForFunction(() => /^[A-Z]{4}$/.test(document.getElementById('code').textContent));
+    const code5 = await host5.locator('#code').textContent();
+    const survivor = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await survivor.goto(`${BASE}/play.html?room=${code5}`);
+    await survivor.fill('#namein', 'Cleo');
+    await survivor.click('#joinBtn');
+    await survivor.waitForSelector('#waitview:not(.hidden)');
+    await host5.click('#botBtn');
+    await host5.waitForFunction(() => document.querySelectorAll('#players li').length === 2);
+    await host5.click('#startBtn');
+    await survivor.waitForSelector('#gameview:not(.hidden)');
+
+    // The big screen goes away mid-game (laptop sleeps, tab discarded)
+    await host5.close();
+    await survivor.waitForTimeout(1500);
+    check(await survivor.locator('#gameview').isVisible(), 'phone keeps the game when the host screen dies');
+
+    // ...and the host reopens /host.html in the same browser profile
+    const host5b = await hostCtx.newPage();
+    await host5b.goto(`${BASE}/host.html`);
+    await host5b.waitForFunction(() => /^[A-Z]{4}$/.test(document.getElementById('code').textContent));
+    check((await host5b.locator('#code').textContent()) === code5, 'host reopens into the same room code');
+    await host5b.waitForSelector('#gamearea:not(.hidden)', { timeout: 10000 });
+    check((await host5b.locator('#board .cell').count()) === 100, 'host picks the game back up, board intact');
+    check(await survivor.locator('#gameview').isVisible(), 'the player was never kicked');
+    await host5b.close(); await survivor.close(); await hostCtx.close();
   } finally {
     await browser.close();
     proc.kill();

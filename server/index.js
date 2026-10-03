@@ -60,8 +60,23 @@ function broadcast(room, msg) {
 }
 
 const GONE_MS = 30 * 1000;        // a turn belonging to a dropped phone is skipped after this
+const HOST_GRACE_MS = 10 * 60 * 1000; // a room outlives its host screen this long
+
+function clearHostGrace(room) {
+  if (room.hostGraceTimer) clearTimeout(room.hostGraceTimer);
+  room.hostGraceTimer = null;
+}
+
+function closeRoom(room, reason) {
+  broadcast(room, { type: 'error', error: reason });
+  if (room.botTimer) clearTimeout(room.botTimer);
+  clearTurn(room);
+  clearHostGrace(room);
+  rooms.delete(room.code);
+}
 
 function broadcastAll(room) {
+  room.lastSeen = Date.now(); // keeps a long game night from being swept mid-play
   broadcast(room, roomSnapshot(room));
   if (room.state) {
     armTurn(room);
@@ -79,7 +94,7 @@ function armTurn(room) {
   if (!room.state || room.state.phase !== 'playing') { clearTurn(room); return; }
   const cur = room.state.players[room.state.turn];
   const player = room.players.find((p) => p.color === cur);
-  if (!player || player.bot || player.ws) { clearTurn(room); return; }
+  if (!player || player.bot || (player.ws && player.ws.readyState === 1)) { clearTurn(room); return; }
   if (room.armedFor === cur && room.turnTimer) return; // already counting for this turn
   clearTurn(room);
   room.armedFor = cur;
@@ -134,6 +149,27 @@ wss.on('connection', (ws) => {
     try {
       switch (msg.type) {
         case 'host_create': {
+          // A reopened host screen asks to resume its own room by code. Only
+          // honoured while that room has no live host, so a second screen
+          // can't hijack a room someone is already hosting.
+          const want = String(msg.resume || '').toUpperCase().trim();
+          const existing = want ? rooms.get(want) : null;
+          if (existing && !(existing.host && existing.host.readyState === 1)) {
+            existing.host = ws;
+            existing.hostGoneAt = null;
+            clearHostGrace(existing);
+            ws.roomCode = existing.code;
+            ws.role = 'host';
+            const resumeUrl = `${msg.origin || `http://localhost:${PORT}`}/play.html?room=${existing.code}`;
+            send(ws, {
+              type: 'hosted',
+              code: existing.code,
+              joinUrl: resumeUrl,
+              qr: await QRCode.toDataURL(resumeUrl, { margin: 1, width: 360 }),
+            });
+            broadcastAll(existing);
+            break;
+          }
           const code = newCode();
           const r = {
             code,
@@ -160,7 +196,8 @@ wss.on('connection', (ws) => {
           const r = rooms.get(code);
           if (!r) return send(ws, { type: 'error', error: 'Room not found. Check the code.' });
           const name = String(msg.name || '').trim().slice(0, 16) || 'Player';
-          if (r.phase !== 'lobby') {
+          const between = r.phase !== 'lobby' && r.state && r.state.phase === 'over';
+          if (r.phase !== 'lobby' && !between) {
             // Mid-game rejoin: reclaim a disconnected seat by name (phones
             // drop websockets when locked/refreshed)
             const seat = r.players.find(
@@ -175,6 +212,19 @@ wss.on('connection', (ws) => {
             send(ws, { type: 'joined', code, color: seat.color, name: seat.name });
             broadcastAll(r);
             return;
+          }
+          // One socket holds one seat. Double-tapping Join used to create a
+          // second seat sharing the same socket; closing it freed only one and
+          // the leftover ghost stalled the game when its turn came round.
+          const mine = r.players.find((p) => p.ws === ws);
+          if (mine) {
+            send(ws, { type: 'joined', code, color: mine.color, name: mine.name });
+            return broadcastAll(r);
+          }
+          // Names are how a dropped phone reclaims its seat, so they have to be
+          // unique or the wrong player can take it.
+          if (r.players.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+            return send(ws, { type: 'error', error: `"${name}" is taken — pick another name.` });
           }
           if (r.players.length >= 4) return send(ws, { type: 'error', error: 'Room is full (4 players max).' });
           const color = game.COLORS.find((c) => !r.players.some((p) => p.color === c));
@@ -258,10 +308,16 @@ wss.on('connection', (ws) => {
     const room = ws.roomCode ? rooms.get(ws.roomCode) : null;
     if (!room) return;
     if (ws.role === 'host') {
-      broadcast(room, { type: 'error', error: 'Host disconnected. Room closed.' });
-      if (room.botTimer) clearTimeout(room.botTimer);
-      clearTurn(room);
-      rooms.delete(room.code);
+      // The big screen is a display, not the game: closing it must not end the
+      // room. A laptop sleeping or a tab being discarded used to kick everyone
+      // and delete the game. Hold the room so the host can reopen /host.html
+      // and pick the same room back up; play continues meanwhile.
+      if (room.host !== ws) return; // a stale socket the host already replaced
+      room.host = null;
+      room.hostGoneAt = Date.now();
+      broadcast(room, { type: 'error', error: 'Host screen disconnected — reopen it to carry on.' });
+      clearHostGrace(room);
+      room.hostGraceTimer = setTimeout(() => closeRoom(room, 'Host never came back. Room closed.'), HOST_GRACE_MS);
     } else {
       const p = room.players.find((x) => x.ws === ws);
       if (p) {
@@ -286,10 +342,7 @@ wss.on('connection', (ws) => {
 setInterval(() => {
   const now = Date.now();
   for (const [code, r] of rooms) {
-    if (now - r.created > 2 * 60 * 60 * 1000) {
-      if (r.botTimer) clearTimeout(r.botTimer);
-      rooms.delete(code);
-    }
+    if (now - (r.lastSeen || r.created) > 2 * 60 * 60 * 1000) closeRoom(r, 'Room closed after two hours idle.');
   }
 }, 10 * 60 * 1000).unref();
 
