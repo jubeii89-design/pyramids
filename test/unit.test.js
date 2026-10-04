@@ -132,16 +132,16 @@ test('pass stalemate ends game with final scoring', () => {
   }
   assert.strictEqual(st.phase, 'over');
   assert.ok(st.finalScores);
-  // Nobody collected anything, so everyone finishes on zero: pyramids left on
-  // the board are not deducted — your score is what you hold.
+  // Nobody collected anything, so each player is left with their whole colour
+  // on the board — the penalty puts everyone deep in the negative.
   for (const c of st.players) {
-    assert.strictEqual(st.finalScores[c], 0);
-    assert.strictEqual(st.finalScores[c], st.scores[c]);
+    assert.strictEqual(st.finalScores[c], -g.remainingOnBoard(st, c).pts);
+    assert.ok(st.finalScores[c] < 0, 'leaving your colour out there costs you');
   }
   assert.ok(st.winner);
 });
 
-test('final score is the tip values of the pyramids you hold', () => {
+test('final score is what you captured minus your colour left on the board', () => {
   const st = g.createGame(['red', 'blue'], seeded(21));
   const words = require('fs').readFileSync(__dirname + '/../data/words.txt', 'utf8')
     .split('\n').map((w) => w.trim().toLowerCase()).filter((w) => w.length >= 3 && w.length <= 6);
@@ -153,7 +153,10 @@ test('final score is the tip values of the pyramids you hold', () => {
   if (st.phase === 'playing') g.finish(st);
   for (const c of st.players) {
     const held = st.collected[c].reduce((n, p) => n + p.v, 0);
-    assert.strictEqual(st.finalScores[c], held, `${c}: finals should equal captured tip values`);
+    const stranded = g.remainingOnBoard(st, c).pts;
+    assert.strictEqual(st.scores[c], held, `${c}: running score is the captured tip values`);
+    assert.strictEqual(st.finalScores[c], held - stranded, `${c}: finals deduct your own pyramids left on the board`);
+    assert.ok(stranded > 0, 'this game really does leave pyramids on the board');
   }
 });
 

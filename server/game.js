@@ -311,11 +311,14 @@ function endCheck(state) {
 
 function finish(state, rng = Math.random) {
   state.phase = 'over';
-  // Your score is the tip values of every pyramid you hold, added up. Nothing
-  // is deducted for pyramids left on the board — `state.scores` has been
-  // accumulating exactly this total all game (see playWord).
+  // Your score is the tip values of every pyramid you hold, added up, MINUS
+  // the tips of your own pyramids still sitting on the board — leaving your
+  // colour out there is a penalty. `state.scores` is the running capture
+  // total (see playWord); the deduction is applied once, here.
   const finals = {};
-  for (const color of state.players) finals[color] = state.scores[color];
+  for (const color of state.players) {
+    finals[color] = state.scores[color] - remainingOnBoard(state, color).pts;
+  }
   state.finalScores = finals;
 
   let top = null;

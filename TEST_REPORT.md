@@ -12,8 +12,9 @@ rule, four rejection paths, an AI move applied and scored, pyramid conservation
 over six plies, the own-pyramid + black-letter requirement, pass-stalemate
 ending, end-by-exhaustion, serialization shape, scores hidden until game over,
 the pyramid tracker, and the uncovered-tops rule. Scoring is covered twice
-over: that a final score equals the tip values of the pyramids a player holds,
-and that 200 tied games are settled by a draw rather than by seat order.
+over: that a final score is a player's captured tip values minus their own
+colour left on the board, and that 200 tied games are settled by a draw rather
+than by seat order.
 
 ## 2. Online hosting + bandwidth — all checks pass (`npm run e2e`)
 

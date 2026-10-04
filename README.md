@@ -50,10 +50,10 @@ Change the port with `PORT=8080 npm start` (PowerShell: `$env:PORT=8080; npm sta
   (1–9). Printed letters score nothing and stay on the board.
 - The game ends when any seated player's color is fully cleared from the board
   (or after two full rounds of passes).
-- **Your score is the tip values of every pyramid you hold, added up.** Nothing
-  is deducted for pyramids left on the board. Highest total wins; a tie is
-  settled by a draw — each tied player takes a pyramid at random and the
-  highest tip wins.
+- **Your score is the tip values of every pyramid you hold, added up** — minus
+  the tips of **your own colour still left on the board**, which count against
+  you. Highest total wins; a tie is settled by a draw: each tied player takes a
+  pyramid at random and the highest tip wins.
 
 ### Digital adaptations from the tabletop rules
 
