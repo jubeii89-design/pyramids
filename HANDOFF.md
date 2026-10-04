@@ -17,6 +17,25 @@ claude remote-control        # or open the folder in the Claude Desktop app
 That session runs on your machine, so it has computer use and can drive the
 Blender GUI. Point it at this file.
 
+The session that produced all this is exported alongside it:
+
+- `docs/session-conversation.md` (134 KB) — every message, both sides, no tool
+  calls. This is the one to paste or point a local session at.
+- `docs/session-transcript.md` (626 KB) — the same, plus every tool call and
+  its output in collapsed blocks. Reach for it when you need to see exactly
+  what was run and what came back.
+
+Both cover the whole project from the first prompt, including work predating
+this handoff. Internal reasoning, scheduled check-ins and webhook noise are
+stripped; long tool outputs are truncated.
+
+**Credentials are redacted.** A Google service-account token appeared in the
+session history and GitHub's push protection caught it on the first attempt to
+commit these files. Every occurrence now reads `[GOOGLE_TOKEN REDACTED]`, and
+the export is filtered against the usual credential shapes (Google, GitHub,
+AWS, Slack, private-key blocks) before it is written. If you regenerate these
+files, run that filter again — the raw session contains the real value.
+
 **The work is on the branch `claude/session-hsd67f`, open as draft PR #6.**
 `main` does not have any of it. Check out that branch before doing anything.
 
