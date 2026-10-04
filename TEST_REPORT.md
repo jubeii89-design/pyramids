@@ -5,13 +5,15 @@
 Three layers, all passing. Every "player" below is a bot or a script — see
 **Not covered** at the end, which is the honest part of this document.
 
-## 1. Rules engine — 12/12 pass (`npm test`)
+## 1. Rules engine — 14/14 pass (`npm test`)
 
 Pure unit tests against `server/game.js`: setup counts and layout, first-player
 rule, four rejection paths, an AI move applied and scored, pyramid conservation
 over six plies, the own-pyramid + black-letter requirement, pass-stalemate
 ending, end-by-exhaustion, serialization shape, scores hidden until game over,
-the pyramid tracker, and the uncovered-tops rule.
+the pyramid tracker, and the uncovered-tops rule. Scoring is covered twice
+over: that a final score equals the tip values of the pyramids a player holds,
+and that 200 tied games are settled by a draw rather than by seat order.
 
 ## 2. Online hosting + bandwidth — all checks pass (`npm run e2e`)
 
@@ -51,6 +53,7 @@ hardcodes a Chromium path suited to the container it was written in.
   sends `join` can confuse its own role.
 - Rooms live in memory: any restart ends every game in progress. Nothing tests
   restart behaviour because there is none to test.
-- Three tabletop rules remain unimplemented by design — corner "bend" words,
-  the challenge/forfeit flow, and the tie-break recount. See the README.
-- No CI yet, so nothing runs these suites automatically on push.
+- Two tabletop rules remain unimplemented by design — corner "bend" words and
+  the challenge/forfeit flow. See the README.
+- CI runs the unit and e2e suites on every pull request and push to main; the
+  browser suite is still a local check.

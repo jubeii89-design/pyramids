@@ -179,10 +179,10 @@ function renderGame() {
   if (state.phase === 'over') {
     show('over');
     const f = state.finalScores;
-    const ranked = state.players.slice().sort((a, b) => f[b] - f[a]);
     document.getElementById('finals').innerHTML =
       `<p style="margin-bottom:12px">&#127942; <b>${pname(state.winner)}</b> wins!</p>` +
-      ranked.map(c => `<div class="score"><span><span class="chip ${c}"></span>${pname(c)}</span><b>${f[c]}</b></div>`).join('');
+      tieBreakLine(state, pname) +
+      rankFinal(state).map(c => `<div class="score"><span><span class="chip ${c}"></span>${pname(c)}</span><b>${f[c]}</b></div>`).join('');
   }
 }
 

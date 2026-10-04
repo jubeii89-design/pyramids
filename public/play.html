@@ -224,10 +224,11 @@ function renderGame() {
 function renderOver() {
   show('overview'); hide('gameview');
   const f = state.finalScores;
-  const ranked = state.players.slice().sort((a, b) => f[b] - f[a]);
+  const nameOf = (c) => names[c] || COLOR_NAMES[c];
   document.getElementById('finals').innerHTML =
-    `<p style="margin-bottom:10px">&#127942; <b>${names[state.winner] || COLOR_NAMES[state.winner]}</b> wins!</p>` +
-    ranked.map(c => `<div><span class="chip ${c}"></span>${names[c] || COLOR_NAMES[c]}: <b>${f[c]}</b></div>`).join('');
+    `<p style="margin-bottom:10px">&#127942; <b>${nameOf(state.winner)}</b> wins!</p>` +
+    tieBreakLine(state, nameOf) +
+    rankFinal(state).map(c => `<div><span class="chip ${c}"></span>${nameOf(c)}: <b>${f[c]}</b></div>`).join('');
 }
 
 // Game-over options: sit tight for the host's next round, or bail out to the

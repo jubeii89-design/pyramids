@@ -110,6 +110,7 @@ function createGame(playerColors, rng = Math.random) {
     log: [],                       // {color, word, points} history
     winner: null,
     finalScores: null,
+    tieBreak: null,
   };
   for (const c of playerColors) {
     state.collected[c] = [];
@@ -273,7 +274,7 @@ function playWord(state, color, move, dict) {
   return { ok: true, word, points, collected: collectedNow.length };
 }
 
-function passTurn(state, color) {
+function passTurn(state, color, rng = Math.random) {
   if (state.phase !== 'playing') return { ok: false, error: 'Game is not in progress.' };
   if (state.players[state.turn] !== color) return { ok: false, error: 'Not your turn.' };
   state.passes++;
@@ -281,7 +282,7 @@ function passTurn(state, color) {
   if (state.log.length > 60) state.log.shift();
   // Stalemate: two full rounds of passes ends the game
   if (state.passes >= state.players.length * 2) {
-    finish(state);
+    finish(state, rng);
     return { ok: true, ended: true };
   }
   advanceTurn(state);
@@ -308,18 +309,52 @@ function endCheck(state) {
   }
 }
 
-function finish(state) {
+function finish(state, rng = Math.random) {
   state.phase = 'over';
+  // Your score is the tip values of every pyramid you hold, added up. Nothing
+  // is deducted for pyramids left on the board — `state.scores` has been
+  // accumulating exactly this total all game (see playWord).
   const finals = {};
-  for (const color of state.players) {
-    finals[color] = state.scores[color] - remainingOnBoard(state, color).pts;
-  }
+  for (const color of state.players) finals[color] = state.scores[color];
   state.finalScores = finals;
-  let best = null;
+
+  let top = null;
   for (const color of state.players) {
-    if (best === null || finals[color] > finals[best]) best = color;
+    if (top === null || finals[color] > finals[top]) top = color;
   }
-  state.winner = best;
+  const tied = state.players.filter((c) => finals[c] === finals[top]);
+  state.winner = tied.length === 1 ? top : drawOff(state, tied, rng);
+}
+
+// Tie-break: each tied player takes a pyramid at random from a shuffled stack;
+// highest tip wins, and an equal draw is drawn again. The pool is the pyramids
+// still on the board, or a plain 1-9 spread if the board has been cleared out.
+function drawOff(state, tied, rng) {
+  const pool = [];
+  for (const row of state.cells)
+    for (const cell of row)
+      for (const p of cell.stack) pool.push(p.v);
+  if (!pool.length) for (let v = 1; v <= 9; v++) pool.push(v);
+
+  for (let attempt = 0; attempt < 20; attempt++) {
+    // Each player takes a different pyramid off the stack, so draw without
+    // replacement. Equal tips can still come up — then everyone draws again.
+    const stack = pool.slice();
+    const drew = {};
+    for (const color of tied) {
+      drew[color] = stack.length > 1
+        ? stack.splice(Math.floor(rng() * stack.length), 1)[0]
+        : pool[Math.floor(rng() * pool.length)];
+    }
+    let best = tied[0];
+    for (const color of tied) if (drew[color] > drew[best]) best = color;
+    const stillTied = tied.filter((c) => drew[c] === drew[best]);
+    state.tieBreak = { among: tied.slice(), drew, resolved: stillTied.length === 1 };
+    if (stillTied.length === 1) return best;
+  }
+  // Pathological pool (every pyramid the same value): fall back to seat order
+  // rather than spin forever.
+  return tied[0];
 }
 
 // Public serialization sent to clients
@@ -354,6 +389,7 @@ function serialize(state) {
     scores: over ? state.scores : null,
     finalScores: state.finalScores,
     winner: state.winner,
+    tieBreak: state.tieBreak,
     log: publicLog,
     cells: state.cells.map((row) =>
       row.map((cell) => ({
@@ -506,6 +542,6 @@ function probeMove(state, color, move, sourcesByLetter) {
 
 module.exports = {
   SIZE, COLORS, VALUES, PLAYER_LETTERS, HOUSE_LETTERS,
-  createGame, playWord, passTurn, serialize, exposed, findMove, probeMove,
+  createGame, playWord, passTurn, finish, serialize, exposed, findMove, probeMove,
   remainingOnBoard, startSpaces,
 };

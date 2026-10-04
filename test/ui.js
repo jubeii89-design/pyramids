@@ -203,6 +203,15 @@ async function main() {
     check(await host4.locator('#againBtn').isVisible(), 'host game over offers Play Again');
     check(await host4.locator('#menuBtn').isVisible(), 'host game over offers Main Menu');
     for (const p of phones) await p.waitForSelector('#overview:not(.hidden)');
+    // Everyone passed, so everyone finished on zero — the winner comes from the
+    // random draw, and the screens must say so rather than look arbitrary.
+    const hostFinals = await host4.locator('#finals').textContent();
+    check(/settled by a draw/.test(hostFinals), 'host explains the tie-break draw');
+    check(/drew \d/.test(hostFinals), 'host shows what each tied player drew');
+    const winner = (hostFinals.match(/^\s*🏆\s*(.+?)\s*wins!/) || [])[1];
+    const firstListed = (await host4.locator('#finals .score span').first().textContent()).trim();
+    check(!!winner && firstListed === winner, `winner is listed first (${winner} / ${firstListed})`);
+    check(/settled by a draw/.test(await phones[0].locator('#finals').textContent()), 'phone explains the tie-break too');
     check(await phones[0].locator('#againBtn').isVisible(), 'phone game over offers Play Again');
     check(await phones[0].locator('#menuBtn').isVisible(), 'phone game over offers Main Menu');
     await phones[0].screenshot({ path: path.join(SHOTS, 'phone-gameover.png') });

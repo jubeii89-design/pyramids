@@ -49,8 +49,11 @@ Change the port with `PORT=8080 npm start` (PowerShell: `$env:PORT=8080; npm sta
 - All pyramids used in the word are captured and score their **tip values**
   (1–9). Printed letters score nothing and stay on the board.
 - The game ends when any seated player's color is fully cleared from the board
-  (or after two full rounds of passes). Remaining pyramids of your color on the
-  board **count against you**. Highest score wins.
+  (or after two full rounds of passes).
+- **Your score is the tip values of every pyramid you hold, added up.** Nothing
+  is deducted for pyramids left on the board. Highest total wins; a tie is
+  settled by a draw — each tied player takes a pyramid at random and the
+  highest tip wins.
 
 ### Digital adaptations from the tabletop rules
 
@@ -58,9 +61,13 @@ Change the port with `PORT=8080 npm start` (PowerShell: `$env:PORT=8080; npm sta
   dictionary, so the challenge/forfeit flow isn't needed — illegal words are
   simply rejected with no penalty and the turn continues.
 - Words are straight lines only (runway squares can be used, but the corner
-  "bend" rule is not implemented).
-- "Lowest exposed tips goes first" is applied; the tie-break recount uses seat
-  order instead of removing a layer.
+  "bend" rule is not implemented). The runway is optional space: use it or
+  ignore it. Note that the outermost ring is empty, so a word cannot be built
+  there on its own — every word still needs one black letter in place, which
+  means a house pyramid or a printed square.
+- "Lowest exposed tips goes first" is applied; if that total ties, the earlier
+  seat starts rather than removing a layer. (The *winner* tie-break at the end
+  of the game is a random draw, as above.)
 
 ## Deploying a public link
 

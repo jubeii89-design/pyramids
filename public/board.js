@@ -15,6 +15,31 @@ function sendWS(ws, msg) { ws.send(JSON.stringify(msg)); }
 // requests, and an open WebSocket doesn't always count as traffic. A ping
 // every 10 minutes keeps the server up for as long as a game screen is open,
 // so a lobby waiting for players — or a slow round — never goes to sleep.
+// Rank for the results screen: the winner is whoever the server says it is,
+// even when a tie was settled by a draw. Sorting on score alone would put a
+// tied runner-up above the actual winner.
+function rankFinal(state) {
+  const f = state.finalScores;
+  return state.players.slice().sort((a, b) => {
+    if (a === state.winner) return -1;
+    if (b === state.winner) return 1;
+    return f[b] - f[a];
+  });
+}
+
+// One line explaining a tie that went to a draw, or '' when the game was won
+// outright. Keeps the result from looking arbitrary.
+function tieBreakLine(state, nameOf) {
+  const tb = state.tieBreak;
+  if (!tb || !tb.resolved) return '';
+  const drew = tb.among
+    .slice()
+    .sort((a, b) => tb.drew[b] - tb.drew[a])
+    .map((c) => `${nameOf(c)} drew ${tb.drew[c]}`)
+    .join(', ');
+  return `<p class="tiebreak">Tied on score — settled by a draw: ${drew}.</p>`;
+}
+
 function keepAwake() {
   setInterval(() => { fetch('/health', { cache: 'no-store' }).catch(() => {}); }, 10 * 60 * 1000);
 }
