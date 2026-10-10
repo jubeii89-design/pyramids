@@ -22,7 +22,11 @@ const game = require('../server/game');
 
 const REMOTE_URL = process.env.REMOTE_URL ? process.env.REMOTE_URL.replace(/\/$/, '') : null;
 const PORT = 3123;
-const TEMP_ROOM_STORE = REMOTE_URL ? null : path.join(require('os').tmpdir(), `pyramids-e2e-${process.pid}-${Date.now()}.json`);
+// A dedicated subdirectory, not os.tmpdir() itself: the server chmods the
+// checkpoint's directory to 0700, and a shared /tmp can't be locked down
+// that way (EPERM on CI, and wrong on any box where other processes use /tmp).
+const TEMP_ROOM_DIR = REMOTE_URL ? null : fs.mkdtempSync(path.join(require('os').tmpdir(), 'pyramids-e2e-'));
+const TEMP_ROOM_STORE = TEMP_ROOM_DIR ? path.join(TEMP_ROOM_DIR, 'rooms.json') : null;
 const BASE = REMOTE_URL || `http://localhost:${PORT}`;
 const WS_BASE = BASE.replace(/^http/, 'ws');
 const NUM_GAMES = parseInt(process.argv[2] || '5', 10);
@@ -267,7 +271,7 @@ async function main() {
       proc.kill();
       await stopped;
       await new Promise((resolve) => setTimeout(resolve, 100));
-      for (const suffix of ['', '.lock']) { try { fs.unlinkSync(TEMP_ROOM_STORE + suffix); } catch {} }
+      fs.rmSync(TEMP_ROOM_DIR, { recursive: true, force: true });
     }
   }
 

@@ -22,9 +22,13 @@ function check(cond, label) {
 }
 
 async function main() {
+  // A dedicated subdirectory, not os.tmpdir() itself: the server chmods the
+  // checkpoint's directory to 0700, and a shared /tmp can't be locked down
+  // that way (EPERM on CI, and wrong on any box where other processes use /tmp).
+  const storeDir = require('fs').mkdtempSync(path.join(require('os').tmpdir(), 'pyramids-ui-'));
   const proc = spawn('node', ['server/index.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(PORT), ROOM_STORE_PATH: path.join(require('os').tmpdir(), `pyramids-ui-${process.pid}.json`) },
+    env: { ...process.env, PORT: String(PORT), ROOM_STORE_PATH: path.join(storeDir, 'rooms.json') },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   await new Promise((res, rej) => {
@@ -288,6 +292,7 @@ async function main() {
   } finally {
     await browser.close();
     proc.kill();
+    require('fs').rmSync(storeDir, { recursive: true, force: true });
   }
 
   console.log(failures === 0 ? '\nUI CHECKS ALL PASSED' : `\n${failures} UI CHECKS FAILED`);

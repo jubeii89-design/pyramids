@@ -9,7 +9,11 @@ const WebSocket = require('ws');
 
 async function startServer(t, env) {
   const output = [];
-  const storePath = path.join(require('os').tmpdir(), `pyramids-disconnect-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+  // Must be its own subdirectory, not os.tmpdir() itself: save() chmods the
+  // checkpoint's directory to 0700, and a shared /tmp can't be locked down
+  // that way on CI (EPERM) or on any box where other processes use /tmp.
+  const storeDir = require('fs').mkdtempSync(path.join(require('os').tmpdir(), 'pyramids-disconnect-'));
+  const storePath = path.join(storeDir, 'rooms.json');
   const child = spawn(process.execPath, ['-e',
     "const {server}=require('./server/index'); server.on('listening',()=>process.send({port:server.address().port}));",
   ], { cwd: path.join(__dirname, '..'), env: { ...process.env, PORT: '0', PUBLIC_ORIGIN: '', ROOM_STORE_PATH: storePath, ...env }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'], windowsHide: true });
@@ -19,7 +23,7 @@ async function startServer(t, env) {
   t.after(async () => {
     for (const ws of sockets) ws.terminate();
     if (child.exitCode === null) { const done = new Promise((r) => child.once('exit', r)); child.kill(); await done; }
-    for (const suffix of ['', '.lock']) { try { require('fs').unlinkSync(storePath + suffix); } catch {} }
+    require('fs').rmSync(storeDir, { recursive: true, force: true });
   });
   const port = await new Promise((resolve, reject) => {
     const to = setTimeout(() => reject(new Error('startup timeout: ' + output.join(''))), 8000);

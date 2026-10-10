@@ -44,11 +44,21 @@ const HOST_LIMIT = 5, HOST_WINDOW_MS = 60 * 1000;     // new rooms per IP per mi
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 
 function persistRooms() {
-  roomStore.save(ROOM_STORE_PATH, rooms);
-  roomSnapshotStore.length = 0;
-  roomSnapshotStore.push(...roomStore.load(ROOM_STORE_PATH));
-  previousLifecycle.clear();
-  for (const room of rooms.values()) previousLifecycle.set(room.code, { lastSeen: room.lastSeen || room.created, hostGoneAt: room.hostGoneAt || null });
+  // The checkpoint is a recovery aid, not the source of truth — `rooms` in
+  // memory is. A failed write (disk full, a permissions problem, anything)
+  // must not crash the server: every message handler calls this inline with
+  // no try/catch of its own, and there is no process-level uncaughtException
+  // handler, so an unguarded throw here used to take down every room, not
+  // just the one being saved.
+  try {
+    roomStore.save(ROOM_STORE_PATH, rooms);
+    roomSnapshotStore.length = 0;
+    roomSnapshotStore.push(...roomStore.load(ROOM_STORE_PATH));
+    previousLifecycle.clear();
+    for (const room of rooms.values()) previousLifecycle.set(room.code, { lastSeen: room.lastSeen || room.created, hostGoneAt: room.hostGoneAt || null });
+  } catch (error) {
+    console.error('Room checkpoint failed (continuing without persistence for this write):', error);
+  }
 }
 
 function newCode() {

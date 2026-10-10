@@ -9,7 +9,11 @@ const jsQR = require('jsqr');
 
 test('public room protocol keeps recovery credentials private and rejects unsafe input', { timeout: 20000 }, async (t) => {
   const clients = new Set();
-  const storePath = path.join(require('os').tmpdir(), `pyramids-security-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+  // Must be its own subdirectory, not os.tmpdir() itself: save() chmods the
+  // checkpoint's directory to 0700, and a shared /tmp can't be locked down
+  // that way on CI (EPERM) or on any box where other processes use /tmp.
+  const storeDir = require('fs').mkdtempSync(path.join(require('os').tmpdir(), 'pyramids-security-'));
+  const storePath = path.join(storeDir, 'rooms.json');
   const output = [];
   const child = spawn(process.execPath, ['-e',
     "const {server}=require('./server/index'); server.on('listening',()=>process.send({port:server.address().port}));",
@@ -28,7 +32,7 @@ test('public room protocol keeps recovery credentials private and rejects unsafe
       child.kill();
       await exited;
     }
-    for (const suffix of ['', '.lock']) { try { require('fs').unlinkSync(storePath + suffix); } catch {} }
+    require('fs').rmSync(storeDir, { recursive: true, force: true });
   });
   const port = await new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error(`Server startup timed out: ${output.join('')}`)), 8000);

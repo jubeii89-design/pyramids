@@ -10,7 +10,10 @@ const output = path.join(root,'screenshots','upgrade');
 const base = 'http://localhost:3137';
 async function main() {
   fs.mkdirSync(output,{recursive:true});
-  const proc=spawn(process.execPath,['server/index.js'],{cwd:root,env:{...process.env,PORT:'3137',ROOM_STORE_PATH:path.join(require('os').tmpdir(),`pyramids-3d-${process.pid}.json`)},stdio:['ignore','pipe','inherit']});
+  // A dedicated subdirectory, not os.tmpdir() itself: the server chmods the
+  // checkpoint's directory to 0700, which a shared /tmp can't be locked to.
+  const storeDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'pyramids-3d-'));
+  const proc=spawn(process.execPath,['server/index.js'],{cwd:root,env:{...process.env,PORT:'3137',ROOM_STORE_PATH:path.join(storeDir,'rooms.json')},stdio:['ignore','pipe','inherit']});
   let browser;
   try {
     await new Promise((resolve,reject)=>{proc.stdout.on('data',d=>{if(String(d).includes('listening'))resolve();});proc.on('exit',reject);});
@@ -72,6 +75,6 @@ async function main() {
     assert.deepEqual(errors,[]);
     console.log('PASS: real WebGL, mobile layout, inert names, amber lift/travel, draft undo, atomic submit, synchronized capture and source-only counts.');
     console.log('Screenshots: '+output);
-  } finally {await browser?.close();proc.kill();}
+  } finally {await browser?.close();proc.kill();fs.rmSync(storeDir,{recursive:true,force:true});}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});
