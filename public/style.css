@@ -144,7 +144,7 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 /* stack count chip */
 .pyr .cnt {
   position: absolute;
-  top: -6%; right: -6%;
+  top: 3%; right: 3%;
   background: #1d1528;
   color: #ffd76a;
   border: 1px solid #ffd76a;
