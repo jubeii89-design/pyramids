@@ -24,7 +24,7 @@ function check(cond, label) {
 async function main() {
   const proc = spawn('node', ['server/index.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(PORT) },
+    env: { ...process.env, PORT: String(PORT), ROOM_STORE_PATH: path.join(require('os').tmpdir(), `pyramids-ui-${process.pid}.json`) },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   await new Promise((res, rej) => {
@@ -32,7 +32,7 @@ async function main() {
     setTimeout(() => rej(new Error('server start timeout')), 15000);
   });
 
-  const browser = await chromium.launch(require('fs').existsSync('/opt/pw-browsers/chromium') ? { executablePath: '/opt/pw-browsers/chromium' } : {});
+  const browser = await chromium.launch({ ...(require('fs').existsSync('/opt/pw-browsers/chromium') ? { executablePath: '/opt/pw-browsers/chromium' } : {}), args: ['--disable-webgl', '--disable-3d-apis'] }) // WebGL off: this suite checks the accessible DOM board; test/visual-3d.js covers the 3D one;
   try {
     require('fs').mkdirSync(SHOTS, { recursive: true });
 
@@ -114,8 +114,12 @@ async function main() {
     check((await p1.locator('#board .pyr').count()) >= 60, 'phone renders 3D pyramids');
     check((await p1.locator('#tracker .trk').count()) === 5, 'phone shows pyramid tracker');
     await p1.screenshot({ path: path.join(SHOTS, 'phone-game.png') });
+    // A real phone keeps its seat credential across a reload; a name alone must not reclaim a seat.
+    const seat = await p1.evaluate((k) => sessionStorage.getItem(k), 'cp_seat_' + code2);
+    check(!!seat && JSON.parse(seat).token.length > 20, 'phone holds a private seat credential');
     await p1.close(); // simulate phone dropping mid-game
     const p2 = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await p2.addInitScript(([k, v]) => sessionStorage.setItem(k, v), ['cp_seat_' + code2, seat]);
     await p2.goto(`${BASE}/play.html?room=${code2}`);
     await p2.fill('#namein', 'Memphis');
     await p2.click('#joinBtn');

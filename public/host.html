@@ -103,11 +103,12 @@ function rememberedRoom() {
 function rememberRoom(code) {
   try { localStorage.setItem(ROOM_KEY, code); } catch { /* private mode */ }
 }
+function hostToken() { try { return localStorage.getItem('cp_host_token') || ''; } catch { return ''; } }
 
 let ws = null;
 function openHostWS() {
   ws = connectWS(onMsg, (sock) => {
-    sendWS(sock, { type: 'host_create', origin: location.origin, resume: rememberedRoom() });
+    sendWS(sock, { type: 'host_create', resume: rememberedRoom(), token: hostToken() });
   });
   ws.onclose = () => setTimeout(() => { if (!ws || ws.readyState !== 1) openHostWS(); }, 1500);
 }
@@ -119,6 +120,7 @@ document.addEventListener('visibilitychange', () => {
 function onMsg(msg) {
   if (msg.type === 'hosted') {
     rememberRoom(msg.code);
+    try { localStorage.setItem('cp_host_token', msg.token); } catch {}
     document.getElementById('code').textContent = msg.code;
     document.getElementById('qr').src = msg.qr;
     document.getElementById('joinurl').textContent = msg.joinUrl;
@@ -134,10 +136,24 @@ function onMsg(msg) {
     if (state.phase !== 'over') hide('over'); // a fresh board after Play Again
     renderGame();
   } else if (msg.type === 'played') {
+    animateBoard(document.getElementById('board'), msg);
     toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}!`, true);
   } else if (msg.type === 'skipped') {
     toast(`${names[msg.color] || COLOR_NAMES[msg.color]} dropped off — turn skipped.`);
   } else if (msg.type === 'error') {
+    if (msg.code === 'HOST_AUTH') {
+      // Stale remembered room or credential: forget it and open a fresh room.
+      try { localStorage.removeItem(ROOM_KEY); localStorage.removeItem('cp_host_token'); } catch {}
+      if (ws) { ws.onclose = null; ws.close(); }
+      openHostWS();
+      return;
+    }
+    if (msg.code === 'HOST_BUSY') {
+      // Another host tab already runs this room: don't fight it for the socket.
+      if (ws) { ws.onclose = null; ws.close(); }
+      toast('This room is already open in another tab.');
+      return;
+    }
     toast(msg.error);
   }
 }
@@ -148,7 +164,7 @@ function hide(id) { document.getElementById(id).classList.add('hidden'); }
 function renderLobby() {
   const ul = document.getElementById('players');
   ul.innerHTML = room.players.map(p =>
-    `<li><span class="chip ${p.color}"></span>${p.name}${p.connected ? '' : ' (disconnected)'}</li>`).join('');
+    `<li><span class="chip ${p.color}"></span>${escapeHTML(p.name)}${p.connected ? '' : ' (disconnected)'}</li>`).join('');
   document.getElementById('startBtn').disabled = room.players.length < 2;
   document.getElementById('botBtn').disabled = room.players.length >= 4;
   document.getElementById('waitmsg').style.display = room.players.length >= 2 ? 'none' : '';
@@ -170,20 +186,20 @@ function renderGame() {
     const isTurn = state.phase === 'playing' && state.current === c;
     const off = !connOf(c) ? ' <small style="color:#e0a">(reconnecting…)</small>' : '';
     return `<div class="score ${isTurn ? 'current' : ''}">
-      <span><span class="chip ${c}"></span>${pname(c)}${off}</span>
+      <span><span class="chip ${c}"></span>${escapeHTML(pname(c))}${off}</span>
       <b>${isTurn ? '▲' : ''}</b></div>`;
   }).join('');
   document.getElementById('log').innerHTML = state.log.slice().reverse().map(e =>
     e.pass
-      ? `<div><span class="chip ${e.color}"></span>${pname(e.color)} passed</div>`
+      ? `<div><span class="chip ${e.color}"></span>${escapeHTML(pname(e.color))} passed</div>`
       : `<div><span class="chip ${e.color}"></span><b>${e.word.toUpperCase()}</b></div>`).join('');
   if (state.phase === 'over') {
     show('over');
     const f = state.finalScores;
     document.getElementById('finals').innerHTML =
-      `<p style="margin-bottom:12px">&#127942; <b>${pname(state.winner)}</b> wins!</p>` +
+      `<p style="margin-bottom:12px">&#127942; <b>${escapeHTML(pname(state.winner))}</b> wins!</p>` +
       tieBreakLine(state, pname) +
-      rankFinal(state).map(c => `<div class="score"><span><span class="chip ${c}"></span>${pname(c)}</span><b>${f[c]}</b></div>`).join('');
+      rankFinal(state).map(c => `<div class="score"><span><span class="chip ${c}"></span>${escapeHTML(pname(c))}</span><b>${f[c]}</b></div>`).join('');
   }
 }
 

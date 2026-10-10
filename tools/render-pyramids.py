@@ -84,6 +84,11 @@ face_pos = Vector((0, -face_y, H * T)) + nrm * 0.012
 letter = make_text('letter', 'A', 0.24, material('ink', (1, 1, 1, 1), 0.4),
                    face_pos, (alpha, 0, 0))
 letter.scale = (1, 1 / math.cos(alpha), 1)   # undo foreshortening seen from above
+# black outline: a slightly fatter black copy of the glyph just behind it
+outline = make_text('letter_outline', 'A', 0.24, material('outline', (0, 0, 0, 1), 0.6),
+                    face_pos - nrm * 0.004, (alpha, 0, 0))
+outline.data.offset = 0.014
+outline.scale = letter.scale
 value = make_text('value', '1', 0.16, material('inkv', srgb('#26242b'), 0.4),
                   (0, 0, H + PT + 0.003), (0, 0, 0))
 
@@ -132,6 +137,7 @@ for p in data['pieces']:
         srgb('#46424d') if is_house else srgb('#fffdf4')
     ink = srgb('#e8d5a3') if is_house else srgb(data['palette'][p['color']])
     letter.data.body = p['letter'].upper()
+    outline.data.body = letter.data.body
     letter.data.materials[0].node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = ink
     value.data.body = str(p['value'])
     value.data.materials[0].node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = \

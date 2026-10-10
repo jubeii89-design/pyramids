@@ -12,6 +12,9 @@
   .topbar .me { font-size: 1.1rem; }
   .turnbanner { text-align: center; padding: 10px; border-radius: 10px; margin-bottom: 10px; font-size: 1.1rem; background: #241d14; }
   .turnbanner.mine { background: #3a5a2c; color: #eaffdc; font-weight: bold; }
+  .viewbar { display: flex; gap: 8px; margin-top: 8px; }
+  .viewbar .btn { flex: 1; padding: 9px 6px; font-size: .85rem; }
+  .viewbar .btn[aria-pressed="true"] { background: #ffc21a; color: #2a1d05; }
   .controls { margin-top: 12px; }
   .controls .row { display: flex; gap: 8px; margin-bottom: 10px; }
   .dirbtn { flex: 0 0 auto; padding: 12px 16px; background: #33291a; color: var(--sand); border: 2px solid #4a3d28; }
@@ -58,6 +61,11 @@
     </div>
     <div class="turnbanner" id="turnbanner"></div>
     <div class="board3d"><div class="board" id="board"></div></div>
+    <div class="viewbar" id="viewbar">
+      <button class="btn secondary" id="viewBtn">View: Table</button>
+      <button class="btn secondary" id="rotBtn" aria-label="Rotate the board a quarter turn">&#8635; Rotate</button>
+      <button class="btn secondary" id="mineBtn" aria-pressed="false">My pieces</button>
+    </div>
     <div class="controls" id="controls">
       <div class="row">
         <button class="dirbtn active" id="dirH">Across &#8594;</button>
@@ -66,8 +74,15 @@
       <div class="row">
         <input type="text" id="wordin" placeholder="WORD" autocomplete="off" autocapitalize="characters">
       </div>
+      <div class="draft-controls">
+        <button class="btn secondary" id="previewBtn">Build in 3D</button>
+        <button class="btn secondary" id="nextPieceBtn" disabled>Place next letter</button>
+        <button class="btn secondary" id="undoBtn" disabled>Undo</button>
+        <button class="btn secondary" id="cancelBtn" disabled>Cancel</button>
+      </div>
+      <div id="draftstatus" class="draft-status" role="status">Choose a start square and type a word to build it.</div>
       <div class="row">
-        <button class="btn" id="playBtn" style="flex:1">Play Word</button>
+        <button class="btn" id="playBtn" style="flex:1">Submit Word</button>
         <button class="btn secondary" id="passBtn">Pass</button>
       </div>
       <div class="hint" id="selhint">Tap the square where your word starts.</div>
@@ -96,6 +111,44 @@
 const params = new URLSearchParams(location.search);
 let myColor = null, myName = null, state = null, names = {};
 let sel = null, dir = 'H';
+let draft = null, placed = 0, previewRequest = 0, draftBusy = false;
+const boardElement = document.getElementById('board');
+function draftStatus(text) {
+  document.getElementById('draftstatus').textContent=text;
+  document.getElementById('nextPieceBtn').disabled=!draft || draftBusy || placed >= draft.presentation.steps.length;
+  document.getElementById('undoBtn').disabled=!draft || draftBusy || !placed;
+  document.getElementById('cancelBtn').disabled=!draft;
+}
+function cancelDraft() {
+  previewRequest++; draft=null;placed=0;draftBusy=false;resetBoardDraft(boardElement);
+  draftStatus('Choose a start square and type a word to build it.');
+}
+function nextInstruction() {
+  const step=draft?.presentation.steps[placed];
+  if(!step)return draftStatus('Your word is ready. Submit to finish your turn.');
+  draftStatus(`${step.letter.toUpperCase()} → row ${step.to[0]+1}, column ${step.to[1]+1}. ${step.kind==='move'?'Select its source at row '+(step.from[0]+1)+', column '+(step.from[1]+1)+', or use Place next letter.':'Use Place next letter to include the letter already here.'}`);
+}
+async function placeNext() {
+  if(!draft || draftBusy || placed>=draft.presentation.steps.length)return;
+  const current=draft;draftBusy=true;nextInstruction();
+  await animateDraftStep(boardElement,draft.presentation.steps[placed]);
+  if(draft!==current)return;
+  placed++;draftBusy=false;nextInstruction();
+}
+document.getElementById('previewBtn').onclick=()=>{
+  if(!myTurn()||!sel)return toast('Choose a start square on your turn.');
+  cancelDraft();
+  sendWS(ws,{type:'preview',requestId:++previewRequest,r:sel.r,c:sel.c,dir,word:document.getElementById('wordin').value,gameId:state.gameId,revision:state.revision});
+  draftStatus('Checking your word…');
+};
+document.getElementById('nextPieceBtn').onclick=placeNext;
+document.getElementById('cancelBtn').onclick=cancelDraft;
+document.getElementById('undoBtn').onclick=async()=>{
+  if(!draft || draftBusy || !placed)return;
+  const current=draft;placed--;resetBoardDraft(boardElement);draftBusy=true;nextInstruction();
+  for(let i=0;i<placed;i++){await animateDraftStep(boardElement,current.presentation.steps[i]);if(draft!==current)return;}
+  draftBusy=false;nextInstruction();
+};
 
 const codein = document.getElementById('codein');
 if (params.get('room')) {
@@ -106,19 +159,23 @@ if (params.get('room')) {
 
 keepAwake();
 let ws = null, joinedCode = null;
+let seatToken = '';
+function savedSeat(code) { try { return JSON.parse(sessionStorage.getItem('cp_seat_' + code) || 'null'); } catch { return null; } }
 function ensureWS(cb) {
   if (ws && ws.readyState === 1) return cb();
   ws = connectWS(onMsg, cb);
   ws.onclose = scheduleRejoin;
 }
 
+let rejoinTries = 0;
 function scheduleRejoin() {
   if (!joinedCode || !myName) return;
+  const delay = Math.min(1500 * 2 ** rejoinTries++, 15000); // back off, never hammer the server
   setTimeout(() => {
-    if (ws && ws.readyState === 1) return;
-    ws = connectWS(onMsg, () => sendWS(ws, { type: 'join', code: joinedCode, name: myName }));
+    if (!joinedCode || (ws && ws.readyState === 1)) return;
+    ws = connectWS(onMsg, () => sendWS(ws, { type: 'join', code: joinedCode, name: myName, token: seatToken }));
     ws.onclose = scheduleRejoin;
-  }, 1500);
+  }, delay);
 }
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && joinedCode && (!ws || ws.readyState !== 1)) scheduleRejoin();
@@ -130,12 +187,21 @@ document.getElementById('joinBtn').addEventListener('click', () => {
   if (code.length !== 4) return toast('Enter the 4-letter room code.');
   myName = name;
   joinedCode = code;
-  ensureWS(() => sendWS(ws, { type: 'join', code, name }));
+  seatToken = savedSeat(code)?.token || '';
+  ensureWS(() => sendWS(ws, { type: 'join', code, name, token: seatToken }));
 });
 
 function onMsg(msg) {
-  if (msg.type === 'joined') {
+  if(msg.type==='preview') {
+    if(msg.requestId!==previewRequest || msg.gameId!==state?.gameId || msg.revision!==state?.revision)return;
+    if(!msg.ok)return draftStatus(msg.error);
+    draft=msg;placed=0;nextInstruction();
+  } else if (msg.type === 'joined') {
+    rejoinTries = 0;
     myColor = msg.color;
+    myName = msg.name;
+    if (msg.token) seatToken = msg.token;
+    try { sessionStorage.setItem('cp_seat_' + msg.code, JSON.stringify({ name: myName, token: seatToken })); } catch {}
     document.getElementById('roomcode').textContent = msg.code;
     document.getElementById('mycolor').innerHTML = `You are <span class="chip ${myColor}"></span><b>${COLOR_NAMES[myColor]}</b>`;
     show('waitview'); hide('joinview');
@@ -154,6 +220,7 @@ function onMsg(msg) {
   } else if (msg.type === 'state') {
     const prev = state;
     state = msg.state;
+    if(draft && (draft.gameId!==state.gameId || draft.revision!==state.revision)) {draft=null;placed=0;draftBusy=false;draftStatus('Board updated. Choose your next word.');}
     hide('waitview'); hide('joinview');
     if (state.phase === 'over') { renderOver(); return; }
     // A fresh board (the host hit Play Again): clear the last game's typing
@@ -162,8 +229,10 @@ function onMsg(msg) {
     if (!state.players.includes(myColor)) { hide('gameview'); hide('overview'); show('waitview'); return; }
     show('gameview'); hide('overview'); renderGame();
   } else if (msg.type === 'reject') {
+    cancelDraft();
     toast(msg.error);
   } else if (msg.type === 'played') {
+    animateBoard(document.getElementById('board'), msg);
     if (msg.color === myColor) {
       document.getElementById('wordin').value = '';
       sel = null;
@@ -172,6 +241,13 @@ function onMsg(msg) {
   } else if (msg.type === 'skipped') {
     if (msg.color === myColor) { sel = null; document.getElementById('wordin').value = ''; toast('You dropped off — your turn was skipped.'); }
   } else if (msg.type === 'error') {
+    if (msg.code === 'ROOM_GONE' || msg.code === 'SEAT_GONE') {
+      // The room or our seat no longer exists: stop retrying and forget the stale seat.
+      try { sessionStorage.removeItem('cp_seat_' + joinedCode); } catch {}
+      joinedCode = null; myColor = null; seatToken = ''; state = null;
+      if (ws) { ws.onclose = null; ws.close(); }
+      hide('waitview'); hide('gameview'); hide('overview'); show('joinview');
+    }
     toast(msg.error);
   }
 }
@@ -196,28 +272,68 @@ function spellPath() {
   return out;
 }
 
+// ---- view controls: camera presets and rotation need the 3D board; the DOM board has one fixed view ----
+const VIEW_ORDER = ['table', 'top', 'close'];
+const VIEW_LABEL = { table: 'Table', top: 'Top-down', close: 'Close-up' };
+const OWN_QUARTER = { yellow: 0, blue: 1, red: 2, green: 3 }; // turns the board so your own start edge is nearest you
+const ARROWS = { H: ['→', '↓', '←', '↑'], V: ['↓', '←', '↑', '→'] }; // board directions as seen after each quarter turn
+let viewPref = {};
+try { viewPref = JSON.parse(localStorage.getItem('cp_view') || '{}') || {}; } catch {}
+function saveViewPref() { try { localStorage.setItem('cp_view', JSON.stringify(viewPref)); } catch {} }
+function boardIs3D() { return boardInstances.has(document.getElementById('board')); }
+function viewOpts() {
+  const own = viewPref.qColor === myColor && Number.isInteger(viewPref.quarter);
+  return {
+    view: VIEW_ORDER.includes(viewPref.view) ? viewPref.view : 'table',
+    quarter: own ? viewPref.quarter : (OWN_QUARTER[myColor] ?? 0),
+    focus: viewPref.mine ? myColor : null,
+  };
+}
+function quarterNow() { return boardIs3D() ? viewOpts().quarter : 0; }
+document.addEventListener('board3d-ready', () => { if (state && myColor) renderGame(); });
+document.getElementById('viewBtn').addEventListener('click', () => {
+  viewPref.view = VIEW_ORDER[(VIEW_ORDER.indexOf(viewOpts().view) + 1) % VIEW_ORDER.length]; saveViewPref(); if (state) renderGame();
+});
+document.getElementById('rotBtn').addEventListener('click', () => {
+  viewPref.qColor = myColor; viewPref.quarter = (viewOpts().quarter + 1) % 4; saveViewPref(); if (state) renderGame();
+});
+document.getElementById('mineBtn').addEventListener('click', () => {
+  viewPref.mine = !viewPref.mine; saveViewPref(); if (state) renderGame();
+});
+
 function renderGame() {
-  document.getElementById('me').innerHTML = `<span class="chip ${myColor}"></span>${myName} (${COLOR_NAMES[myColor]})`;
+  document.getElementById('me').innerHTML = `<span class="chip ${myColor}"></span>${escapeHTML(myName)} (${COLOR_NAMES[myColor]})`;
   const tb = document.getElementById('turnbanner');
   if (myTurn()) { tb.textContent = '▲ Your turn — take your time. Play a word, or Pass.'; tb.classList.add('mine'); }
-  else { tb.innerHTML = `Waiting for ${names[state.current] || COLOR_NAMES[state.current]}&hellip;`; tb.classList.remove('mine'); }
+  else { tb.textContent = `Waiting for ${names[state.current] || COLOR_NAMES[state.current]}…`; tb.classList.remove('mine'); }
   const word = document.getElementById('wordin').value.trim();
   renderBoard(document.getElementById('board'), state, {
+    ...viewOpts(),
     selected: sel,
     spelling: myTurn() && sel ? { path: spellPath(), word } : null,
-    onCell: (r, c) => { if (myTurn()) { sel = { r, c }; renderGame(); } },
+    onCell: (r, c) => { if (myTurn()) {
+      if(draft) { const step=draft.presentation.steps[placed]; if(step && step.from[0]===r && step.from[1]===c)placeNext(); return; }
+      sel = { r, c }; renderGame();
+    } },
   });
   document.getElementById('controls').style.opacity = myTurn() ? 1 : 0.45;
+  const v = viewOpts(), q = quarterNow();
+  document.getElementById('viewBtn').classList.toggle('hidden', !boardIs3D());
+  document.getElementById('rotBtn').classList.toggle('hidden', !boardIs3D());
+  document.getElementById('viewBtn').textContent = 'View: ' + VIEW_LABEL[v.view];
+  document.getElementById('mineBtn').setAttribute('aria-pressed', String(!!v.focus));
+  document.getElementById('dirH').textContent = 'Across ' + ARROWS.H[q];
+  document.getElementById('dirV').textContent = 'Down ' + ARROWS.V[q];
   document.getElementById('selhint').innerHTML = !myTurn()
     ? 'Waiting for your turn&hellip;'
     : sel
-      ? `Start: row ${sel.r + 1}, col ${sel.c + 1} — <b>${dir === 'H' ? 'Across →' : 'Down ↓'}</b>. Swipe on the board to change direction.`
+      ? `Start: row ${sel.r + 1}, col ${sel.c + 1} — <b>${dir === 'H' ? 'Across ' + ARROWS.H[q] : 'Down ' + ARROWS.V[q]}</b>. Swipe on the board to change direction.`
       : 'Tap the square where your word starts, then swipe the direction.';
   // Scores stay hidden until the end — this row just shows who is connected.
   document.getElementById('scoresmini').innerHTML = state.players.map(c => {
     const p = names[c] || COLOR_NAMES[c];
     const turn = state.current === c ? ' ▲' : '';
-    return `<span><span class="chip ${c}"></span>${p}${turn}</span>`;
+    return `<span><span class="chip ${c}"></span>${escapeHTML(p)}${turn}</span>`;
   }).join('');
   renderTracker(document.getElementById('tracker'), state, names);
 }
@@ -227,9 +343,9 @@ function renderOver() {
   const f = state.finalScores;
   const nameOf = (c) => names[c] || COLOR_NAMES[c];
   document.getElementById('finals').innerHTML =
-    `<p style="margin-bottom:10px">&#127942; <b>${nameOf(state.winner)}</b> wins!</p>` +
+    `<p style="margin-bottom:10px">&#127942; <b>${escapeHTML(nameOf(state.winner))}</b> wins!</p>` +
     tieBreakLine(state, nameOf) +
-    rankFinal(state).map(c => `<div><span class="chip ${c}"></span>${nameOf(c)}: <b>${f[c]}</b></div>`).join('');
+    rankFinal(state).map(c => `<div><span class="chip ${c}"></span>${escapeHTML(nameOf(c))}: <b>${f[c]}</b></div>`).join('');
 }
 
 // Game-over options: sit tight for the host's next round, or bail out to the
@@ -245,11 +361,12 @@ document.getElementById('menuBtn').addEventListener('click', () => { location.hr
 document.getElementById('dirH').addEventListener('click', () => { dir = 'H'; setDir(); });
 document.getElementById('dirV').addEventListener('click', () => { dir = 'V'; setDir(); });
 function setDir() {
+  cancelDraft();
   document.getElementById('dirH').classList.toggle('active', dir === 'H');
   document.getElementById('dirV').classList.toggle('active', dir === 'V');
   if (state) renderGame();
 }
-document.getElementById('wordin').addEventListener('input', () => { if (state && myTurn()) renderGame(); });
+document.getElementById('wordin').addEventListener('input', () => { cancelDraft(); if (state && myTurn()) renderGame(); });
 
 // Finger-swipe on the board sets the spelling direction (and start square).
 (function () {
@@ -263,7 +380,10 @@ document.getElementById('wordin').addEventListener('input', () => { if (state &&
     const t = e.changedTouches[0];
     const dx = t.clientX - sx, dy = t.clientY - sy;
     if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) return; // a tap, not a swipe
-    dir = Math.abs(dx) >= Math.abs(dy) ? 'H' : 'V';
+    // Map the screen swipe back onto board axes, whatever quarter turn the view is at.
+    const th = quarterNow() * Math.PI / 2;
+    const bx = dx * Math.cos(th) + dy * Math.sin(th), bz = -dx * Math.sin(th) + dy * Math.cos(th);
+    dir = Math.abs(bx) >= Math.abs(bz) ? 'H' : 'V';
     setDir();
   }, { passive: true });
 })();
@@ -273,7 +393,7 @@ document.getElementById('playBtn').addEventListener('click', () => {
   if (!sel) return toast('Tap the square where your word starts.');
   const word = document.getElementById('wordin').value.trim();
   if (word.length < 3) return toast('Words must be at least 3 letters.');
-  sendWS(ws, { type: 'play', r: sel.r, c: sel.c, dir, word });
+  sendWS(ws, { type: 'play', r: sel.r, c: sel.c, dir, word, gameId: state.gameId, revision: state.revision });
 });
 document.getElementById('passBtn').addEventListener('click', () => {
   if (!myTurn()) return toast('Not your turn yet.');

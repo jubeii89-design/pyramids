@@ -1,6 +1,13 @@
 // Shared 3D board renderer + ws helper for host and player screens
 'use strict';
 
+// Names are plain text even when interpolated into an HTML template.
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[ch]);
+}
+
 function connectWS(onMessage, onOpen) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${proto}://${location.host}/ws`);
@@ -35,7 +42,7 @@ function tieBreakLine(state, nameOf) {
   const drew = tb.among
     .slice()
     .sort((a, b) => tb.drew[b] - tb.drew[a])
-    .map((c) => `${nameOf(c)} drew ${tb.drew[c]}`)
+    .map((c) => `${escapeHTML(nameOf(c))} drew ${tb.drew[c]}`)
     .join(', ');
   return `<p class="tiebreak">Tied on score — settled by a draw: ${drew}.</p>`;
 }
@@ -45,6 +52,18 @@ function keepAwake() {
 }
 
 const COLOR_NAMES = { red: 'Red', blue: 'Blue', green: 'Green', yellow: 'Gold', house: 'House' };
+let Board3D;
+const boardInstances = new Map();
+const pendingBoards = new Map();
+import('/board-3d.js').then(module => {
+  Board3D = module.PyramidBoard;
+  document.dispatchEvent(new Event('board3d-ready'));
+  for (const [el, args] of pendingBoards) renderBoard(el, ...args);
+  pendingBoards.clear();
+}).catch(() => { /* The accessible sprite renderer remains available. */ });
+function animateBoard(el, event) { boardInstances.get(el)?.play(event); }
+function resetBoardDraft(el) { boardInstances.get(el)?.resetDraft(); }
+async function animateDraftStep(el, step) { await boardInstances.get(el)?.draftStep(step); }
 
 // One pyramid piece: a Blender-rendered sprite (letter in the owner's colour,
 // value on the tip; see public/assets/pyr.css), plus the stack count chip.
@@ -57,13 +76,31 @@ function pyramidHTML(top, depth) {
 
 // state.cells[r][c] = { p: printedLetter|null, n: stackDepth, t: {l,v,o}|null }
 function renderBoard(el, state, opts = {}) {
+  if (Board3D && !el.dataset.fallback) {
+    try {
+      let instance = boardInstances.get(el);
+      if (!instance) {
+        instance = new Board3D(el); boardInstances.set(el,instance);
+        el.addEventListener('board-context-lost', () => {
+          instance.dispose(); boardInstances.delete(el); el.dataset.fallback='true';
+          el.classList.remove('live-board'); renderBoard(el,instance.latest,instance.opts);
+        }, {once:true});
+      }
+      instance.sync(state,opts); return;
+    } catch (error) {
+      console.warn('3D board unavailable; using accessible board.',error);
+      boardInstances.get(el)?.dispose(); boardInstances.delete(el); el.dataset.fallback='true'; el.classList.remove('live-board');
+    }
+  } else if(!el.dataset.fallback) pendingBoards.set(el,[state,opts]);
+  el.dataset.focus = opts.focus || '';
   el.innerHTML = '';
   const size = state.size;
   for (let r = 0; r < size; r++) {
     for (let c = 0; c < size; c++) {
       const cell = state.cells[r][c];
-      const div = document.createElement('div');
+      const div = document.createElement(opts.onCell ? 'button' : 'div');
       div.className = 'cell';
+      div.setAttribute('aria-label', `Row ${r+1}, column ${c+1}: ${cell.t ? cell.t.l.toUpperCase()+' value '+cell.t.v+' '+cell.t.o+' stack '+cell.n : cell.p || 'empty'}`);
       const runway = r === 0 || r === size - 1 || c === 0 || c === size - 1;
       if (runway && !cell.t && !cell.p) div.classList.add('runway');
       if (cell.t) {
@@ -110,7 +147,7 @@ function renderTracker(el, state, names = {}) {
   const rem = state.remaining || {};
   const rows = ['red', 'blue', 'green', 'yellow'].map((c) => {
     const seated = state.players.includes(c);
-    const who = seated && names[c] ? ` — ${names[c]}` : '';
+    const who = seated && names[c] ? ` — ${escapeHTML(names[c])}` : '';
     return `<div class="trk ${seated ? '' : 'trk-idle'}">
       <span><span class="chip ${c}"></span>${COLOR_NAMES[c]}${who}</span>
       <span class="trk-bar"><i style="width:${((rem[c] || 0) / 30) * 100}%" class="bar-${c}"></i></span>
