@@ -22,11 +22,12 @@ const game = require('../server/game');
 
 const REMOTE_URL = process.env.REMOTE_URL ? process.env.REMOTE_URL.replace(/\/$/, '') : null;
 const PORT = 3123;
+const TEMP_ROOM_STORE = REMOTE_URL ? null : path.join(require('os').tmpdir(), `pyramids-e2e-${process.pid}-${Date.now()}.json`);
 const BASE = REMOTE_URL || `http://localhost:${PORT}`;
 const WS_BASE = BASE.replace(/^http/, 'ws');
 const NUM_GAMES = parseInt(process.argv[2] || '5', 10);
 
-const words = fs.readFileSync(path.join(__dirname, '..', 'data', 'words.txt'), 'utf8').split('\n').filter(Boolean);
+const words = fs.readFileSync(path.join(__dirname, '..', 'data', 'words.txt'), 'utf8').split(/\r?\n/).filter(Boolean);
 const BOT_WORDS = words.filter((w) => w.length >= 3 && w.length <= 6);
 
 const results = [];
@@ -182,6 +183,7 @@ async function playGame(gameNo, numPlayers) {
 
   const secs = ((Date.now() - t0) / 1000).toFixed(1);
   check(finalState !== null, 'game reached game-over');
+  check(wordsPlayed > 0, 'game exercised successful word play (not only passes)');
   if (finalState) {
     check(finalState.winner && finalState.players.includes(finalState.winner), 'winner is a seated player');
     check(finalState.finalScores && Object.keys(finalState.finalScores).length === numPlayers, 'final scores for all players');
@@ -225,9 +227,9 @@ async function main() {
     console.log('(free-tier hosts may need ~30-60s to wake from sleep on the first request)');
   } else {
     console.log('Starting local server…');
-    proc = spawn('node', ['server/index.js'], {
+    proc = spawn(process.execPath, ['server/index.js'], {
       cwd: path.join(__dirname, '..'),
-      env: { ...process.env, PORT: String(PORT) },
+      env: { ...process.env, PORT: String(PORT), ROOM_STORE_PATH: TEMP_ROOM_STORE },
       stdio: ['ignore', 'pipe', 'inherit'],
     });
     await new Promise((resolve, reject) => {
@@ -260,7 +262,13 @@ async function main() {
       await playGame(i + 1, sizes[i % sizes.length]);
     }
   } finally {
-    if (proc) proc.kill();
+    if (proc) {
+      const stopped = new Promise((resolve) => proc.once('exit', resolve));
+      proc.kill();
+      await stopped;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      for (const suffix of ['', '.lock']) { try { fs.unlinkSync(TEMP_ROOM_STORE + suffix); } catch {} }
+    }
   }
 
   console.log('\n================ SUMMARY ================');

@@ -72,45 +72,47 @@ Change the port with `PORT=8080 npm start` (PowerShell: `$env:PORT=8080; npm sta
 ## Deploying a public link
 
 **On AWS:** see [`deploy/aws.md`](deploy/aws.md) — one small always-on instance
-(Lightsail's $5 plan or an EC2 `t4g.small`), with `deploy/pyramids.service` and
-`deploy/Caddyfile` for systemd and HTTPS. Always awake, so there is no cold
-start to warm up before players join.
+(Lightsail or EC2), with `deploy/pyramids.service` and `deploy/Caddyfile` for
+systemd and HTTPS. Verify current instance prices and supported Node version
+before provisioning.
 
-**Free fallback:**
+**Hosted single-instance option:**
 
-`render.yaml` is a Render blueprint for the free plan. Connect the repo at
-[dashboard.render.com](https://dashboard.render.com) → **New → Blueprint**, and
-Render builds `main` and serves it at a permanent URL:
+`render.yaml` is a Render blueprint for the Starter plan and includes a 1 GB
+persistent disk for restart checkpoints. Confirm Render's current plan and disk
+terms before use. Connect the repo at [dashboard.render.com](https://dashboard.render.com)
+→ **New → Blueprint**, and Render builds `main` and serves it at a permanent URL:
 
 ```
 https://crossword-pyramids.onrender.com          ← host screen: /host.html
 ```
 
-That URL never changes — not between deploys, not when the service sleeps — so
-it is safe to share or bookmark. Rooms live in memory, so a restart ends any
-game in progress; the link itself stays put.
+That URL stays stable across deploys, so it is safe to share or bookmark.
+Rooms are saved to the instance's configured persistent disk, letting active
+rooms recover after a process restart. Use one server instance: the local file
+is not shared across replicas and is not a backup.
+This example uses an always-on plan with its persistent disk. Free web services
+may sleep and generally do not provide that disk setup; use them only with an
+explicit no-durability expectation. If a provider plan sleeps, warm the service
+before play. Host/player screens ping `/health` every 10 minutes while open; this
+is only a keep-awake hint and does not preserve state on ephemeral storage.
 
-**The one catch on the free plan:** a free service spins down after 15 minutes
-with no traffic, and the next request takes about a minute to wake it. The QR
-code your players scan is only handed out by an awake server, so:
+If first-request wake delay is not acceptable, choose an always-on plan. Confirm current provider pricing, disk availability, sleep policy and instance-hour limits before choosing; these change over time. Keep one instance because checkpoints are local, and configure `ROOM_STORE_PATH` on the mounted persistent disk.
 
-1. Open `/host.html` yourself a minute or two before anyone joins. The first
-   load is the slow one; the room code appears once the server is up.
-2. Then show the QR. Phones scanning it hit a warm server and join instantly.
-3. While any host or player screen is open it pings `/health` every 10 minutes,
-   so the service will not fall asleep between rounds or during a long turn.
+### Dropped phones, reconnecting and public deployment
 
-If waiting on that first load is not acceptable — a link you want live at any
-moment, unannounced — the options are Render's Starter plan at $7/month (no
-spin-down), or a free external uptime pinger (cron-job.org and similar) hitting
-`/health` every 10 minutes. Note that pinging around the clock consumes roughly
-744 of the 750 free instance-hours a workspace gets each month, so schedule the
-pings for the hours you actually play rather than 24/7.
+- Active rooms are checkpointed atomically to `data/rooms.json` by default. Set `ROOM_STORE_PATH` to a path on persistent local storage to move the checkpoint. The file includes private credential hashes and game state, not raw tokens: protect the directory and include it in encrypted backups. Restore only onto one server instance; do not run multiple writers against the same file or use ephemeral storage if restart recovery is part of your promise.
+- On restart, rooms younger than two hours and inside the 10-minute host-recovery window are restored; hosts resume with their host credential and players reclaim seats with their player credentials. Disconnected human turns resume the existing 30-second skip/pass policy; a crash does not reset that deadline. Malformed/unsupported checkpoints fail startup rather than silently discarding all rooms.
+- Recovery means process restart on the same intact disk, **not** high availability or backup/restore. Host grace and idle expiry still close rooms; take encrypted backups and rehearse restore if you need disaster recovery.
+- There is no turn clock. The only timer is a safety net: if it is a human's turn and their phone has been disconnected for 30 seconds (`GONE_MS`), the turn is skipped and **counts as a pass**. Two full rounds of consecutive passes end the game, so if every human drops, the game can end by stalemate.
+- A phone reclaims its seat only with the credential the server gave it when it joined (kept in that tab's session storage); a name alone is not enough. The host screen likewise resumes its room only with its own credential.
+- On the public internet set `PUBLIC_ORIGIN=https://your-domain` (the server refuses to start in production without it). Behind a reverse proxy also set `TRUST_PROXY=1` so per-address limits see the real client address.
+- Abuse limits (per address): 5 new rooms/minute, 10 wrong room codes/minute, 20 open sockets; `MAX_ROOMS` (default 200) caps rooms.
 
 ## Tech
 
 - Node.js + Express + `ws` (no build step); vanilla JS frontend
-- `qrcode` for join QR generation; rooms are in-memory with 4-letter codes
+- `qrcode` for join QR generation; four-letter rooms use atomic local checkpoints for single-instance restart recovery
 - Server-authoritative rules engine in `server/game.js` (pure, unit-tested)
 - Built-in AI opponents (`findMove`) used both in-game and by the test harness
 
@@ -120,8 +122,8 @@ pings for the hours you actually play rather than 24/7.
 npm test           # rules engine unit tests (node:test)
 npm run e2e        # spawns the real server, verifies room codes + decodes the
                    # QR PNG, then AI players play 5 full games over WebSockets
-node test/ui.js    # Playwright browser test: home page, host QR lobby, phone
-                   # join, full televised bot game, mid-game phone rejoin
+node test/ui.js    # legacy Playwright browser test; run the current 3D flow with
+                   # node test/visual-3d.js (Chromium + SwiftShader required)
 ```
 
 See `TEST_REPORT.md` for the latest results.

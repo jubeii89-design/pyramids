@@ -1,32 +1,30 @@
 # Running Crossword Pyramids on AWS
 
-One small always-on Linux box is the whole architecture. The game server holds
-rooms in memory, so it must be **a single instance** — no autoscaling group, no
-load-balanced pair, no App Runner scaling to 2. A second instance means two
-players scanning the same QR code land on different servers and the room isn't
-there.
+One small always-on Linux box is the whole architecture. Active rooms are
+checkpointed to a local file so a process restart on the same persistent disk
+can recover them. The file is not shared state or a backup, so the app must stay
+**a single instance** — no autoscaling group, load-balanced pair, or scaling to
+2. A second instance will not see rooms created by the first.
 
 For the same reason, skip Lambda + API Gateway WebSockets: it would mean moving
 every room and board into DynamoDB. Not worth it for a party game.
 
 ## Pick the instance
 
-- **Lightsail, $5/month Linux plan** — the recommended option. Fixed price, no
-  metered surprises, static IP and bundled transfer included, and new accounts
-  get 3 months free on that plan.
-- **EC2 `t4g.small` (Arm)** — fine too, and it draws on the $200 of signup
-  credits, but the bill is metered (instance + EBS + data transfer) and becomes
-  pay-as-you-go once the credits or the 6-month plan run out.
+- **Lightsail Linux instance** — often simplest for a single small service; check
+  current plan pricing, included transfer and trial terms in your region.
+- **EC2** — flexible and sometimes covered by new-account credits, but bills for
+  the instance, disk, addresses and transfer can vary. Set a billing budget and
+  verify current pricing before creating resources.
 
-Either way set a **Budget alert** (Billing → Budgets, e.g. $5/month) before you
-walk away. The credits expire; the instance does not stop itself.
+Set a **Budget alert** with a limit you choose before leaving the service running.
+Trial credits expire; instances do not stop themselves automatically.
 
 ## Set it up
 
-Pick the **Ubuntu 24.04 LTS** image. It carries Node 18 and Caddy 2.6 in its
-own archive, so the install is three `apt` packages and nothing else. (On
-22.04, `apt install nodejs` gives you Node 12, which is too old for this app —
-you would have to add the NodeSource repo. Save yourself the detour.)
+Pick a supported Ubuntu LTS image and install a currently supported Node.js
+LTS (the app requires Node 18+). Verify the distribution package version before
+using `apt install nodejs`; install Caddy from its maintained repository.
 
 Open ports 80 and 443 in the firewall (Lightsail: Networking → IPv4 Firewall;
 EC2: the security group). Port 3000 stays closed — Caddy is the only thing the
@@ -54,6 +52,10 @@ sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
 sudo systemctl reload caddy
 ```
 
+Put the same address in `deploy/pyramids.service` as `PUBLIC_ORIGIN=https://your-domain`
+before you start it. The server refuses to start in production without it, and
+browsers connecting from any other origin are rejected (WebSocket close 1008).
+
 Caddy issues the certificate on first request. HTTPS is not optional here: the
 host screen builds its QR code from its own origin, and a page served over
 HTTPS can only open a `wss://` socket.
@@ -68,15 +70,22 @@ cd ~/pyramids && git pull && npm install --omit=dev
 sudo systemctl restart pyramids
 ```
 
-A restart drops any game in progress, so don't deploy mid-session.
+A process restart recovers active games from `data/rooms.json` on the same disk,
+but still avoid deployments mid-session. Keep that directory on persistent,
+access-restricted storage; the checkpoint contains credential hashes and private
+game state. Back it up encrypted if you need recovery from disk/instance loss.
+This single-instance local file is not a substitute for a database, shared
+multi-instance storage, or a rehearsed disaster-recovery process.
 
 ## Keeping the bill near zero
 
 - One instance, no load balancer. A Lightsail or ALB load balancer costs more
-  per month than the server it fronts, and this app cannot use a second node.
+  per month than the server it fronts, and the local checkpoint cannot coordinate
+  multiple writers.
 - Bundled transfer on the $5 Lightsail plan is far more than this game moves —
   it sends small JSON messages plus one QR PNG per room.
 - Stop the instance between game nights if you want to stretch credits; the
   static IP stays attached (on EC2, an unattached Elastic IP is billed).
-- `render.yaml` still works as a free fallback — see the README section on
-  deploying a public link.
+- `render.yaml` uses a paid single-instance plan and mounted persistent disk for
+  the checkpoint; verify current provider plan terms before use. It does not
+  provide backup or disaster recovery; see the README for limits.

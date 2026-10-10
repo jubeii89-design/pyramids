@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node server/index.js",
-    "test": "node --test test/unit.test.js",
+    "test": "node --test test/unit.test.js test/presentation.test.js test/security.test.js test/origin.test.js test/validate.test.js test/parity.test.js test/disconnect.test.js test/room-store.test.js test/recovery.test.js",
     "e2e": "node test/e2e.js 5"
   },
   "repository": {
@@ -24,6 +24,7 @@
   "dependencies": {
     "express": "^5.2.1",
     "qrcode": "^1.5.4",
+    "three": "0.186.1",
     "ws": "^8.21.1"
   },
   "devDependencies": {

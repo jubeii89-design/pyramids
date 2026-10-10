@@ -61,12 +61,11 @@ function startSpaces(color) {
   return out;
 }
 
-let nextId = 1;
-function makePyramid(letter, owner) {
-  return { id: nextId++, l: letter, v: VALUES[letter], o: owner };
-}
-
 function createGame(playerColors, rng = Math.random) {
+  // Piece ids are per game (1..N): a global counter would leak how many
+  // pieces other rooms on this server have dealt.
+  let nextId = 1;
+  const makePyramid = (letter, owner) => ({ id: nextId++, l: letter, v: VALUES[letter], o: owner });
   const cells = [];
   for (let r = 0; r < SIZE; r++) {
     cells.push([]);
@@ -158,7 +157,7 @@ function pathCells(r, c, dir, len) {
  *  - otherwise an exposed player pyramid elsewhere is moved onto that cell
  * Returns {ok:true, result} and mutates state, or {ok:false, error}.
  */
-function playWord(state, color, move, dict) {
+function playWord(state, color, move, dict, preview = false) {
   if (state.phase !== 'playing') return { ok: false, error: 'Game is not in progress.' };
   if (state.players[state.turn] !== color) return { ok: false, error: 'Not your turn.' };
 
@@ -166,6 +165,7 @@ function playWord(state, color, move, dict) {
   if (!/^[a-z]{3,}$/.test(word)) return { ok: false, error: 'Words must be at least 3 letters (A-Z only).' };
   if (!dict.has(word)) return { ok: false, error: `"${word.toUpperCase()}" is not in the dictionary.` };
   if (move.dir !== 'H' && move.dir !== 'V') return { ok: false, error: 'Direction must be H or V.' };
+  if (!Number.isInteger(move.r) || !Number.isInteger(move.c)) return { ok: false, error: 'Choose a board square.' };
 
   const path = pathCells(move.r | 0, move.c | 0, move.dir, word.length);
   if (!path) return { ok: false, error: 'Word does not fit on the board there.' };
@@ -246,6 +246,19 @@ function playWord(state, color, move, dict) {
     };
   }
 
+  // Describe only pre-turn exposed pieces, using the exact resolved choices.
+  // Drafts and commits share this resolver and cannot change duplicate-letter order.
+  const steps = solution.map((ch, i) => {
+    const to = path[i];
+    const from = ch.type === 'move' ? [Math.floor(ch.from / SIZE), ch.from % SIZE] : to;
+    if (ch.type === 'inplace' && ch.ex.kind === 'printed') return { kind: 'printed', from, to, letter: word[i] };
+    const stack = cells[from[0]][from[1]].stack;
+    const p = stack[stack.length - 1];
+    return { kind: ch.type, pieceId: p.id, from, to, letter: p.l, value: p.v, owner: p.o };
+  });
+  const presentation = { steps, captureIds: steps.filter(s => s.kind !== 'printed').map(s => s.pieceId) };
+  if (preview) return { ok: true, word, presentation };
+
   // Apply the move: move pyramids onto the path, then collect everything used
   const collectedNow = [];
   for (let i = 0; i < word.length; i++) {
@@ -271,7 +284,11 @@ function playWord(state, color, move, dict) {
 
   endCheck(state);
   if (state.phase === 'playing') advanceTurn(state);
-  return { ok: true, word, points, collected: collectedNow.length };
+  return { ok: true, word, points, collected: collectedNow.length, presentation };
+}
+
+function planWord(state, color, move, dict) {
+  return playWord(state, color, move, dict, true);
 }
 
 function passTurn(state, color, rng = Math.random) {
@@ -399,7 +416,7 @@ function serialize(state) {
         p: cell.printed,
         n: cell.stack.length,
         t: cell.stack.length
-          ? { l: cell.stack[cell.stack.length - 1].l, v: cell.stack[cell.stack.length - 1].v, o: cell.stack[cell.stack.length - 1].o }
+          ? { id: cell.stack[cell.stack.length - 1].id, l: cell.stack[cell.stack.length - 1].l, v: cell.stack[cell.stack.length - 1].v, o: cell.stack[cell.stack.length - 1].o }
           : null,
       }))
     ),
@@ -545,6 +562,6 @@ function probeMove(state, color, move, sourcesByLetter) {
 
 module.exports = {
   SIZE, COLORS, VALUES, PLAYER_LETTERS, HOUSE_LETTERS,
-  createGame, playWord, passTurn, finish, serialize, exposed, findMove, probeMove,
+  createGame, playWord, planWord, passTurn, finish, serialize, exposed, findMove, probeMove,
   remainingOnBoard, startSpaces,
 };

@@ -1,3 +1,5 @@
 node_modules/
 screenshots/
 build/
+data/rooms.json
+data/rooms.json.*

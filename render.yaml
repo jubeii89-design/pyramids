@@ -2,11 +2,19 @@ services:
   - type: web
     name: crossword-pyramids
     runtime: node
-    plan: free
+    plan: starter
     branch: main
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /health
+    # File checkpoints only survive a process restart while this instance keeps
+    # its writable disk. They are not a backup and not shared between replicas.
+    disk:
+      name: pyramids-room-state
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: 22.22.2
+      - key: ROOM_STORE_PATH
+        value: /var/data/rooms.json
