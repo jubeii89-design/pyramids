@@ -91,6 +91,8 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
   transition: transform .15s;
 }
 .pyr .f { position: absolute; inset: 0; }
+/* sprite pieces (board): square sprite, scaled by the percent-based atlas CSS */
+.pyr[class*="spr-"] { inset: 0; filter: none; }
 /* north face (lit from above) */
 .pyr .fn { clip-path: polygon(0 0, 100% 0, 50% 50%); background: linear-gradient(180deg, var(--pyr-lite), var(--pyr-mid)); }
 /* east face */

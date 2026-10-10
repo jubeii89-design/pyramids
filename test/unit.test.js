@@ -6,7 +6,7 @@ const path = require('path');
 const g = require('../server/game');
 
 const DICT = new Set(
-  fs.readFileSync(path.join(__dirname, '..', 'data', 'words.txt'), 'utf8').split('\n').filter(Boolean)
+  fs.readFileSync(path.join(__dirname, '..', 'data', 'words.txt'), 'utf8').split(/\r?\n/).filter(Boolean)
 );
 
 // Deterministic rng

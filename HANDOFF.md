@@ -117,26 +117,31 @@ Palette, from `public/style.css`: red `#e0413c`, blue `#3f7fd6`,
 green `#35a35a`, gold `#d99e1b`, house `#26242b`, body `--pyr-lite #fbfaf5`
 through `--pyr-shadow #b3ac96`.
 
-### Planned pipeline (not yet built)
+### Pipeline (built; `npx grunt assets`)
 
-1. `tools/export-piece-data.js` — Node, requires `server/game.js`, writes
-   `tools/pieces.json`. Blender cannot read the JS, so this JSON is the
-   handshake and keeps the models from drifting from the rules engine.
-2. `tools/render-pyramids.py` — Blender headless
-   (`blender --background --python`). One bevelled pyramid with a flat peak
-   plate; per piece it sets the glyph, the glyph colour and the tip number and
-   renders RGBA PNG at 256×256 to `build/pyramids/`. Camera should match the
-   live board angle: `.board` is `rotateX(16deg)` under `perspective: 1100px`.
-   Cycles on CPU is the reliable choice headless; EEVEE wants a GL context.
-3. **Grunt** (author's choice) drives it: `grunt render`, `grunt sprites`
-   (atlas + background-position CSS via `grunt-spritesmith`), `grunt assets` as
-   the default. `devDependencies` only — the runtime stays `express`, `ws`,
-   `qrcode`, and **built assets are committed** so the AWS box never needs
-   Blender or Grunt.
-4. `pyramidHTML()` in `public/board.js` swaps its four `clip-path` faces for a
-   single sprite element. The `×N` stack chip stays DOM. `test/ui.js` asserts
-   on `.pyr .peak` text today — that moves to the sprite's identity class,
-   since the value becomes part of the image.
+1. `tools/export-piece-data.js` writes `tools/pieces.json` (121 pieces, palette
+   from `public/style.css`) so the models cannot drift from the rules engine.
+2. `tools/render-pyramids.py` — Blender headless (Cycles, CPU), 128x128 RGBA per
+   piece into `build/pyramids/` (git-ignored). Straight-down orthographic
+   camera, base fills the frame so neighbouring pieces touch on full squares;
+   ivory body, letter on the south face in the owner's colour, value on the tip
+   plate. House pieces are dark with a cream glyph. Optional
+   `-- --blend build/pyramids.blend` saves the scene for tuning by hand.
+3. `Gruntfile.js` — `grunt render` (export + Blender), `grunt sprites`
+   (spritesmith atlas per colour, percent-based CSS in `public/assets/pyr.css`,
+   then `sharp` palette-quantises the PNGs), `grunt assets` = clean, render,
+   sprites. Set `BLENDER=` if Blender is not at the default Windows path.
+   Built output (`public/assets/pyr-*.png`, `pyr.css`) is committed: the
+   server never needs Blender or Grunt. Atlases total about 220 KB.
+4. `pyramidHTML()` in `public/board.js` emits one sprite element per piece
+   (`spr-<colour> pyr-<colour>-<letter>`, with `data-letter` / `data-value`);
+   the `x N` stack chip stays DOM. `test/ui.js` checks those data attributes.
+
+Notes: the camera is top-down, not the board's 16 degree tilt, so the pieces
+tile edge to edge. Windows checkouts turn `data/words.txt` into CRLF, so the
+dictionary loaders split on `/?
+/`. GLB / three.js was considered and
+deferred: a rewrite of the DOM board; revisit with the animation work.
 
 ### Where computer use actually helps
 

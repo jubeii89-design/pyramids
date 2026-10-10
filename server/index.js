@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3000;
 // Dictionary
 const words = fs
   .readFileSync(path.join(__dirname, '..', 'data', 'words.txt'), 'utf8')
-  .split('\n')
+  .split(/\r?\n/)
   .filter(Boolean);
 const DICT = new Set(words);
 // Bot vocabulary: short, common-shaped words keep move search fast

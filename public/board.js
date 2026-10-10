@@ -46,14 +46,11 @@ function keepAwake() {
 
 const COLOR_NAMES = { red: 'Red', blue: 'Blue', green: 'Green', yellow: 'Gold', house: 'House' };
 
-// Build one 3D pyramid piece: four shaded faces meeting at a peak plate that
-// shows the tip value, letter on the front face, stack count chip.
+// One pyramid piece: a Blender-rendered sprite (letter in the owner's colour,
+// value on the tip; see public/assets/pyr.css), plus the stack count chip.
 function pyramidHTML(top, depth) {
   const houseCls = top.o === 'house' ? ' house' : '';
-  return `<div class="pyr${houseCls}" data-owner="${top.o}">
-    <i class="f fn"></i><i class="f fe"></i><i class="f fs"></i><i class="f fw"></i>
-    <b class="peak">${top.v}</b>
-    <span class="pl ink-${top.o}">${top.l.toUpperCase()}</span>
+  return `<div class="pyr${houseCls} spr-${top.o} pyr-${top.o}-${top.l}" data-owner="${top.o}" data-letter="${top.l}" data-value="${top.v}">
     ${depth > 1 ? `<span class="cnt">×${depth}</span>` : ''}
   </div>`;
 }

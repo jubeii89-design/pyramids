@@ -32,7 +32,7 @@ async function main() {
     setTimeout(() => rej(new Error('server start timeout')), 15000);
   });
 
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  const browser = await chromium.launch(require('fs').existsSync('/opt/pw-browsers/chromium') ? { executablePath: '/opt/pw-browsers/chromium' } : {});
   try {
     require('fs').mkdirSync(SHOTS, { recursive: true });
 
@@ -84,7 +84,8 @@ async function main() {
     check((await host.locator('#board .cell').count()) === 100, 'board renders 100 cells');
     const pyrCount = await host.locator('#board .pyr').count();
     check(pyrCount >= 60, `3D pyramid pieces render (${pyrCount} on board)`);
-    check((await host.locator('#board .pyr .peak').first().textContent()).match(/^[1-9]$/), 'peak value plates visible');
+    check(/^[1-9]$/.test(await host.locator('#board .pyr').first().getAttribute('data-value')), 'piece carries its tip value');
+    check((await host.locator('#board .pyr[data-letter]').count()) >= 60, 'pieces carry sprite identity');
     check((await host.locator('#board .pyr .cnt').count()) >= 20, 'stack count chips visible on stacks');
     check((await host.locator('#tracker .trk').count()) === 5, 'pyramid tracker shows 4 colors + house');
     check((await host.locator('#tracker').textContent()).includes('Gold'), 'Gold color naming in tracker');
