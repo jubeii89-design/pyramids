@@ -126,4 +126,12 @@ node test/ui.js    # legacy Playwright browser test; run the current 3D flow wit
                    # node test/visual-3d.js (Chromium + SwiftShader required)
 ```
 
+`npm test` runs its files with `--test-concurrency=1` on purpose. Several of
+them spawn a real child server process with a real network listener; node:test
+runs test *files* in parallel by default, and that many concurrent spawning
+servers starve a small CI runner (2 vCPUs) into a resource-contention hang
+rather than a clean pass — the files are fast and correct individually or
+serialized, just not several-at-once on a small box. If you add a test file
+that spawns its own server, assume it needs this too.
+
 See `TEST_REPORT.md` for the latest results.
