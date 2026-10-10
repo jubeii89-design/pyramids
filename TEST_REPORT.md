@@ -1,96 +1,60 @@
-# Crossword Pyramids — Pre-Release Test Report (v2: 3D Visual Update)
+# Crossword Pyramids — Test Report
 
-**Date:** 2026-07-21 · **Verdict: PASS — ready for release review**
+**Last run:** 2026-10-03, on the current `claude/session-hsd67f` head.
 
-This release adds the fun-3D visual style (Jackbox-inspired UI) on top of the
-v1 engine: real pyramid pieces with letters, peak values, stack tracking, and
-the Red / Blue / Green / Gold color system. All test layers were re-run and
-pass: 11/11 unit tests, the online-hosting e2e suite with bandwidth
-measurement (room codes, QR decode, 5 complete AI games), and the Playwright
-browser suite (22/22 checks) covering the host screen and the phone side.
+Three layers, all passing. Every "player" below is a bot or a script — see
+**Not covered** at the end, which is the honest part of this document.
 
-## What changed in v2
+## 1. Rules engine — 14/14 pass (`npm test`)
 
-- **3D pyramid pieces**: every piece renders as a four-faced pyramid with
-  directional shading, a **peak plate showing the tip point value**, and the
-  letter on the front face — white bodies with letters colored by owner
-  (Red, Blue, Green, **Gold**), black-bodied house pyramids, matching the
-  physical set. Board is perspective-tilted with hover/selection pop.
-- **Stack tracking system**: every stack shows an **×N depth chip**, and a
-  **Pyramid Tracker** panel (host sidebar + phone) shows exactly how many
-  pyramids of each color remain on the board (n/30 per color, n/36 house)
-  with live progress bars — players always know what remains after letters
-  are taken. Server now broadcasts per-color remaining + captured counts.
-- **Jackbox-style look**: vibrant purple stage backdrop, chunky 3D buttons,
-  animated hero pieces, toasts; Strategic Titans badge on the home page.
-- Same infrastructure, rules engine, rooms, and protocol as v1.
+Pure unit tests against `server/game.js`: setup counts and layout, first-player
+rule, four rejection paths, an AI move applied and scored, pyramid conservation
+over six plies, the own-pyramid + black-letter requirement, pass-stalemate
+ending, end-by-exhaustion, serialization shape, scores hidden until game over,
+the pyramid tracker, and the uncovered-tops rule. Scoring is covered twice
+over: that a final score is a player's captured tip values minus their own
+colour left on the board, and that 200 tied games are settled by a draw rather
+than by seat order.
 
-## 1. Rules engine unit tests — 11/11 pass (`npm test`)
+## 2. Online hosting + bandwidth — all checks pass (`npm run e2e`)
 
-All v1 tests (setup, turn order, rejections, stealing constraints,
-conservation, uncovered rule, endings, scoring, serialization) plus a new
-tracker test: remaining counts start at 30/30/30/30 + 36 house and drop by
-exactly the number of captured pyramids after each word, with captured
-counts per owner agreeing.
+Health endpoint, static pages, room-code format, bad-code and room-full
+rejections, unique seat colors, and QR PNGs decoded with jsQR and verified to
+contain the exact join URL. Then five complete AI games (2p, 3p, 4p) over
+independent WebSocket connections.
 
-## 2. Online hosting e2e + bandwidth — ALL CHECKS PASSED (`npm run e2e`)
+Most recent run: 26–35 turns per game, every turn a word, **zero passes** —
+confirming the 750 ms bot search budget does not degrade play. Traffic measured
+at **~4.8 KB per turn, ~120–165 KB for a whole game**.
 
-Room-code format, bad-code rejection, room-full rejection, unique seat
-colors, and QR PNGs decoded and verified to contain the exact join URL —
-5/5 rooms. Five full AI games over independent WebSocket connections:
+## 3. Browser suite — 45/45 checks (`node test/ui.js`)
 
-| Game | Players | Winner | Turns | Words | Total to host | Per turn | Largest msg |
-|------|---------|--------|-------|-------|---------------|----------|-------------|
-| 1 | 2 | red | 32 | 32 | 153.6 KB | 4.80 KB | 4.61 KB |
-| 2 | 3 | red | 19 | 19 | 99.3 KB | 5.23 KB | 4.66 KB |
-| 3 | 4 | green | 37 | 37 | 186.1 KB | 5.03 KB | 4.78 KB |
-| 4 | 2 | red | 27 | 27 | 131.0 KB | 4.85 KB | 4.51 KB |
-| 5 | 3 | green | 30 | 30 | 149.6 KB | 4.99 KB | 4.67 KB |
+Playwright, a desktop host screen and phone-sized player pages:
 
-**Bandwidth verdict:** a complete game costs ~100–190 KB per connected
-screen (~5 KB per turn; largest single message under 5 KB, asserted < 64 KB).
-Phones receive the same stream — comfortably fine on any cellular
-connection; a 4-player party uses well under 1 MB total per game. Static
-page weight is also light (no frameworks, no build, one QR data-URL).
+- home page, host QR lobby, phone joining via the scanned URL
+- 3D board rendering: 100 cells, pyramid pieces, peak values, stack chips
+- a full bot game to the Game Over overlay
+- mid-game rejoin after a phone drops
+- spelling glow preview and the hidden-scores rule
+- game-over options, Main Menu freeing a seat, Play Again dealing a fresh
+  board to everyone still connected, and the lobby fallback
+- no turn countdown on either screen
+- **host reconnect**: the host page is killed mid-game and reopened; the room,
+  the board and the players all survive
 
-Every game reached a legitimate game-over, winners always held the top
-score, and zero bot moves were rejected by the server.
+Requires `npx playwright install chromium` locally; `test/ui.js` currently
+hardcodes a Chromium path suited to the container it was written in.
 
-## 3. Browser UI tests (phone side included) — 22/22 PASSED (`node test/ui.js`)
+## Not covered — read this before trusting the above
 
-- Home page: title, marketing panels, Host/Join, join-code box
-- Host: room code + QR + join URL; lobby updates as players join/leave
-- Phone: QR link pre-fills the room code; joined as "Cleo", seated Red
-- 3D verification on the live board: 100 cells, 60+ pyramid pieces rendered,
-  **peak value plates visible**, **20+ stack ×N chips**, tracker showing
-  4 colors + House with **Gold** naming
-- Full game played to the Game Over overlay on the big screen
-- Phone side in-game: 100-cell 3D board, pyramid tracker, controls
-- Mid-game disconnect + rejoin by name recovers the seat and live board
-
-Fresh screenshots in `screenshots/`.
-
-## Bugs found and fixed during this round
-
-1. **UI test race on the room code** — the "…" placeholder is also 4
-   characters, so a fast check could read it before the server's room code
-   arrived. The wait now matches `/^[A-Z]{4}$/`.
-2. **Case-sensitive color check** broke when player-facing color names were
-   capitalized (Red/Gold); test updated, and all player-facing text now uses
-   the display names consistently (yellow → **Gold**).
-
-## Known limitations (unchanged from v1, plus)
-
-- Runway corner "bends" not implemented (straight words only)
-- Dictionary replaces the challenge flow; rooms are in-memory
-- The 3D is stylized CSS (four shaded faces + peak plate), not a WebGL
-  engine — chosen deliberately so phones stay fast, taps stay precise, and
-  nothing needs a loading screen. A Three.js host-screen view is a possible
-  future upgrade.
-- Music/SFX intentionally deferred per plan.
-
-## Release recommendation
-
-Ship it. The 3D presentation, stack tracking, and party UI are verified on
-both the big screen and the phone side, bandwidth is negligible, and the
-engine remains stable across all five test games.
+- **No human has ever played this game.** Every test player is scripted. These
+  suites prove correctness, not that the game is fun or balanced.
+- Several protocol-level edge cases are known and deliberately unfixed for now:
+  no payload or rate limits, `again` has no phase guard, and a host socket that
+  sends `join` can confuse its own role.
+- Rooms live in memory: any restart ends every game in progress. Nothing tests
+  restart behaviour because there is none to test.
+- Two tabletop rules remain unimplemented by design — corner "bend" words and
+  the challenge/forfeit flow. See the README.
+- CI runs the unit and e2e suites on every pull request and push to main; the
+  browser suite is still a local check.

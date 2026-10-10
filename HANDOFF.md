@@ -1,0 +1,157 @@
+# Handoff — continuing Crossword Pyramids in a local session
+
+Everything a fresh session needs to pick this up. Read this file first.
+
+## How to start
+
+A Claude Code session cannot be copied between machines, and a cloud session
+cannot reach your computer — so this file is the handover. In a terminal, in
+your clone of this repo:
+
+```bash
+git clone https://github.com/jubeii89-design/pyramids.git
+cd pyramids && npm install
+claude remote-control        # or open the folder in the Claude Desktop app
+```
+
+That session runs on your machine, so it has computer use and can drive the
+Blender GUI. Point it at this file.
+
+The session that produced all this is exported alongside it:
+
+- `docs/session-conversation.md` (134 KB) — every message, both sides, no tool
+  calls. This is the one to paste or point a local session at.
+- `docs/session-transcript.md` (626 KB) — the same, plus every tool call and
+  its output in collapsed blocks. Reach for it when you need to see exactly
+  what was run and what came back.
+
+Both cover the whole project from the first prompt, including work predating
+this handoff. Internal reasoning, scheduled check-ins and webhook noise are
+stripped; long tool outputs are truncated.
+
+**Credentials are redacted.** A Google service-account token appeared in the
+session history and GitHub's push protection caught it on the first attempt to
+commit these files. Every occurrence now reads `[GOOGLE_TOKEN REDACTED]`, and
+the export is filtered against the usual credential shapes (Google, GitHub,
+AWS, Slack, private-key blocks) before it is written. If you regenerate these
+files, run that filter again — the raw session contains the real value.
+
+**The work is on the branch `claude/session-hsd67f`, open as draft PR #6.**
+`main` does not have any of it. Check out that branch before doing anything.
+
+---
+
+## The game, in one paragraph
+
+Node + Express + `ws`, no build step, vanilla JS front end. `server/game.js` is
+a pure, unit-tested rules engine; `server/index.js` is the WebSocket server and
+room lifecycle; `public/host.html` is the big screen, `public/play.html` the
+phone controller, `public/board.js` the shared renderer. Rooms live in memory
+in a `Map`, so **one instance only** — no autoscaling, and a restart ends every
+game in progress. 359k-word dictionary in `data/words.txt`.
+
+## Rules decisions made by the author this session
+
+These override anything older in the README or in my earlier commit messages:
+
+1. **Capture**: a played word's pyramids are picked up and the layer beneath is
+   revealed. Letters may be taken from **any** of the four colours — that is
+   the game, not an exploit. Every word still needs at least one black letter
+   (a house pyramid or a printed square) in place.
+2. **The Word Runway is optional space** — used only if a player uses it. Note
+   the outermost ring is empty, so a word cannot be built there alone; it still
+   needs a black letter in place somewhere.
+3. **Scoring**: your score is the tip values of every pyramid you hold, added
+   up, **minus the tips of your own colour still on the board**. The deduction
+   is real and deliberate. (I removed it on an earlier reading and the author
+   corrected me — do not remove it again.)
+4. **Ties**: settled by a random draw — each tied player takes a pyramid from
+   those still on the board, without replacement, highest tip wins, equal draws
+   drawn again. Implemented as `drawOff()` in `server/game.js`; the result is
+   on `state.tieBreak` and both results screens explain it.
+5. **No turn clock.** A turn ends when the player plays a word or presses Pass.
+   The only timer left skips the turn of a phone that has *disconnected*
+   (`GONE_MS`, 30s).
+
+## What is built and working
+
+Host QR lobby, phone join, spelling with tap/swipe preview, AI opponents,
+mid-game rejoin, host-screen reconnect, pyramid tracker, hidden scores until
+the end, game over with Play Again / Main Menu, restart straight into a new
+game, and the scoring above.
+
+Tests: `npm test` (14 unit), `npm run e2e` (5 AI games over WebSockets),
+`node test/ui.js` (Playwright, ~49 checks). CI runs the first two on every PR.
+`node test/ui.js` hardcodes a container Chromium path at `test/ui.js:35` —
+**change that locally** to your own Chromium or let Playwright find it.
+
+## What is NOT done
+
+- **Never deployed.** `crosswordpyramids.duckdns.org` resolves to DuckDNS's
+  default, not to any AWS instance. Deploy steps are in `deploy/aws.md`.
+- **No human has ever played it.** Every test player is a bot.
+- Known and deliberately unfixed: no payload/rate limits, no room persistence
+  across restarts, no corner "bend" words, no challenge/forfeit flow.
+
+---
+
+## The task in progress: Blender pyramid assets
+
+**Goal:** replace the CSS fake-3D pyramids with pieces modelled in Blender —
+white body, the **letter in the owner's colour**, the **tip value** on the peak
+plate — for a better board and for animation. Author's decision: **pre-rendered
+sprites**, not live three.js.
+
+### The data
+
+121 unique pieces: 26 letters × 4 colours, plus 17 distinct house letters.
+Geometry is identical; only the glyph, its colour and the tip number vary.
+Tip values, from `VALUES` in `server/game.js`:
+
+```
+1: a e i n o r s t u    2: d l    3: b c h m    4: f g
+5: p y    6: k    7: j v w    8: x    9: q z
+```
+
+Palette, from `public/style.css`: red `#e0413c`, blue `#3f7fd6`,
+green `#35a35a`, gold `#d99e1b`, house `#26242b`, body `--pyr-lite #fbfaf5`
+through `--pyr-shadow #b3ac96`.
+
+### Pipeline (built; `npx grunt assets`)
+
+1. `tools/export-piece-data.js` writes `tools/pieces.json` (121 pieces, palette
+   from `public/style.css`) so the models cannot drift from the rules engine.
+2. `tools/render-pyramids.py` — Blender headless (Cycles, CPU), 128x128 RGBA per
+   piece into `build/pyramids/` (git-ignored). Straight-down orthographic
+   camera, base fills the frame so neighbouring pieces touch on full squares;
+   ivory body, letter on the south face in the owner's colour, value on the tip
+   plate. House pieces are dark with a cream glyph. Optional
+   `-- --blend build/pyramids.blend` saves the scene for tuning by hand.
+3. `Gruntfile.js` — `grunt render` (export + Blender), `grunt sprites`
+   (spritesmith atlas per colour, percent-based CSS in `public/assets/pyr.css`,
+   then `sharp` palette-quantises the PNGs), `grunt assets` = clean, render,
+   sprites. Set `BLENDER=` if Blender is not at the default Windows path.
+   Built output (`public/assets/pyr-*.png`, `pyr.css`) is committed: the
+   server never needs Blender or Grunt. Atlases total about 220 KB.
+4. `pyramidHTML()` in `public/board.js` emits one sprite element per piece
+   (`spr-<colour> pyr-<colour>-<letter>`, with `data-letter` / `data-value`);
+   the `x N` stack chip stays DOM. `test/ui.js` checks those data attributes.
+
+Notes: the camera is top-down, not the board's 16 degree tilt, so the pieces
+tile edge to edge. Windows checkouts turn `data/words.txt` into CRLF, so the
+dictionary loaders split on `/?
+/`. GLB / three.js was considered and
+deferred: a rewrite of the DOM board; revisit with the animation work.
+
+### Where computer use actually helps
+
+Not for generating the assets — headless Blender does that and is
+reproducible. It helps for **opening the generated `.blend` and tuning bevels,
+lighting and materials by eye**, then re-running `grunt assets`.
+
+### Scoped out deliberately
+
+Sliding-piece animation. `renderBoard()` rebuilds all 100 cells with
+`innerHTML = ''` on every update, so animating movement needs keyed DOM
+reconciliation first. Sprites plus CSS transforms give lift/pop; true motion is
+a separate piece of work.

@@ -1,0 +1,743 @@
+{
+  "palette": {
+    "house": "#26242b",
+    "red": "#e0413c",
+    "blue": "#3f7fd6",
+    "green": "#35a35a",
+    "yellow": "#d99e1b"
+  },
+  "body": {
+    "lite": "#fbfaf5",
+    "mid": "#e9e5d8",
+    "dark": "#cfc9b6",
+    "shadow": "#b3ac96"
+  },
+  "pieces": [
+    {
+      "id": "red-a",
+      "color": "red",
+      "letter": "a",
+      "value": 1
+    },
+    {
+      "id": "red-b",
+      "color": "red",
+      "letter": "b",
+      "value": 3
+    },
+    {
+      "id": "red-c",
+      "color": "red",
+      "letter": "c",
+      "value": 3
+    },
+    {
+      "id": "red-d",
+      "color": "red",
+      "letter": "d",
+      "value": 2
+    },
+    {
+      "id": "red-e",
+      "color": "red",
+      "letter": "e",
+      "value": 1
+    },
+    {
+      "id": "red-f",
+      "color": "red",
+      "letter": "f",
+      "value": 4
+    },
+    {
+      "id": "red-g",
+      "color": "red",
+      "letter": "g",
+      "value": 4
+    },
+    {
+      "id": "red-h",
+      "color": "red",
+      "letter": "h",
+      "value": 3
+    },
+    {
+      "id": "red-i",
+      "color": "red",
+      "letter": "i",
+      "value": 1
+    },
+    {
+      "id": "red-j",
+      "color": "red",
+      "letter": "j",
+      "value": 7
+    },
+    {
+      "id": "red-k",
+      "color": "red",
+      "letter": "k",
+      "value": 6
+    },
+    {
+      "id": "red-l",
+      "color": "red",
+      "letter": "l",
+      "value": 2
+    },
+    {
+      "id": "red-m",
+      "color": "red",
+      "letter": "m",
+      "value": 3
+    },
+    {
+      "id": "red-n",
+      "color": "red",
+      "letter": "n",
+      "value": 1
+    },
+    {
+      "id": "red-o",
+      "color": "red",
+      "letter": "o",
+      "value": 1
+    },
+    {
+      "id": "red-p",
+      "color": "red",
+      "letter": "p",
+      "value": 5
+    },
+    {
+      "id": "red-q",
+      "color": "red",
+      "letter": "q",
+      "value": 9
+    },
+    {
+      "id": "red-r",
+      "color": "red",
+      "letter": "r",
+      "value": 1
+    },
+    {
+      "id": "red-s",
+      "color": "red",
+      "letter": "s",
+      "value": 1
+    },
+    {
+      "id": "red-t",
+      "color": "red",
+      "letter": "t",
+      "value": 1
+    },
+    {
+      "id": "red-u",
+      "color": "red",
+      "letter": "u",
+      "value": 1
+    },
+    {
+      "id": "red-v",
+      "color": "red",
+      "letter": "v",
+      "value": 7
+    },
+    {
+      "id": "red-w",
+      "color": "red",
+      "letter": "w",
+      "value": 7
+    },
+    {
+      "id": "red-x",
+      "color": "red",
+      "letter": "x",
+      "value": 8
+    },
+    {
+      "id": "red-y",
+      "color": "red",
+      "letter": "y",
+      "value": 5
+    },
+    {
+      "id": "red-z",
+      "color": "red",
+      "letter": "z",
+      "value": 9
+    },
+    {
+      "id": "blue-a",
+      "color": "blue",
+      "letter": "a",
+      "value": 1
+    },
+    {
+      "id": "blue-b",
+      "color": "blue",
+      "letter": "b",
+      "value": 3
+    },
+    {
+      "id": "blue-c",
+      "color": "blue",
+      "letter": "c",
+      "value": 3
+    },
+    {
+      "id": "blue-d",
+      "color": "blue",
+      "letter": "d",
+      "value": 2
+    },
+    {
+      "id": "blue-e",
+      "color": "blue",
+      "letter": "e",
+      "value": 1
+    },
+    {
+      "id": "blue-f",
+      "color": "blue",
+      "letter": "f",
+      "value": 4
+    },
+    {
+      "id": "blue-g",
+      "color": "blue",
+      "letter": "g",
+      "value": 4
+    },
+    {
+      "id": "blue-h",
+      "color": "blue",
+      "letter": "h",
+      "value": 3
+    },
+    {
+      "id": "blue-i",
+      "color": "blue",
+      "letter": "i",
+      "value": 1
+    },
+    {
+      "id": "blue-j",
+      "color": "blue",
+      "letter": "j",
+      "value": 7
+    },
+    {
+      "id": "blue-k",
+      "color": "blue",
+      "letter": "k",
+      "value": 6
+    },
+    {
+      "id": "blue-l",
+      "color": "blue",
+      "letter": "l",
+      "value": 2
+    },
+    {
+      "id": "blue-m",
+      "color": "blue",
+      "letter": "m",
+      "value": 3
+    },
+    {
+      "id": "blue-n",
+      "color": "blue",
+      "letter": "n",
+      "value": 1
+    },
+    {
+      "id": "blue-o",
+      "color": "blue",
+      "letter": "o",
+      "value": 1
+    },
+    {
+      "id": "blue-p",
+      "color": "blue",
+      "letter": "p",
+      "value": 5
+    },
+    {
+      "id": "blue-q",
+      "color": "blue",
+      "letter": "q",
+      "value": 9
+    },
+    {
+      "id": "blue-r",
+      "color": "blue",
+      "letter": "r",
+      "value": 1
+    },
+    {
+      "id": "blue-s",
+      "color": "blue",
+      "letter": "s",
+      "value": 1
+    },
+    {
+      "id": "blue-t",
+      "color": "blue",
+      "letter": "t",
+      "value": 1
+    },
+    {
+      "id": "blue-u",
+      "color": "blue",
+      "letter": "u",
+      "value": 1
+    },
+    {
+      "id": "blue-v",
+      "color": "blue",
+      "letter": "v",
+      "value": 7
+    },
+    {
+      "id": "blue-w",
+      "color": "blue",
+      "letter": "w",
+      "value": 7
+    },
+    {
+      "id": "blue-x",
+      "color": "blue",
+      "letter": "x",
+      "value": 8
+    },
+    {
+      "id": "blue-y",
+      "color": "blue",
+      "letter": "y",
+      "value": 5
+    },
+    {
+      "id": "blue-z",
+      "color": "blue",
+      "letter": "z",
+      "value": 9
+    },
+    {
+      "id": "green-a",
+      "color": "green",
+      "letter": "a",
+      "value": 1
+    },
+    {
+      "id": "green-b",
+      "color": "green",
+      "letter": "b",
+      "value": 3
+    },
+    {
+      "id": "green-c",
+      "color": "green",
+      "letter": "c",
+      "value": 3
+    },
+    {
+      "id": "green-d",
+      "color": "green",
+      "letter": "d",
+      "value": 2
+    },
+    {
+      "id": "green-e",
+      "color": "green",
+      "letter": "e",
+      "value": 1
+    },
+    {
+      "id": "green-f",
+      "color": "green",
+      "letter": "f",
+      "value": 4
+    },
+    {
+      "id": "green-g",
+      "color": "green",
+      "letter": "g",
+      "value": 4
+    },
+    {
+      "id": "green-h",
+      "color": "green",
+      "letter": "h",
+      "value": 3
+    },
+    {
+      "id": "green-i",
+      "color": "green",
+      "letter": "i",
+      "value": 1
+    },
+    {
+      "id": "green-j",
+      "color": "green",
+      "letter": "j",
+      "value": 7
+    },
+    {
+      "id": "green-k",
+      "color": "green",
+      "letter": "k",
+      "value": 6
+    },
+    {
+      "id": "green-l",
+      "color": "green",
+      "letter": "l",
+      "value": 2
+    },
+    {
+      "id": "green-m",
+      "color": "green",
+      "letter": "m",
+      "value": 3
+    },
+    {
+      "id": "green-n",
+      "color": "green",
+      "letter": "n",
+      "value": 1
+    },
+    {
+      "id": "green-o",
+      "color": "green",
+      "letter": "o",
+      "value": 1
+    },
+    {
+      "id": "green-p",
+      "color": "green",
+      "letter": "p",
+      "value": 5
+    },
+    {
+      "id": "green-q",
+      "color": "green",
+      "letter": "q",
+      "value": 9
+    },
+    {
+      "id": "green-r",
+      "color": "green",
+      "letter": "r",
+      "value": 1
+    },
+    {
+      "id": "green-s",
+      "color": "green",
+      "letter": "s",
+      "value": 1
+    },
+    {
+      "id": "green-t",
+      "color": "green",
+      "letter": "t",
+      "value": 1
+    },
+    {
+      "id": "green-u",
+      "color": "green",
+      "letter": "u",
+      "value": 1
+    },
+    {
+      "id": "green-v",
+      "color": "green",
+      "letter": "v",
+      "value": 7
+    },
+    {
+      "id": "green-w",
+      "color": "green",
+      "letter": "w",
+      "value": 7
+    },
+    {
+      "id": "green-x",
+      "color": "green",
+      "letter": "x",
+      "value": 8
+    },
+    {
+      "id": "green-y",
+      "color": "green",
+      "letter": "y",
+      "value": 5
+    },
+    {
+      "id": "green-z",
+      "color": "green",
+      "letter": "z",
+      "value": 9
+    },
+    {
+      "id": "yellow-a",
+      "color": "yellow",
+      "letter": "a",
+      "value": 1
+    },
+    {
+      "id": "yellow-b",
+      "color": "yellow",
+      "letter": "b",
+      "value": 3
+    },
+    {
+      "id": "yellow-c",
+      "color": "yellow",
+      "letter": "c",
+      "value": 3
+    },
+    {
+      "id": "yellow-d",
+      "color": "yellow",
+      "letter": "d",
+      "value": 2
+    },
+    {
+      "id": "yellow-e",
+      "color": "yellow",
+      "letter": "e",
+      "value": 1
+    },
+    {
+      "id": "yellow-f",
+      "color": "yellow",
+      "letter": "f",
+      "value": 4
+    },
+    {
+      "id": "yellow-g",
+      "color": "yellow",
+      "letter": "g",
+      "value": 4
+    },
+    {
+      "id": "yellow-h",
+      "color": "yellow",
+      "letter": "h",
+      "value": 3
+    },
+    {
+      "id": "yellow-i",
+      "color": "yellow",
+      "letter": "i",
+      "value": 1
+    },
+    {
+      "id": "yellow-j",
+      "color": "yellow",
+      "letter": "j",
+      "value": 7
+    },
+    {
+      "id": "yellow-k",
+      "color": "yellow",
+      "letter": "k",
+      "value": 6
+    },
+    {
+      "id": "yellow-l",
+      "color": "yellow",
+      "letter": "l",
+      "value": 2
+    },
+    {
+      "id": "yellow-m",
+      "color": "yellow",
+      "letter": "m",
+      "value": 3
+    },
+    {
+      "id": "yellow-n",
+      "color": "yellow",
+      "letter": "n",
+      "value": 1
+    },
+    {
+      "id": "yellow-o",
+      "color": "yellow",
+      "letter": "o",
+      "value": 1
+    },
+    {
+      "id": "yellow-p",
+      "color": "yellow",
+      "letter": "p",
+      "value": 5
+    },
+    {
+      "id": "yellow-q",
+      "color": "yellow",
+      "letter": "q",
+      "value": 9
+    },
+    {
+      "id": "yellow-r",
+      "color": "yellow",
+      "letter": "r",
+      "value": 1
+    },
+    {
+      "id": "yellow-s",
+      "color": "yellow",
+      "letter": "s",
+      "value": 1
+    },
+    {
+      "id": "yellow-t",
+      "color": "yellow",
+      "letter": "t",
+      "value": 1
+    },
+    {
+      "id": "yellow-u",
+      "color": "yellow",
+      "letter": "u",
+      "value": 1
+    },
+    {
+      "id": "yellow-v",
+      "color": "yellow",
+      "letter": "v",
+      "value": 7
+    },
+    {
+      "id": "yellow-w",
+      "color": "yellow",
+      "letter": "w",
+      "value": 7
+    },
+    {
+      "id": "yellow-x",
+      "color": "yellow",
+      "letter": "x",
+      "value": 8
+    },
+    {
+      "id": "yellow-y",
+      "color": "yellow",
+      "letter": "y",
+      "value": 5
+    },
+    {
+      "id": "yellow-z",
+      "color": "yellow",
+      "letter": "z",
+      "value": 9
+    },
+    {
+      "id": "house-a",
+      "color": "house",
+      "letter": "a",
+      "value": 1
+    },
+    {
+      "id": "house-b",
+      "color": "house",
+      "letter": "b",
+      "value": 3
+    },
+    {
+      "id": "house-c",
+      "color": "house",
+      "letter": "c",
+      "value": 3
+    },
+    {
+      "id": "house-d",
+      "color": "house",
+      "letter": "d",
+      "value": 2
+    },
+    {
+      "id": "house-e",
+      "color": "house",
+      "letter": "e",
+      "value": 1
+    },
+    {
+      "id": "house-g",
+      "color": "house",
+      "letter": "g",
+      "value": 4
+    },
+    {
+      "id": "house-h",
+      "color": "house",
+      "letter": "h",
+      "value": 3
+    },
+    {
+      "id": "house-i",
+      "color": "house",
+      "letter": "i",
+      "value": 1
+    },
+    {
+      "id": "house-l",
+      "color": "house",
+      "letter": "l",
+      "value": 2
+    },
+    {
+      "id": "house-m",
+      "color": "house",
+      "letter": "m",
+      "value": 3
+    },
+    {
+      "id": "house-n",
+      "color": "house",
+      "letter": "n",
+      "value": 1
+    },
+    {
+      "id": "house-o",
+      "color": "house",
+      "letter": "o",
+      "value": 1
+    },
+    {
+      "id": "house-r",
+      "color": "house",
+      "letter": "r",
+      "value": 1
+    },
+    {
+      "id": "house-s",
+      "color": "house",
+      "letter": "s",
+      "value": 1
+    },
+    {
+      "id": "house-t",
+      "color": "house",
+      "letter": "t",
+      "value": 1
+    },
+    {
+      "id": "house-u",
+      "color": "house",
+      "letter": "u",
+      "value": 1
+    },
+    {
+      "id": "house-w",
+      "color": "house",
+      "letter": "w",
+      "value": 7
+    }
+  ]
+}

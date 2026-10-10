@@ -1,0 +1,28 @@
+[Unit]
+Description=Crossword Pyramids game server
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/pyramids
+Environment=NODE_ENV=production
+Environment=PORT=3000
+# Keep the restart checkpoint on this persistent instance disk. Restrict the
+# file/directory permissions; the checkpoint includes hashes and private state.
+Environment=ROOM_STORE_PATH=/home/ubuntu/pyramids/data/rooms.json
+# Your public HTTPS address. Required in production: it is the only browser
+# origin allowed to open game sockets, and the base of every invite link/QR.
+Environment=PUBLIC_ORIGIN=https://pyramids.example.com
+# Caddy is the only thing that reaches this process, so trust the client
+# address it forwards; without this every player looks like 127.0.0.1 and
+# shares one set of per-address abuse limits.
+Environment=TRUST_PROXY=1
+ExecStart=/usr/bin/node server/index.js
+Restart=always
+RestartSec=3
+# One server instance only: local file checkpoints support process restart on
+# this disk, but do not provide shared state, backups, or multi-node recovery.
+
+[Install]
+WantedBy=multi-user.target

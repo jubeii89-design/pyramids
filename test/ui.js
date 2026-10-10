@@ -22,9 +22,13 @@ function check(cond, label) {
 }
 
 async function main() {
+  // A dedicated subdirectory, not os.tmpdir() itself: the server chmods the
+  // checkpoint's directory to 0700, and a shared /tmp can't be locked down
+  // that way (EPERM on CI, and wrong on any box where other processes use /tmp).
+  const storeDir = require('fs').mkdtempSync(path.join(require('os').tmpdir(), 'pyramids-ui-'));
   const proc = spawn('node', ['server/index.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(PORT) },
+    env: { ...process.env, PORT: String(PORT), ROOM_STORE_PATH: path.join(storeDir, 'rooms.json') },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   await new Promise((res, rej) => {
@@ -32,7 +36,7 @@ async function main() {
     setTimeout(() => rej(new Error('server start timeout')), 15000);
   });
 
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  const browser = await chromium.launch({ ...(require('fs').existsSync('/opt/pw-browsers/chromium') ? { executablePath: '/opt/pw-browsers/chromium' } : {}), args: ['--disable-webgl', '--disable-3d-apis'] }) // WebGL off: this suite checks the accessible DOM board; test/visual-3d.js covers the 3D one;
   try {
     require('fs').mkdirSync(SHOTS, { recursive: true });
 
@@ -84,7 +88,8 @@ async function main() {
     check((await host.locator('#board .cell').count()) === 100, 'board renders 100 cells');
     const pyrCount = await host.locator('#board .pyr').count();
     check(pyrCount >= 60, `3D pyramid pieces render (${pyrCount} on board)`);
-    check((await host.locator('#board .pyr .peak').first().textContent()).match(/^[1-9]$/), 'peak value plates visible');
+    check(/^[1-9]$/.test(await host.locator('#board .pyr').first().getAttribute('data-value')), 'piece carries its tip value');
+    check((await host.locator('#board .pyr[data-letter]').count()) >= 60, 'pieces carry sprite identity');
     check((await host.locator('#board .pyr .cnt').count()) >= 20, 'stack count chips visible on stacks');
     check((await host.locator('#tracker .trk').count()) === 5, 'pyramid tracker shows 4 colors + house');
     check((await host.locator('#tracker').textContent()).includes('Gold'), 'Gold color naming in tracker');
@@ -113,8 +118,12 @@ async function main() {
     check((await p1.locator('#board .pyr').count()) >= 60, 'phone renders 3D pyramids');
     check((await p1.locator('#tracker .trk').count()) === 5, 'phone shows pyramid tracker');
     await p1.screenshot({ path: path.join(SHOTS, 'phone-game.png') });
+    // A real phone keeps its seat credential across a reload; a name alone must not reclaim a seat.
+    const seat = await p1.evaluate((k) => sessionStorage.getItem(k), 'cp_seat_' + code2);
+    check(!!seat && JSON.parse(seat).token.length > 20, 'phone holds a private seat credential');
     await p1.close(); // simulate phone dropping mid-game
     const p2 = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await p2.addInitScript(([k, v]) => sessionStorage.setItem(k, v), ['cp_seat_' + code2, seat]);
     await p2.goto(`${BASE}/play.html?room=${code2}`);
     await p2.fill('#namein', 'Memphis');
     await p2.click('#joinBtn');
@@ -159,7 +168,10 @@ async function main() {
     const matched = await ph.locator('#board .cell.glow-match').count();
     check(previewed + matched === 3, `all 3 letters previewed on the board (${previewed} ghost + ${matched} in place)`);
     // Countdown timer is running on the player's turn
-    check(/\d+s to spell/.test(await ph.locator('#turnbanner').textContent()), 'turn countdown shown on phone');
+    // No turn clock anywhere: a player takes as long as they like
+    const banner = await ph.locator('#turnbanner').textContent();
+    check(/take your time/.test(banner) && !/\d+s/.test(banner), 'no countdown on the phone, just the turn prompt');
+    check(!/\d+s/.test(await host3.locator('#scores').textContent()), 'no countdown on the big screen');
     await ph.screenshot({ path: path.join(SHOTS, 'phone-spelling.png') });
     await host3.close(); await ph.close();
 
@@ -200,6 +212,15 @@ async function main() {
     check(await host4.locator('#againBtn').isVisible(), 'host game over offers Play Again');
     check(await host4.locator('#menuBtn').isVisible(), 'host game over offers Main Menu');
     for (const p of phones) await p.waitForSelector('#overview:not(.hidden)');
+    // Everyone passed, so everyone finished on zero — the winner comes from the
+    // random draw, and the screens must say so rather than look arbitrary.
+    const hostFinals = await host4.locator('#finals').textContent();
+    check(/settled by a draw/.test(hostFinals), 'host explains the tie-break draw');
+    check(/drew \d/.test(hostFinals), 'host shows what each tied player drew');
+    const winner = (hostFinals.match(/^\s*🏆\s*(.+?)\s*wins!/) || [])[1];
+    const firstListed = (await host4.locator('#finals .score span').first().textContent()).trim();
+    check(!!winner && firstListed === winner, `winner is listed first (${winner} / ${firstListed})`);
+    check(/settled by a draw/.test(await phones[0].locator('#finals').textContent()), 'phone explains the tie-break too');
     check(await phones[0].locator('#againBtn').isVisible(), 'phone game over offers Play Again');
     check(await phones[0].locator('#menuBtn').isVisible(), 'phone game over offers Main Menu');
     await phones[0].screenshot({ path: path.join(SHOTS, 'phone-gameover.png') });
@@ -234,9 +255,44 @@ async function main() {
     check(true, 'Play Again with only one player left waits in the lobby');
     await host4.close();
     for (const p of phones) await p.close();
+
+    // --- G: the host screen can die and come back without ending the game
+    console.log('G) Host reconnect');
+    // Same browser profile across both host pages — that is what "the host
+    // reopens the tab" means, and localStorage only persists within a context.
+    const hostCtx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const host5 = await hostCtx.newPage();
+    await host5.goto(`${BASE}/host.html`);
+    await host5.waitForFunction(() => /^[A-Z]{4}$/.test(document.getElementById('code').textContent));
+    const code5 = await host5.locator('#code').textContent();
+    const survivor = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await survivor.goto(`${BASE}/play.html?room=${code5}`);
+    await survivor.fill('#namein', 'Cleo');
+    await survivor.click('#joinBtn');
+    await survivor.waitForSelector('#waitview:not(.hidden)');
+    await host5.click('#botBtn');
+    await host5.waitForFunction(() => document.querySelectorAll('#players li').length === 2);
+    await host5.click('#startBtn');
+    await survivor.waitForSelector('#gameview:not(.hidden)');
+
+    // The big screen goes away mid-game (laptop sleeps, tab discarded)
+    await host5.close();
+    await survivor.waitForTimeout(1500);
+    check(await survivor.locator('#gameview').isVisible(), 'phone keeps the game when the host screen dies');
+
+    // ...and the host reopens /host.html in the same browser profile
+    const host5b = await hostCtx.newPage();
+    await host5b.goto(`${BASE}/host.html`);
+    await host5b.waitForFunction(() => /^[A-Z]{4}$/.test(document.getElementById('code').textContent));
+    check((await host5b.locator('#code').textContent()) === code5, 'host reopens into the same room code');
+    await host5b.waitForSelector('#gamearea:not(.hidden)', { timeout: 10000 });
+    check((await host5b.locator('#board .cell').count()) === 100, 'host picks the game back up, board intact');
+    check(await survivor.locator('#gameview').isVisible(), 'the player was never kicked');
+    await host5b.close(); await survivor.close(); await hostCtx.close();
   } finally {
     await browser.close();
     proc.kill();
+    require('fs').rmSync(storeDir, { recursive: true, force: true });
   }
 
   console.log(failures === 0 ? '\nUI CHECKS ALL PASSED' : `\n${failures} UI CHECKS FAILED`);

@@ -44,7 +44,14 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .btn:disabled { opacity: .45; cursor: default; transform: none; }
 
 /* ================= 3D BOARD ================= */
-.board3d { perspective: 1100px; }
+.board3d { perspective: 1100px; min-width: 0; }
+.board.live-board { display: block; padding: 0; border: none; outline: none; transform: none; background: radial-gradient(ellipse, #59472e, #201b15 75%); overflow: hidden; border-radius: 18px; }
+.live-board canvas { display: block; width: 100%; height: 100%; touch-action: pan-y; }
+.piece-inspector { min-height: 2.7em; padding: 10px 4px; color: #ead7ac; text-align: center; font-size: .88rem; }
+.draft-controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.draft-controls .btn { padding: 11px 16px; font-size: .85rem; }
+.draft-status { padding: 10px 0; min-height: 2.7em; color: #ffd365; }
+@media (min-width: 901px) { .gamegrid .board3d { max-width: min(100%, calc(100vh - 155px)); margin-inline: auto; width: 100%; } }
 .board {
   display: grid;
   grid-template-columns: repeat(10, 1fr);
@@ -73,7 +80,16 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
   justify-content: center;
   overflow: visible;
 }
-.cell.runway { background: #b3a276; background-image: none; box-shadow: inset 0 0 6px rgba(0,0,0,.25); }
+.cell.runway { background: #b3a276; box-shadow: inset 0 0 6px rgba(0,0,0,.25);
+  /* a thin X on every runway square */
+  background-image:
+    linear-gradient(to top right, transparent calc(50% - .7px), rgba(70,48,18,.55) 50%, transparent calc(50% + .7px)),
+    linear-gradient(to bottom right, transparent calc(50% - .7px), rgba(70,48,18,.55) 50%, transparent calc(50% + .7px)); }
+/* "My pieces": fade other players' colours (house stays solid) */
+.board[data-focus="red"] .pyr:not(.house):not([data-owner="red"]),
+.board[data-focus="blue"] .pyr:not(.house):not([data-owner="blue"]),
+.board[data-focus="green"] .pyr:not(.house):not([data-owner="green"]),
+.board[data-focus="yellow"] .pyr:not(.house):not([data-owner="yellow"]) { opacity: .3; }
 .printed-letter {
   font-family: Georgia, serif;
   font-weight: bold;
@@ -91,6 +107,8 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
   transition: transform .15s;
 }
 .pyr .f { position: absolute; inset: 0; }
+/* sprite pieces (board): square sprite, scaled by the percent-based atlas CSS */
+.pyr[class*="spr-"] { inset: 0; filter: none; }
 /* north face (lit from above) */
 .pyr .fn { clip-path: polygon(0 0, 100% 0, 50% 50%); background: linear-gradient(180deg, var(--pyr-lite), var(--pyr-mid)); }
 /* east face */
@@ -142,7 +160,7 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 /* stack count chip */
 .pyr .cnt {
   position: absolute;
-  top: -6%; right: -6%;
+  top: 3%; right: 3%;
   background: #1d1528;
   color: #ffd76a;
   border: 1px solid #ffd76a;
@@ -230,3 +248,6 @@ input[type=text]:focus { outline: 3px solid var(--gold); }
 .toast.good { background: #123420; color: #d9ffe3; border-color: #2c7a44; }
 @keyframes toast-in { from { transform: translateX(-50%) translateY(20px); opacity: 0; } }
 @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+
+/* Results screen: how a tied game was settled */
+.tiebreak { color: var(--sand); font-size: .9rem; margin-bottom: 10px; }

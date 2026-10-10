@@ -61,12 +61,11 @@ function startSpaces(color) {
   return out;
 }
 
-let nextId = 1;
-function makePyramid(letter, owner) {
-  return { id: nextId++, l: letter, v: VALUES[letter], o: owner };
-}
-
 function createGame(playerColors, rng = Math.random) {
+  // Piece ids are per game (1..N): a global counter would leak how many
+  // pieces other rooms on this server have dealt.
+  let nextId = 1;
+  const makePyramid = (letter, owner) => ({ id: nextId++, l: letter, v: VALUES[letter], o: owner });
   const cells = [];
   for (let r = 0; r < SIZE; r++) {
     cells.push([]);
@@ -76,10 +75,10 @@ function createGame(playerColors, rng = Math.random) {
   for (let r = 2; r <= 7; r++)
     for (let c = 2; c <= 7; c++) cells[r][c].printed = PRINTED_INNER[r - 2][c - 2];
   // Corner printed letters (S/P of "PYRAMIDS")
-  cells[1][1].printed = 's';
-  cells[1][8].printed = 'p';
-  cells[8][1].printed = 'p';
-  cells[8][8].printed = 's';
+  cells[1][1].printed = 'p';
+  cells[1][8].printed = 's';
+  cells[8][1].printed = 's';
+  cells[8][8].printed = 'p';
 
   // All four colors are set up even with fewer players (per the rules)
   for (const color of COLORS) {
@@ -110,6 +109,7 @@ function createGame(playerColors, rng = Math.random) {
     log: [],                       // {color, word, points} history
     winner: null,
     finalScores: null,
+    tieBreak: null,
   };
   for (const c of playerColors) {
     state.collected[c] = [];
@@ -157,7 +157,7 @@ function pathCells(r, c, dir, len) {
  *  - otherwise an exposed player pyramid elsewhere is moved onto that cell
  * Returns {ok:true, result} and mutates state, or {ok:false, error}.
  */
-function playWord(state, color, move, dict) {
+function playWord(state, color, move, dict, preview = false) {
   if (state.phase !== 'playing') return { ok: false, error: 'Game is not in progress.' };
   if (state.players[state.turn] !== color) return { ok: false, error: 'Not your turn.' };
 
@@ -165,6 +165,7 @@ function playWord(state, color, move, dict) {
   if (!/^[a-z]{3,}$/.test(word)) return { ok: false, error: 'Words must be at least 3 letters (A-Z only).' };
   if (!dict.has(word)) return { ok: false, error: `"${word.toUpperCase()}" is not in the dictionary.` };
   if (move.dir !== 'H' && move.dir !== 'V') return { ok: false, error: 'Direction must be H or V.' };
+  if (!Number.isInteger(move.r) || !Number.isInteger(move.c)) return { ok: false, error: 'Choose a board square.' };
 
   const path = pathCells(move.r | 0, move.c | 0, move.dir, word.length);
   if (!path) return { ok: false, error: 'Word does not fit on the board there.' };
@@ -245,6 +246,19 @@ function playWord(state, color, move, dict) {
     };
   }
 
+  // Describe only pre-turn exposed pieces, using the exact resolved choices.
+  // Drafts and commits share this resolver and cannot change duplicate-letter order.
+  const steps = solution.map((ch, i) => {
+    const to = path[i];
+    const from = ch.type === 'move' ? [Math.floor(ch.from / SIZE), ch.from % SIZE] : to;
+    if (ch.type === 'inplace' && ch.ex.kind === 'printed') return { kind: 'printed', from, to, letter: word[i] };
+    const stack = cells[from[0]][from[1]].stack;
+    const p = stack[stack.length - 1];
+    return { kind: ch.type, pieceId: p.id, from, to, letter: p.l, value: p.v, owner: p.o };
+  });
+  const presentation = { steps, captureIds: steps.filter(s => s.kind !== 'printed').map(s => s.pieceId) };
+  if (preview) return { ok: true, word, presentation };
+
   // Apply the move: move pyramids onto the path, then collect everything used
   const collectedNow = [];
   for (let i = 0; i < word.length; i++) {
@@ -270,10 +284,14 @@ function playWord(state, color, move, dict) {
 
   endCheck(state);
   if (state.phase === 'playing') advanceTurn(state);
-  return { ok: true, word, points, collected: collectedNow.length };
+  return { ok: true, word, points, collected: collectedNow.length, presentation };
 }
 
-function passTurn(state, color) {
+function planWord(state, color, move, dict) {
+  return playWord(state, color, move, dict, true);
+}
+
+function passTurn(state, color, rng = Math.random) {
   if (state.phase !== 'playing') return { ok: false, error: 'Game is not in progress.' };
   if (state.players[state.turn] !== color) return { ok: false, error: 'Not your turn.' };
   state.passes++;
@@ -281,7 +299,7 @@ function passTurn(state, color) {
   if (state.log.length > 60) state.log.shift();
   // Stalemate: two full rounds of passes ends the game
   if (state.passes >= state.players.length * 2) {
-    finish(state);
+    finish(state, rng);
     return { ok: true, ended: true };
   }
   advanceTurn(state);
@@ -289,7 +307,7 @@ function passTurn(state, color) {
 }
 
 function advanceTurn(state) {
-  state.turn = (state.turn + 1) % state.players.length; // clockwise
+  state.turn = (state.turn + 1) % state.players.length; // seat order (COLORS), not table-clockwise
 }
 
 function remainingOnBoard(state, color) {
@@ -308,18 +326,55 @@ function endCheck(state) {
   }
 }
 
-function finish(state) {
+function finish(state, rng = Math.random) {
   state.phase = 'over';
+  // Your score is the tip values of every pyramid you hold, added up, MINUS
+  // the tips of your own pyramids still sitting on the board — leaving your
+  // colour out there is a penalty. `state.scores` is the running capture
+  // total (see playWord); the deduction is applied once, here.
   const finals = {};
   for (const color of state.players) {
     finals[color] = state.scores[color] - remainingOnBoard(state, color).pts;
   }
   state.finalScores = finals;
-  let best = null;
+
+  let top = null;
   for (const color of state.players) {
-    if (best === null || finals[color] > finals[best]) best = color;
+    if (top === null || finals[color] > finals[top]) top = color;
   }
-  state.winner = best;
+  const tied = state.players.filter((c) => finals[c] === finals[top]);
+  state.winner = tied.length === 1 ? top : drawOff(state, tied, rng);
+}
+
+// Tie-break: each tied player takes a pyramid at random from a shuffled stack;
+// highest tip wins, and an equal draw is drawn again. The pool is the pyramids
+// still on the board, or a plain 1-9 spread if the board has been cleared out.
+function drawOff(state, tied, rng) {
+  const pool = [];
+  for (const row of state.cells)
+    for (const cell of row)
+      for (const p of cell.stack) pool.push(p.v);
+  if (!pool.length) for (let v = 1; v <= 9; v++) pool.push(v);
+
+  for (let attempt = 0; attempt < 20; attempt++) {
+    // Each player takes a different pyramid off the stack, so draw without
+    // replacement. Equal tips can still come up — then everyone draws again.
+    const stack = pool.slice();
+    const drew = {};
+    for (const color of tied) {
+      drew[color] = stack.length > 1
+        ? stack.splice(Math.floor(rng() * stack.length), 1)[0]
+        : pool[Math.floor(rng() * pool.length)];
+    }
+    let best = tied[0];
+    for (const color of tied) if (drew[color] > drew[best]) best = color;
+    const stillTied = tied.filter((c) => drew[c] === drew[best]);
+    state.tieBreak = { among: tied.slice(), drew, resolved: stillTied.length === 1 };
+    if (stillTied.length === 1) return best;
+  }
+  // Pathological pool (every pyramid the same value): fall back to seat order
+  // rather than spin forever.
+  return tied[0];
 }
 
 // Public serialization sent to clients
@@ -354,13 +409,14 @@ function serialize(state) {
     scores: over ? state.scores : null,
     finalScores: state.finalScores,
     winner: state.winner,
+    tieBreak: state.tieBreak,
     log: publicLog,
     cells: state.cells.map((row) =>
       row.map((cell) => ({
         p: cell.printed,
         n: cell.stack.length,
         t: cell.stack.length
-          ? { l: cell.stack[cell.stack.length - 1].l, v: cell.stack[cell.stack.length - 1].v, o: cell.stack[cell.stack.length - 1].o }
+          ? { id: cell.stack[cell.stack.length - 1].id, l: cell.stack[cell.stack.length - 1].l, v: cell.stack[cell.stack.length - 1].v, o: cell.stack[cell.stack.length - 1].o }
           : null,
       }))
     ),
@@ -401,9 +457,12 @@ function findMove(state, color, botWords, rng = Math.random, maxFound = 4) {
 
   const words = shuffle(botWords, rng);
   const found = [];
-  const deadline = Date.now() + 3000;
+  // Node is single-threaded: every millisecond spent here freezes every other
+  // room. A real move is found in tens of ms; this budget only bites on a
+  // hopeless scan, where passing is the right answer anyway.
+  const deadline = Date.now() + 750;
   for (const word of words) {
-    if (Date.now() > deadline && found.length) break;
+    if (Date.now() > deadline) break; // hard stop: a hopeless scan must not block the server
     if (found.length >= maxFound) break;
     if (!fits(word)) continue;
     for (let dir of ['H', 'V']) {
@@ -503,6 +562,6 @@ function probeMove(state, color, move, sourcesByLetter) {
 
 module.exports = {
   SIZE, COLORS, VALUES, PLAYER_LETTERS, HOUSE_LETTERS,
-  createGame, playWord, passTurn, serialize, exposed, findMove, probeMove,
+  createGame, playWord, planWord, passTurn, finish, serialize, exposed, findMove, probeMove,
   remainingOnBoard, startSpaces,
 };
