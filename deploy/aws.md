@@ -37,7 +37,7 @@ cd pyramids && npm install --omit=dev
 
 sudo cp deploy/pyramids.service /etc/systemd/system/
 sudo systemctl enable --now pyramids
-curl -s localhost:3000/health          # {"ok":true}
+curl -s localhost:3000/health          # {"ok":true,"build":"<commit>",...}
 ```
 
 If `systemctl status pyramids` is not `active (running)`, `journalctl -u
@@ -62,6 +62,9 @@ HTTPS can only open a `wss://` socket.
 
 The host screen is then at `https://your-domain/host.html`, and that link is
 permanent and always awake — no cold start to warm up before players join.
+
+After any update, `curl https://your-domain/health` should show the commit you just
+pulled (`build`) and a fresh `startedAt`; if it does not, the old process is still serving.
 
 ## Updating
 

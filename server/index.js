@@ -42,7 +42,14 @@ function saveFeedback(entry) {
   } catch (err) { console.error('feedback not saved:', err.message); return false; }
 }
 app.use(express.static(path.join(__dirname, '..', 'public')));
-app.get('/health', (_req, res) => res.json({ ok: true }));
+// Which code is this? BUILD_ID if the deploy sets it, else the checked-out commit. Lets you
+// confirm a running server is the version you think it is (curl /health).
+const BUILD = process.env.BUILD_ID || (() => {
+  try { return require('child_process').execSync('git rev-parse --short HEAD', { cwd: path.join(__dirname, '..'), stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() || 'unknown'; }
+  catch { return 'unknown'; }
+})();
+const STARTED_AT = new Date().toISOString();
+app.get('/health', (_req, res) => res.json({ ok: true, version: require('../package.json').version, build: BUILD, startedAt: STARTED_AT }));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 8192 });
@@ -455,7 +462,7 @@ process.once('SIGTERM', () => { storeLock.release(); process.exit(143); });
 
 assertConfigured();
 server.listen(PORT, () => {
-  console.log(`Crossword Pyramids listening on http://localhost:${PORT} (dictionary: ${DICT.size} words)`);
+  console.log(`Crossword Pyramids listening on http://localhost:${PORT} (dictionary: ${DICT.size} words, build ${BUILD})`);
 });
 
 module.exports = { server, app, DICT };

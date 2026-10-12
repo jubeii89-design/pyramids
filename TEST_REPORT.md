@@ -1,60 +1,25 @@
-# Crossword Pyramids — Test Report
+# Test report
 
-**Last run:** 2026-10-03, on the current `claude/session-hsd67f` head.
+Everything below runs from a clean clone of the repository with `npm ci`; no
+local files outside git are needed. Commands are the same in CI.
 
-Three layers, all passing. Every "player" below is a bot or a script — see
-**Not covered** at the end, which is the honest part of this document.
+| Gate | Command | What it covers |
+|---|---|---|
+| Unit and socket tests | `npm test` (65 tests) | Rules engine (setup, word legality, capture, scoring with the penalty, tie-break draw, end conditions); move previews and piece choices; resolver parity; message validation; per-address limits; origin allow-list; credentialed reconnect; disconnect skip; feedback and `/health`; room checkpoint save/load |
+| Played games | `npm run e2e` | Five complete games (2, 3 and 4 players) over real WebSockets, played by scripted socket players; room code and QR decode; full-room and bad-code rejection; bandwidth per turn |
+| Browser: DOM board | `node test/ui.js` | Home, QR join, lobby, a full game to the results screen, rejoin with the seat credential, spelling preview, scores hidden until the end, play again / main menu, host-screen reconnect |
+| Browser: 3D board | `node test/visual-3d.js` | Real WebGL board, mobile layout, inert player names, draft undo, atomic submit, capture animation |
+| Browser: piece choice | `node test/pick-pieces.js` | Chooses an alternative source piece and checks exactly the previewed pieces were captured |
 
-## 1. Rules engine — 14/14 pass (`npm test`)
+`npx grunt verify` runs the first two; `npx grunt verify-ui` runs the three
+browser suites (they need Playwright's Chromium: `npx playwright install chromium`).
 
-Pure unit tests against `server/game.js`: setup counts and layout, first-player
-rule, four rejection paths, an AI move applied and scored, pyramid conservation
-over six plies, the own-pyramid + black-letter requirement, pass-stalemate
-ending, end-by-exhaustion, serialization shape, scores hidden until game over,
-the pyramid tracker, and the uncovered-tops rule. Scoring is covered twice
-over: that a final score is a player's captured tip values minus their own
-colour left on the board, and that 200 tied games are settled by a draw rather
-than by seat order.
+## What is not covered
 
-## 2. Online hosting + bandwidth — all checks pass (`npm run e2e`)
-
-Health endpoint, static pages, room-code format, bad-code and room-full
-rejections, unique seat colors, and QR PNGs decoded with jsQR and verified to
-contain the exact join URL. Then five complete AI games (2p, 3p, 4p) over
-independent WebSocket connections.
-
-Most recent run: 26–35 turns per game, every turn a word, **zero passes** —
-confirming the 750 ms bot search budget does not degrade play. Traffic measured
-at **~4.8 KB per turn, ~120–165 KB for a whole game**.
-
-## 3. Browser suite — 45/45 checks (`node test/ui.js`)
-
-Playwright, a desktop host screen and phone-sized player pages:
-
-- home page, host QR lobby, phone joining via the scanned URL
-- 3D board rendering: 100 cells, pyramid pieces, peak values, stack chips
-- a full bot game to the Game Over overlay
-- mid-game rejoin after a phone drops
-- spelling glow preview and the hidden-scores rule
-- game-over options, Main Menu freeing a seat, Play Again dealing a fresh
-  board to everyone still connected, and the lobby fallback
-- no turn countdown on either screen
-- **host reconnect**: the host page is killed mid-game and reopened; the room,
-  the board and the players all survive
-
-Requires `npx playwright install chromium` locally; `test/ui.js` currently
-hardcodes a Chromium path suited to the container it was written in.
-
-## Not covered — read this before trusting the above
-
-- **No human has ever played this game.** Every test player is scripted. These
-  suites prove correctness, not that the game is fun or balanced.
-- Several protocol-level edge cases are known and deliberately unfixed for now:
-  no payload or rate limits, `again` has no phase guard, and a host socket that
-  sends `join` can confuse its own role.
-- Rooms live in memory: any restart ends every game in progress. Nothing tests
-  restart behaviour because there is none to test.
-- Two tabletop rules remain unimplemented by design — corner "bend" words and
-  the challenge/forfeit flow. See the README.
-- CI runs the unit and e2e suites on every pull request and push to main; the
-  browser suite is still a local check.
+- No test has run on a real phone, on mobile data, or on a real AWS server.
+- The server never plays for anyone. Every "player" in these tests is a script
+  that uses `findMove` from `server/game.js`; no human has played a full game
+  under test.
+- The HTTPS origin check has not been exercised behind a real reverse proxy.
+- Load, soak and accessibility testing are not done.
+- The bundled word list has not been audited (it accepts some abbreviations).

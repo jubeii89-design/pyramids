@@ -23,10 +23,12 @@ function publicToEngine(st) {
 }
 
 // opts: { play: true } auto-plays; { play: false } only joins and sits there;
-// { hold: true } joins and waits to be release()d before it makes its first move.
+// { hold: true } joins and waits to be release()d before it makes its first move;
+// { delayMs: n } waits n ms before each move (so a test can freeze the game mid-way).
 async function scriptedPlayer(base, code, name, opts = {}) {
   const play = opts.play !== false;
   let hold = !!opts.hold, latest = null;
+  const delayMs = opts.delayMs || 0;
   const ws = new WebSocket(`${base.replace(/^http/, 'ws')}/ws`);
   ws.on('error', () => {});
   await new Promise((res, rej) => { ws.once('open', res); ws.once('error', rej); });
@@ -52,6 +54,10 @@ async function scriptedPlayer(base, code, name, opts = {}) {
     const key = `${st.gameId}:${st.revision}`;
     if (key === lastActed) return;
     lastActed = key;
+    if (delayMs) { setTimeout(() => { if (!hold && latest && `${latest.gameId}:${latest.revision}` === key) decide(st); }, delayMs); return; }
+    decide(st);
+  }
+  function decide(st) {
     const move = game.findMove(publicToEngine(st), color, WORDS);
     const base = { gameId: st.gameId, revision: st.revision };
     if (move) ws.send(JSON.stringify({ type: 'play', r: move.r, c: move.c, dir: move.dir, word: move.word, ...base }));
@@ -62,6 +68,7 @@ async function scriptedPlayer(base, code, name, opts = {}) {
   return {
     ws, get color() { return color; }, get token() { return token; }, close: () => ws.close(),
     release() { hold = false; if (latest && play && color) act(latest); },
+    pause() { hold = true; },
   };
 }
 

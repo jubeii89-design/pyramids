@@ -156,3 +156,12 @@ test('feedback is saved server-side, is rate limited, and tip config is https-on
   const cfg = await (await fetch(`http://127.0.0.1:${port}/config.json`)).json();
   assert.equal(cfg.tipUrl, 'https://example.com/support');
 });
+
+test('/health reports which build is running and when it started', { timeout: 20000 }, async (t) => {
+  const { port } = await startServer(t, { BUILD_ID: 'test-build-123' });
+  const h = await (await fetch(`http://127.0.0.1:${port}/health`)).json();
+  assert.equal(h.ok, true);
+  assert.equal(h.build, 'test-build-123');
+  assert.match(h.startedAt, /^\d{4}-\d\d-\d\dT/);
+  assert.ok(h.version);
+});
