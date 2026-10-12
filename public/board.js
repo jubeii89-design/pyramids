@@ -47,6 +47,55 @@ function tieBreakLine(state, nameOf) {
   return `<p class="tiebreak">Tied on score — settled by a draw: ${drew}.</p>`;
 }
 
+// ---- post-game recap, voluntary-support link, and the feedback dialog (shared by host and phone) ----
+let publicConfig = {};
+fetch('/config.json', { cache: 'no-store' }).then((r) => r.json()).then((c) => { publicConfig = c || {}; }).catch(() => {});
+
+function gameRecapHTML(state, nameOf) {
+  const words = (state.log || []).filter((e) => e.word);
+  let html = '';
+  if (words.length) {
+    const best = words.reduce((a, b) => ((b.points || 0) > (a.points || 0) ? b : a));
+    const longest = words.reduce((a, b) => (b.word.length > a.word.length ? b : a));
+    const counts = {};
+    words.forEach((e) => { counts[e.color] = (counts[e.color] || 0) + 1; });
+    const busiest = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+    const row = (label, text) => `<div class="recap-row"><span>${label}</span><b>${text}</b></div>`;
+    html += '<div class="recap">' +
+      row('Best word', `${escapeHTML(best.word.toUpperCase())} &middot; ${best.points} pts &middot; ${escapeHTML(nameOf(best.color))}`) +
+      row('Longest word', `${escapeHTML(longest.word.toUpperCase())} &middot; ${escapeHTML(nameOf(longest.color))}`) +
+      row('Most words', `${escapeHTML(nameOf(busiest))} (${counts[busiest]})`) +
+      row('Words played', String(words.length)) + '</div>';
+  }
+  if (publicConfig.tipUrl) {
+    html += `<p class="tip"><a href="${escapeHTML(publicConfig.tipUrl)}" target="_blank" rel="noopener noreferrer">&#9829; Enjoying it? Support the game</a></p>`;
+  }
+  return html;
+}
+
+// Adds a small Feedback button and dialog. `send` posts a message to the server.
+function installFeedback(send) {
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'fb-btn'; btn.textContent = 'Feedback';
+  const dlg = document.createElement('dialog');
+  dlg.className = 'fb-dialog';
+  dlg.innerHTML = '<form method="dialog"><h3 class="gold">Send feedback</h3>' +
+    '<p>What worked, what didn&rsquo;t? It is saved on the game server. Please don&rsquo;t include personal details.</p>' +
+    '<textarea maxlength="500" rows="4" aria-label="Your feedback"></textarea>' +
+    '<div class="fb-actions"><button value="cancel" class="btn secondary">Cancel</button><button value="send" class="btn">Send</button></div></form>';
+  document.body.append(btn, dlg);
+  const area = dlg.querySelector('textarea');
+  btn.onclick = () => {
+    if (typeof dlg.showModal === 'function') { area.value = ''; dlg.showModal(); area.focus(); return; }
+    const t = prompt('Your feedback (max 500 characters):');
+    if (t && t.trim()) send({ type: 'feedback', text: t.trim().slice(0, 500) });
+  };
+  dlg.addEventListener('close', () => {
+    const text = area.value.trim();
+    if (dlg.returnValue === 'send' && text) send({ type: 'feedback', text: text.slice(0, 500) });
+  });
+}
+
 function keepAwake() {
   setInterval(() => { fetch('/health', { cache: 'no-store' }).catch(() => {}); }, 10 * 60 * 1000);
 }

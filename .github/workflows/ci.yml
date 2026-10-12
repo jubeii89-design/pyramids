@@ -14,8 +14,20 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
-      # Rules engine, then five full AI games over real WebSockets. The
-      # Playwright suite is left out: it needs a browser download and pins a
-      # container-specific Chromium path, so it stays a local/manual check.
+      # Rules engine, then five full AI games over real WebSockets.
       - run: npm test
       - run: npm run e2e
+
+  # Real-browser suites: the DOM board, the WebGL 3D board and the
+  # piece-picking flow. Separate job so a browser problem is easy to tell
+  # apart from a rules failure.
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx grunt verify-ui

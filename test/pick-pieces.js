@@ -98,18 +98,18 @@ async function main() {
     assert.equal(await phone.locator('#pickrow .pick-chip.picked').count(), 1);
     await phone.screenshot({ path: path.join(output, 'picked.png'), fullPage: true });
 
-    // Commit, and confirm the chosen piece (not the automatic one) was taken.
-    const beforeAlt = state.cells[found.alt[0]][found.alt[1]].n;
-    const beforeAuto = state.cells[found.auto[0]][found.auto[1]].n;
-    const pickedWord = found.word;
+    // Commit, and confirm exactly the previewed pieces were taken - including the chosen one.
+    const steps = await phone.evaluate(() => draft.presentation.steps.map((s) => ({ kind: s.kind, from: s.from })));
+    const expectedDrop = {};
+    for (const st of steps) if (st.kind !== 'printed') { const k = st.from.join(','); expectedDrop[k] = (expectedDrop[k] || 0) + 1; }
+    assert.ok(expectedDrop[found.alt.join(',')] >= 1, 'the chosen piece is part of the committed word');
     await phone.click('#playBtn');
     await host.waitForFunction(() => state.revision === 1);
     const after = await host.evaluate(() => state);
-    assert.equal(after.cells[found.alt[0]][found.alt[1]].n, beforeAlt - 1, 'chosen piece was captured');
-    if (found.auto[0] !== found.alt[0] || found.auto[1] !== found.alt[1]) {
-      assert.equal(after.cells[found.auto[0]][found.auto[1]].n, beforeAuto, 'the automatic alternative was left alone');
+    for (let r = 0; r < 10; r++) for (let c = 0; c < 10; c++) {
+      const drop = expectedDrop[`${r},${c}`] || 0;
+      assert.equal(after.cells[r][c].n, state.cells[r][c].n - drop, `stack at row ${r + 1}, col ${c + 1}`);
     }
-    assert.ok(pickedWord);
     assert.deepEqual(errors, []);
     console.log(`PASS: chose ${found.word.toUpperCase()} letter ${found.idx + 1} from row ${found.alt[0] + 1}, col ${found.alt[1] + 1} instead of row ${found.auto[0] + 1}, col ${found.auto[1] + 1}.`);
   } finally { await browser?.close(); proc.kill(); }

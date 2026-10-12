@@ -1,7 +1,7 @@
 'use strict';
 // Shape-checks every client message once, so handlers only ever see typed,
 // bounded fields. Returns { msg } (normalised) or { error }.
-const TYPES = new Set(['host_create', 'join', 'add_bot', 'start', 'play', 'preview', 'pass', 'again']);
+const TYPES = new Set(['host_create', 'join', 'add_bot', 'start', 'play', 'preview', 'pass', 'again', 'feedback']);
 
 function cleanName(value) {
   const name = String(value == null ? '' : value)
@@ -38,6 +38,12 @@ function message(raw) {
       if (!code || !/^[A-Z]{4}$/.test(code)) return { error: 'Enter the 4-letter room code.' };
       msg.code = code;
       msg.name = cleanName(raw.name);
+      break;
+    }
+    case 'feedback': {
+      const text = typeof raw.text === 'string' ? raw.text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim() : '';
+      if (text.length < 1 || text.length > 500) return { error: 'Feedback must be 1-500 characters.' };
+      msg.text = text;
       break;
     }
     case 'play':

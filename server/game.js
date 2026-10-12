@@ -424,7 +424,7 @@ function serialize(state) {
   // game is over. During play we expose only the word log (no point values)
   // and the pyramid-remaining tracker.
   const over = state.phase === 'over';
-  const publicLog = state.log.slice(-12).map((e) =>
+  const publicLog = state.log.slice(over ? 0 : -12).map((e) => // the whole log once the game is over, for the recap
     e.pass
       ? { color: e.color, pass: true }
       : { color: e.color, word: e.word, pyramids: e.pyramids, points: over ? e.points : undefined }

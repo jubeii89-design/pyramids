@@ -55,7 +55,7 @@ async function startServer(t, env) {
       },
     };
   };
-  return { client };
+  return { client, port };
 }
 
 // host + one AI + one human in a started game, returning who is who
@@ -127,4 +127,25 @@ test('repeated wrong room codes lock out guessing from that address', { timeout:
     last = await c.wait((m) => m.type === 'error' && !m.__seen && (m.__seen = true));
   }
   assert.match(last.error, /Too many wrong codes/);
+});
+
+test('feedback is saved server-side, is rate limited, and tip config is https-only', { timeout: 20000 }, async (t) => {
+  const fb = require('node:path').join(require('node:os').tmpdir(), `pyramids-fb-${process.pid}-${Date.now()}.jsonl`);
+  t.after(() => { try { require('node:fs').unlinkSync(fb); } catch {} });
+  const { client, port } = await startServer(t, { FEEDBACK_PATH: fb, TIP_URL: 'https://example.com/support' });
+  const c = await client();
+  c.send({ type: 'host_create' });
+  await c.wait((m) => m.type === 'hosted');
+  c.send({ type: 'feedback', text: 'The close-up view is great <b>' });
+  const ok = await c.wait((m) => m.type === 'feedback_ok');
+  assert.ok(ok);
+  const lines = require('node:fs').readFileSync(fb, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].text, 'The close-up view is great <b>');
+  assert.equal(lines[0].role, 'host');
+  for (let i = 0; i < 5; i++) c.send({ type: 'feedback', text: 'note ' + i });
+  const limited = await c.wait((m) => m.type === 'error' && /lot of feedback/.test(m.error));
+  assert.ok(limited);
+  const cfg = await (await fetch(`http://127.0.0.1:${port}/config.json`)).json();
+  assert.equal(cfg.tipUrl, 'https://example.com/support');
 });

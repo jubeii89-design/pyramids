@@ -42,6 +42,10 @@
       <p style="margin: 10px 0; color: var(--sand)">Point your phone camera at the code</p>
       <div class="qr"><img id="qr" alt="Join QR code"></div>
       <div class="joinurl" id="joinurl"></div>
+      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:12px">
+        <button class="btn secondary" id="copyLink">Copy invite link</button>
+        <button class="btn secondary hidden" id="shareLink">Share&hellip;</button>
+      </div>
     </div>
     <div class="panel">
       <h2 class="gold">Players</h2>
@@ -124,6 +128,7 @@ function onMsg(msg) {
     document.getElementById('code').textContent = msg.code;
     document.getElementById('qr').src = msg.qr;
     document.getElementById('joinurl').textContent = msg.joinUrl;
+    inviteUrl = msg.joinUrl;
   } else if (msg.type === 'room') {
     room = msg;
     names = {};
@@ -140,6 +145,8 @@ function onMsg(msg) {
     toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}!`, true);
   } else if (msg.type === 'skipped') {
     toast(`${names[msg.color] || COLOR_NAMES[msg.color]} dropped off — turn skipped.`);
+  } else if (msg.type === 'feedback_ok') {
+    toast('Thanks - feedback sent.', true);
   } else if (msg.type === 'error') {
     if (msg.code === 'HOST_AUTH') {
       // Stale remembered room or credential: forget it and open a fresh room.
@@ -199,10 +206,23 @@ function renderGame() {
     document.getElementById('finals').innerHTML =
       `<p style="margin-bottom:12px">&#127942; <b>${escapeHTML(pname(state.winner))}</b> wins!</p>` +
       tieBreakLine(state, pname) +
-      rankFinal(state).map(c => `<div class="score"><span><span class="chip ${c}"></span>${escapeHTML(pname(c))}</span><b>${f[c]}</b></div>`).join('');
+      rankFinal(state).map(c => `<div class="score"><span><span class="chip ${c}"></span>${escapeHTML(pname(c))}</span><b>${f[c]}</b></div>`).join('') +
+      gameRecapHTML(state, pname);
   }
 }
 
+let inviteUrl = '';
+document.getElementById('copyLink').addEventListener('click', async () => {
+  if (!inviteUrl) return;
+  try { await navigator.clipboard.writeText(inviteUrl); toast('Invite link copied.', true); }
+  catch { prompt('Copy this invite link:', inviteUrl); }
+});
+if (navigator.share) {
+  const shareBtn = document.getElementById('shareLink');
+  shareBtn.classList.remove('hidden');
+  shareBtn.addEventListener('click', () => { if (inviteUrl) navigator.share({ title: 'Crossword Pyramids', text: 'Join my game', url: inviteUrl }).catch(() => {}); });
+}
+installFeedback((m) => sendWS(ws, m));
 document.getElementById('startBtn').addEventListener('click', () => sendWS(ws, { type: 'start' }));
 document.getElementById('botBtn').addEventListener('click', () => sendWS(ws, { type: 'add_bot' }));
 document.getElementById('againBtn').addEventListener('click', () => { hide('over'); sendWS(ws, { type: 'again' }); });

@@ -44,6 +44,7 @@
     <h2 class="gold">You're in!</h2>
     <p id="mycolor" style="font-size:1.3rem; margin:14px 0"></p>
     <p style="color:var(--sand)">Waiting for the host to start the game&hellip;</p>
+    <p><button class="btn secondary" id="inviteBtn">Invite a friend</button></p>
     <div class="rules-mini panel" style="margin-top:20px; text-align:left">
       <b class="gold">How to play:</b> On your turn, <b>tap</b> the square where your word
       starts, then <b>swipe</b> across or down to aim it — the squares light up and show
@@ -278,6 +279,8 @@ function onMsg(msg) {
     } else toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}`, true);
   } else if (msg.type === 'skipped') {
     if (msg.color === myColor) { sel = null; document.getElementById('wordin').value = ''; toast('You dropped off — your turn was skipped.'); }
+  } else if (msg.type === 'feedback_ok') {
+    toast('Thanks - feedback sent.', true);
   } else if (msg.type === 'error') {
     if (msg.code === 'ROOM_GONE' || msg.code === 'SEAT_GONE') {
       // The room or our seat no longer exists: stop retrying and forget the stale seat.
@@ -388,7 +391,8 @@ function renderOver() {
   document.getElementById('finals').innerHTML =
     `<p style="margin-bottom:10px">&#127942; <b>${escapeHTML(nameOf(state.winner))}</b> wins!</p>` +
     tieBreakLine(state, nameOf) +
-    rankFinal(state).map(c => `<div><span class="chip ${c}"></span>${escapeHTML(nameOf(c))}: <b>${f[c]}</b></div>`).join('');
+    rankFinal(state).map(c => `<div><span class="chip ${c}"></span>${escapeHTML(nameOf(c))}: <b>${f[c]}</b></div>`).join('') +
+    gameRecapHTML(state, nameOf);
 }
 
 // Game-over options: sit tight for the host's next round, or bail out to the
@@ -400,6 +404,12 @@ document.getElementById('againBtn').addEventListener('click', () => {
     `You are <span class="chip ${myColor}"></span><b>${COLOR_NAMES[myColor]}</b>`;
 });
 document.getElementById('menuBtn').addEventListener('click', () => { location.href = '/'; });
+installFeedback((m) => { if (ws && ws.readyState === 1) sendWS(ws, m); else toast('Not connected right now.'); });
+document.getElementById('inviteBtn').addEventListener('click', async () => {
+  const url = `${location.origin}/play.html?room=${joinedCode || ''}`;
+  if (navigator.share) { try { await navigator.share({ title: 'Crossword Pyramids', text: 'Join my game', url }); return; } catch { return; } }
+  try { await navigator.clipboard.writeText(url); toast('Invite link copied.', true); } catch { prompt('Copy this invite link:', url); }
+});
 
 document.getElementById('dirH').addEventListener('click', () => { dir = 'H'; setDir(); });
 document.getElementById('dirV').addEventListener('click', () => { dir = 'V'; setDir(); });

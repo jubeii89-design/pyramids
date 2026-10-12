@@ -51,6 +51,17 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .draft-controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
 .draft-controls .btn { padding: 11px 16px; font-size: .85rem; }
 .draft-status { padding: 10px 0; min-height: 2.7em; color: #ffd365; }
+.recap { margin: 14px auto 6px; max-width: 420px; text-align: left; }
+.recap-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px solid #3a2f1c; font-size: .95rem; }
+.recap-row span { color: #b9a87c; }
+.tip { margin-top: 10px; font-size: .9rem; }
+.tip a { color: #ffd365; }
+.fb-btn { position: fixed; right: 12px; bottom: 12px; z-index: 40; padding: 8px 12px; border-radius: 999px; border: 1px solid #6b5a33; background: #241d14; color: #f4e6bd; font-size: .8rem; opacity: .85; }
+.fb-dialog { border: 2px solid #6b5a33; border-radius: 14px; background: #1d1528; color: #f4e6bd; padding: 18px; max-width: min(92vw, 420px); }
+.fb-dialog::backdrop { background: rgba(0,0,0,.6); }
+.fb-dialog p { margin: 8px 0; color: #b9a87c; font-size: .9rem; }
+.fb-dialog textarea { width: 100%; box-sizing: border-box; background: #120d1a; color: #f4e6bd; border: 1px solid #6b5a33; border-radius: 8px; padding: 8px; font: inherit; }
+.fb-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px; }
 .pickrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 8px; }
 .pick-chip { min-width: 44px; min-height: 44px; padding: 6px 10px; border-radius: 10px; border: 2px solid #6b5a33; background: #241d14; color: #f4e6bd; font: 700 1.1rem Georgia, serif; }
 .pick-chip.picked { border-color: #ffc21a; }

@@ -18,6 +18,10 @@ Environment=PUBLIC_ORIGIN=https://pyramids.example.com
 # address it forwards; without this every player looks like 127.0.0.1 and
 # shares one set of per-address abuse limits.
 Environment=TRUST_PROXY=1
+# Optional: a voluntary support link shown after a game (https only).
+# Environment=TIP_URL=https://example.com/support
+# Tester feedback notes are appended here (one JSON line each).
+Environment=FEEDBACK_PATH=/home/ubuntu/pyramids/data/feedback.jsonl
 ExecStart=/usr/bin/node server/index.js
 Restart=always
 RestartSec=3

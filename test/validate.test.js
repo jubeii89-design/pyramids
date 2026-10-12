@@ -71,3 +71,12 @@ test('client IP: forwarded header only trusted when TRUST_PROXY=1', () => {
   assert.strictEqual(clientIp(req, {}), '127.0.0.1');
   assert.strictEqual(clientIp(req, { TRUST_PROXY: '1' }), '7.7.7.7');
 });
+
+test('feedback: 1-500 characters, control characters stripped', () => {
+  assert.strictEqual(message({ type: 'feedback', text: '  Great\u0000 game \n ' }).msg.text, 'Great game');
+  assert.ok(message({ type: 'feedback', text: '' }).error);
+  assert.ok(message({ type: 'feedback', text: '   ' }).error);
+  assert.ok(message({ type: 'feedback', text: 'x'.repeat(501) }).error);
+  assert.ok(message({ type: 'feedback', text: 5 }).error);
+  assert.strictEqual(message({ type: 'feedback', text: 'x'.repeat(500) }).msg.text.length, 500);
+});

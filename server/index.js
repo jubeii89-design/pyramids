@@ -29,6 +29,20 @@ const DICT = new Set(words);
 const BOT_WORDS = words.filter((w) => w.length >= 3 && w.length <= 6);
 
 const app = express();
+// Optional voluntary-support link, shown only after a game. Off unless TIP_URL is an https URL.
+const TIP_URL = (() => { try { const u = new URL(process.env.TIP_URL || ''); return u.protocol === 'https:' ? u.href : ''; } catch { return ''; } })();
+app.get('/config.json', (_req, res) => res.json({ tipUrl: TIP_URL }));
+// Tester feedback: one JSON line per note, capped so it cannot fill the disk.
+const FEEDBACK_PATH = process.env.FEEDBACK_PATH || path.join(__dirname, '..', 'data', 'feedback.jsonl');
+const FEEDBACK_MAX_BYTES = 5 * 1024 * 1024;
+function saveFeedback(entry) {
+  try {
+    const size = fs.existsSync(FEEDBACK_PATH) ? fs.statSync(FEEDBACK_PATH).size : 0;
+    if (size > FEEDBACK_MAX_BYTES) return false;
+    fs.appendFileSync(FEEDBACK_PATH, JSON.stringify(entry) + '\n', { mode: 0o600 });
+    return true;
+  } catch (err) { console.error('feedback not saved:', err.message); return false; }
+}
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
@@ -347,6 +361,13 @@ wss.on('connection', (ws, req) => {
           broadcast(room, { type: 'played', color: ws.color, word: result.word, gameId: room.gameId, revision: room.revision, actionId: randomUUID(), presentation: result.presentation });
           broadcastAll(room);
           scheduleBots(room);
+          break;
+        }
+        case 'feedback': {
+          if (!limiter.hit('fb:' + ip, 5, 60 * 1000)) return send(ws, { type: 'error', error: 'That is a lot of feedback at once. Try again in a minute.' });
+          const who = room && room.players.find((x) => x.ws === ws);
+          const saved = saveFeedback({ at: new Date().toISOString(), room: ws.roomCode || null, role: ws.role || null, color: ws.color || null, name: who ? who.name : null, text: msg.text });
+          send(ws, saved ? { type: 'feedback_ok' } : { type: 'error', error: 'Feedback could not be saved right now.' });
           break;
         }
         case 'pass': {

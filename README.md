@@ -107,6 +107,7 @@ If first-request wake delay is not acceptable, choose an always-on plan. Confirm
 - There is no turn clock. The only timer is a safety net: if it is a human's turn and their phone has been disconnected for 30 seconds (`GONE_MS`), the turn is skipped and **counts as a pass**. Two full rounds of consecutive passes end the game, so if every human drops, the game can end by stalemate.
 - A phone reclaims its seat only with the credential the server gave it when it joined (kept in that tab's session storage); a name alone is not enough. The host screen likewise resumes its room only with its own credential.
 - On the public internet set `PUBLIC_ORIGIN=https://your-domain` (the server refuses to start in production without it). Behind a reverse proxy also set `TRUST_PROXY=1` so per-address limits see the real client address.
+- Optional: `TIP_URL=https://...` shows a voluntary "Support the game" link on the end-of-game screen (https only; off by default). Tester notes from the in-game Feedback button are appended to `FEEDBACK_PATH` (default `data/feedback.jsonl`, capped at 5 MB, not committed).
 - Abuse limits (per address): 5 new rooms/minute, 10 wrong room codes/minute, 20 open sockets; `MAX_ROOMS` (default 200) caps rooms.
 
 ## Tech
