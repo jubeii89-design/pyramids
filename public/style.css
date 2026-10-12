@@ -51,6 +51,13 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .draft-controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
 .draft-controls .btn { padding: 11px 16px; font-size: .85rem; }
 .draft-status { padding: 10px 0; min-height: 2.7em; color: #ffd365; }
+.pickrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 8px; }
+.pick-chip { min-width: 44px; min-height: 44px; padding: 6px 10px; border-radius: 10px; border: 2px solid #6b5a33; background: #241d14; color: #f4e6bd; font: 700 1.1rem Georgia, serif; }
+.pick-chip.picked { border-color: #ffc21a; }
+.pick-chip.picked::after { content: ' \2022'; color: #ffc21a; }
+.pick-chip.active { background: #ffc21a; color: #2a1d05; border-color: #fff0b0; }
+.pick-auto { min-height: 44px; padding: 6px 12px; }
+.cell.cand { outline: 3px solid #ffc21a; outline-offset: -3px; }
 @media (min-width: 901px) { .gamegrid .board3d { max-width: min(100%, calc(100vh - 155px)); margin-inline: auto; width: 100%; } }
 .board {
   display: grid;

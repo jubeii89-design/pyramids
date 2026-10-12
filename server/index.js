@@ -339,7 +339,7 @@ wss.on('connection', (ws, req) => {
         case 'play': {
           if (!room || ws.role !== 'player' || !room.state) return;
           if (msg.gameId !== undefined && (msg.gameId !== room.gameId || msg.revision !== room.revision)) return send(ws, { type: 'reject', error: 'The board changed. Try again.' });
-          const result = game.playWord(room.state, ws.color, { r: msg.r, c: msg.c, dir: msg.dir, word: msg.word }, DICT);
+          const result = game.playWord(room.state, ws.color, { r: msg.r, c: msg.c, dir: msg.dir, word: msg.word, sources: msg.sources }, DICT);
           if (!result.ok) return send(ws, { type: 'reject', error: result.error });
           // Focus is on spelling, not points — announce the word, not the score
           room.revision++;

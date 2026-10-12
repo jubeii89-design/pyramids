@@ -81,6 +81,8 @@
         <button class="btn secondary" id="cancelBtn" disabled>Cancel</button>
       </div>
       <div id="draftstatus" class="draft-status" role="status">Choose a start square and type a word to build it.</div>
+      <div id="pickrow" class="pickrow hidden" role="group" aria-label="Choose which piece supplies each letter"></div>
+      <div id="pickhint" class="hint hidden">Optional: tap a letter, then a glowing piece to use that one. Letters you don't touch are chosen for you.</div>
       <div class="row">
         <button class="btn" id="playBtn" style="flex:1">Submit Word</button>
         <button class="btn secondary" id="passBtn">Pass</button>
@@ -112,6 +114,7 @@ const params = new URLSearchParams(location.search);
 let myColor = null, myName = null, state = null, names = {};
 let sel = null, dir = 'H';
 let draft = null, placed = 0, previewRequest = 0, draftBusy = false;
+let picks = null, pickIndex = null, pendingPicks = null; // optional manual choice of source piece per letter
 const boardElement = document.getElementById('board');
 function draftStatus(text) {
   document.getElementById('draftstatus').textContent=text;
@@ -119,8 +122,38 @@ function draftStatus(text) {
   document.getElementById('undoBtn').disabled=!draft || draftBusy || !placed;
   document.getElementById('cancelBtn').disabled=!draft;
 }
+function renderPickRow() {
+  const row = document.getElementById('pickrow'), hintEl = document.getElementById('pickhint');
+  row.replaceChildren();
+  const show = !!draft && !!picks;
+  row.classList.toggle('hidden', !show); hintEl.classList.toggle('hidden', !show);
+  if (!show) return;
+  draft.word.split('').forEach((ch, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'pick-chip' + (picks[i] ? ' picked' : '') + (pickIndex === i ? ' active' : '');
+    b.textContent = ch.toUpperCase();
+    const n = draft.choices[i].options.length;
+    b.setAttribute('aria-label', `Letter ${i + 1}, ${ch.toUpperCase()}: ${n} piece${n === 1 ? '' : 's'} could supply it${picks[i] ? ', chosen by you' : ''}`);
+    b.setAttribute('aria-pressed', String(pickIndex === i));
+    b.onclick = () => { pickIndex = pickIndex === i ? null : i; renderPickRow(); renderGame(); };
+    row.appendChild(b);
+  });
+  if (picks.some(Boolean)) {
+    const auto = document.createElement('button');
+    auto.type = 'button'; auto.className = 'btn secondary pick-auto'; auto.textContent = 'Auto';
+    auto.onclick = () => trySources(picks.map(() => null));
+    row.appendChild(auto);
+  }
+}
+// Ask the server whether the word still works with these picks; they only take effect if it does.
+function trySources(next) {
+  if (!draft || !sel) return;
+  pendingPicks = next;
+  sendWS(ws, { type: 'preview', requestId: ++previewRequest, r: sel.r, c: sel.c, dir, word: draft.word, gameId: state.gameId, revision: state.revision, sources: next });
+  draftStatus('Checking your choice…');
+}
 function cancelDraft() {
-  previewRequest++; draft=null;placed=0;draftBusy=false;resetBoardDraft(boardElement);
+  previewRequest++; draft=null;placed=0;draftBusy=false;picks=null;pickIndex=null;pendingPicks=null;resetBoardDraft(boardElement);renderPickRow();
   draftStatus('Choose a start square and type a word to build it.');
 }
 function nextInstruction() {
@@ -194,8 +227,13 @@ document.getElementById('joinBtn').addEventListener('click', () => {
 function onMsg(msg) {
   if(msg.type==='preview') {
     if(msg.requestId!==previewRequest || msg.gameId!==state?.gameId || msg.revision!==state?.revision)return;
-    if(!msg.ok)return draftStatus(msg.error);
-    draft=msg;placed=0;nextInstruction();
+    if(!msg.ok) {
+      if (pendingPicks) { pendingPicks = null; toast(msg.error); return nextInstruction(); } // keep the previous, working choice
+      return draftStatus(msg.error);
+    }
+    if (pendingPicks) { picks = pendingPicks; pendingPicks = null; resetBoardDraft(boardElement); }
+    else picks = msg.word.split('').map(() => null);
+    draft=msg;placed=0;nextInstruction();renderPickRow();renderGame();
   } else if (msg.type === 'joined') {
     rejoinTries = 0;
     myColor = msg.color;
@@ -220,7 +258,7 @@ function onMsg(msg) {
   } else if (msg.type === 'state') {
     const prev = state;
     state = msg.state;
-    if(draft && (draft.gameId!==state.gameId || draft.revision!==state.revision)) {draft=null;placed=0;draftBusy=false;draftStatus('Board updated. Choose your next word.');}
+    if(draft && (draft.gameId!==state.gameId || draft.revision!==state.revision)) {draft=null;placed=0;draftBusy=false;picks=null;pickIndex=null;pendingPicks=null;renderPickRow();draftStatus('Board updated. Choose your next word.');}
     hide('waitview'); hide('joinview');
     if (state.phase === 'over') { renderOver(); return; }
     // A fresh board (the host hit Play Again): clear the last game's typing
@@ -311,7 +349,12 @@ function renderGame() {
     ...viewOpts(),
     selected: sel,
     spelling: myTurn() && sel ? { path: spellPath(), word } : null,
+    candidates: draft && picks && pickIndex !== null ? draft.choices[pickIndex].options.map((o) => o.from) : null,
     onCell: (r, c) => { if (myTurn()) {
+      if (draft && picks && pickIndex !== null) {
+        const hit = draft.choices[pickIndex].options.find((o) => o.from[0] === r && o.from[1] === c);
+        if (hit) { const next = picks.slice(); next[pickIndex] = { r, c }; trySources(next); return; }
+      }
       if(draft) { const step=draft.presentation.steps[placed]; if(step && step.from[0]===r && step.from[1]===c)placeNext(); return; }
       sel = { r, c }; renderGame();
     } },
@@ -393,7 +436,8 @@ document.getElementById('playBtn').addEventListener('click', () => {
   if (!sel) return toast('Tap the square where your word starts.');
   const word = document.getElementById('wordin').value.trim();
   if (word.length < 3) return toast('Words must be at least 3 letters.');
-  sendWS(ws, { type: 'play', r: sel.r, c: sel.c, dir, word, gameId: state.gameId, revision: state.revision });
+  const withPicks = draft && picks && draft.word === word.toLowerCase() && picks.some(Boolean) ? { sources: picks } : {};
+  sendWS(ws, { type: 'play', r: sel.r, c: sel.c, dir, word, gameId: state.gameId, revision: state.revision, ...withPicks });
 });
 document.getElementById('passBtn').addEventListener('click', () => {
   if (!myTurn()) return toast('Not your turn yet.');

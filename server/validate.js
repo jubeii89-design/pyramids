@@ -57,6 +57,17 @@ function message(raw) {
         msg.revision = int(raw.revision, 0, 1e9);
         if (msg.revision === null) return { error: 'Bad revision.' };
       }
+      if (raw.sources !== undefined && raw.sources !== null) {
+        // one board square per letter, or null for "engine picks"
+        if (!Array.isArray(raw.sources) || raw.sources.length !== msg.word.length) return { error: 'Pick one piece per letter.' };
+        msg.sources = [];
+        for (const s of raw.sources) {
+          if (s === null) { msg.sources.push(null); continue; }
+          const sr = s && typeof s === 'object' ? int(s.r, 0, 9) : null, sc = s && typeof s === 'object' ? int(s.c, 0, 9) : null;
+          if (sr === null || sc === null) return { error: 'Bad piece choice.' };
+          msg.sources.push({ r: sr, c: sc });
+        }
+      }
       if (raw.requestId !== undefined) {
         if (Number.isSafeInteger(raw.requestId) && raw.requestId >= 0) msg.requestId = raw.requestId;
         else if (typeof raw.requestId === 'string' && raw.requestId.length <= 40) msg.requestId = raw.requestId;

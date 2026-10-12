@@ -199,11 +199,12 @@ export class PyramidBoard {
   }
   reconcile(state) {
     const wanted=new Set();
+    const cand=new Set((this.opts?.candidates||[]).map(([r,c])=>r*10+c)); // squares that could supply the letter being chosen
     this.printed.children.slice().forEach(o=>{this.printed.remove(o);o.geometry.dispose();o.material.dispose();});
     for(let r=0;r<state.size;r++) for(let c=0;c<state.size;c++) {
       const cell=state.cells[r][c];
       const tile=this.tiles[r*10+c];
-      tile.material.emissive.setHex(this.opts?.selected?.r===r && this.opts?.selected?.c===c ? 0x9a6a00 : 0);
+      tile.material.emissive.setHex(this.opts?.selected?.r===r && this.opts?.selected?.c===c ? 0x9a6a00 : (cand.has(r*10+c) ? 0x7a5200 : 0));
       if(cell.p) { const p=label(cell.p.toUpperCase(),'#49371e',.56,.56);p.rotation.x=-Math.PI/2;p.rotation.z=this.angle;p.position.set(c-4.5,.013,r-4.5);this.printed.add(p); }
       if(!cell.t)continue;
       wanted.add(cell.t.id); let piece=this.pieces.get(cell.t.id);
@@ -211,6 +212,7 @@ export class PyramidBoard {
       if(!piece){piece=this.makePiece(cell.t,cell.n);this.pieces.set(cell.t.id,piece);}
       piece.visible=true;piece.scale.setScalar(1);piece.position.set(c-4.5,0,r-4.5);piece.rotation.y=this.angle;this.applyFocus(piece);
       this.highlight(piece,this.opts?.selected?.r===r && this.opts?.selected?.c===c);
+      if(cand.has(r*10+c)) piece.userData.ring.visible=true; // candidate source for the letter being chosen
     }
     for(const [id,p] of this.pieces)if(!wanted.has(id)){this.removePiece(p);this.pieces.delete(id);}
     this.displayRevision=state.revision;

@@ -170,11 +170,18 @@ function playWord(state, color, move, dict, preview = false) {
   const path = pathCells(move.r | 0, move.c | 0, move.dir, word.length);
   if (!path) return { ok: false, error: 'Word does not fit on the board there.' };
 
+  // Optional manual choice of source pieces: one square per letter (or null for
+  // "let the engine pick"). A hint can only narrow the engine's own candidates,
+  // so every rule check below still applies and no hint means unchanged behaviour.
+  const hints = Array.isArray(move.sources) ? move.sources : null;
+  if (hints && hints.length !== word.length) return { ok: false, error: 'Pick one piece per letter, or leave it automatic.' };
+
   const cells = state.cells;
   const onPath = new Set(path.map(([r, c]) => r * SIZE + c));
 
   // Candidate sources for each letter position
   const positions = [];
+  const allPositions = []; // unfiltered, for the preview's piece choices
   for (let i = 0; i < word.length; i++) {
     const [r, c] = path[i];
     const need = word[i];
@@ -192,7 +199,17 @@ function playWord(state, color, move, dict, preview = false) {
       }
     }
     if (!opts.length) return { ok: false, error: `No available letter "${need.toUpperCase()}" for position ${i + 1}.` };
-    positions.push(opts);
+    allPositions.push(opts.slice());
+    const hint = hints && hints[i];
+    if (hint) {
+      if (!Number.isInteger(hint.r) || !Number.isInteger(hint.c) || hint.r < 0 || hint.r >= SIZE || hint.c < 0 || hint.c >= SIZE) {
+        return { ok: false, error: `Letter ${i + 1}: choose a board square.` };
+      }
+      const idx = hint.r * SIZE + hint.c;
+      const narrowed = opts.filter((o) => (o.type === 'inplace' ? idx === r * SIZE + c : o.from === idx));
+      if (!narrowed.length) return { ok: false, error: `That piece cannot supply "${need.toUpperCase()}" for letter ${i + 1}.` };
+      positions.push(narrowed);
+    } else positions.push(opts);
   }
 
   // Backtracking: pick one source per position; a source cell may only give
@@ -242,7 +259,8 @@ function playWord(state, color, move, dict, preview = false) {
   if (!solution) {
     return {
       ok: false,
-      error: 'Cannot form that word legally: it must use at least one of your own pyramids, one black letter (house pyramid or printed letter), and move at least one pyramid.',
+      error: (hints && hints.some(Boolean) ? 'Cannot form that word with the pieces you picked: ' : 'Cannot form that word legally: ') +
+        'it must use at least one of your own pyramids, one black letter (house pyramid or printed letter), and move at least one pyramid.',
     };
   }
 
@@ -257,7 +275,20 @@ function playWord(state, color, move, dict, preview = false) {
     return { kind: ch.type, pieceId: p.id, from, to, letter: p.l, value: p.v, owner: p.o };
   });
   const presentation = { steps, captureIds: steps.filter(s => s.kind !== 'printed').map(s => s.pieceId) };
-  if (preview) return { ok: true, word, presentation };
+  if (preview) {
+    // For each letter: every exposed piece that could supply it (tops and printed
+    // letters only - nothing underneath), the engine's pick first.
+    const choices = allPositions.map((opts, i) => {
+      const chosen = solution[i];
+      const view = (o) => (o.type === 'inplace'
+        ? { from: path[i], kind: o.ex.kind === 'printed' ? 'printed' : 'inplace', owner: o.ex.owner || null }
+        : { from: [Math.floor(o.from / SIZE), o.from % SIZE], kind: 'move', owner: o.owner });
+      const same = (o) => o.type === chosen.type && (o.type === 'inplace' || o.from === chosen.from);
+      const rest = opts.filter((o) => !same(o)).slice(0, 29);
+      return { to: path[i], options: [opts.find(same), ...rest].map(view) };
+    });
+    return { ok: true, word, presentation, choices };
+  }
 
   // Apply the move: move pyramids onto the path, then collect everything used
   const collectedNow = [];

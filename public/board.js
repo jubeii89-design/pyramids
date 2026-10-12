@@ -109,6 +109,7 @@ function renderBoard(el, state, opts = {}) {
         div.innerHTML = `<span class="printed-letter">${cell.p.toUpperCase()}</span>`;
       }
       if (opts.selected && opts.selected.r === r && opts.selected.c === c) div.classList.add('sel');
+      if (opts.candidates && opts.candidates.some(([cr, cc]) => cr === r && cc === c)) div.classList.add('cand');
       if (opts.hintCells && opts.hintCells.some(([hr, hc]) => hr === r && hc === c)) div.classList.add('path-hint');
       if (opts.onCell) div.addEventListener('click', () => opts.onCell(r, c));
       el.appendChild(div);

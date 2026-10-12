@@ -33,10 +33,11 @@ module.exports = function (grunt) {
   grunt.initConfig({
     clean: { build: ['build/pyramids'], sprites: ['public/assets/pyr*.png', 'public/assets/pyr*.css'] },
     exec: {
-      unit: 'node --test test/unit.test.js test/presentation.test.js test/security.test.js test/origin.test.js test/validate.test.js test/parity.test.js test/disconnect.test.js',
+      unit: 'npm test', // one list of test files, in package.json
       network: 'node test/e2e.js 5',
       ui: 'node test/ui.js',
       visual3d: 'node test/visual-3d.js',
+      pick: 'node test/pick-pieces.js',
       pieces: 'node tools/export-piece-data.js',
       blender: `"${blender}" --background --python tools/render-pyramids.py`,
     },
@@ -51,7 +52,7 @@ module.exports = function (grunt) {
   // Verification never regenerates or deletes the artwork.
   grunt.registerTask('verify', ['exec:unit', 'exec:network']);
   // Browser suites (need Playwright's Chromium): the DOM board with WebGL off, then the real 3D board.
-  grunt.registerTask('verify-ui', ['exec:ui', 'exec:visual3d']);
+  grunt.registerTask('verify-ui', ['exec:ui', 'exec:visual3d', 'exec:pick']);
   grunt.registerTask('assets-3d', 'Copy the pinned 3D runtime without rebuilding sprites', () => {
     for (const name of ['three.module.js', 'three.core.js']) {
       grunt.file.copy('node_modules/three/build/' + name, 'public/assets/three/' + name);
