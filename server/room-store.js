@@ -54,7 +54,7 @@ function snapshot(room) {
     code: room.code,
     hostTokenHash: room.hostTokenHash,
     players: room.players.map((p) => ({
-      name: p.name, color: p.color, bot: !!p.bot,
+      name: p.name, color: p.color,
       ...(p.tokenHash ? { tokenHash: p.tokenHash } : {}),
       ...(p.disconnectedAt ? { disconnectedAt: p.disconnectedAt } : {}),
     })),
@@ -62,7 +62,6 @@ function snapshot(room) {
     state: room.state,
     gameId: room.gameId || null,
     revision: room.revision || 0,
-    botDelayMs: room.botDelayMs,
     created: room.created,
     lastSeen: room.lastSeen || room.created,
     hostGoneAt: room.hostGoneAt || null,
@@ -78,7 +77,7 @@ function validRoom(room, index) {
   for (const player of room.players) {
     if (!object(player) || typeof player.name !== 'string' || player.name.length > 24 || !COLORS.has(player.color) || colors.has(player.color)) bad('bad player record');
     colors.add(player.color);
-    if (typeof player.bot !== 'boolean' || (!player.bot && !HASH.test(player.tokenHash || ''))) bad('bad player credential hash');
+    if (!HASH.test(player.tokenHash || '')) bad('bad player credential hash');
   }
   if (!['lobby', 'playing'].includes(room.phase)) bad('bad room phase');
   if (!Number.isFinite(room.created) || !Number.isFinite(room.lastSeen) || !Number.isInteger(room.revision) || room.revision < 0) bad('bad timestamps or revision');
@@ -101,8 +100,10 @@ function load(file) {
     throw new Error(`Unsupported or invalid room checkpoint ${file}`);
   }
   secureFile(file);
-  parsed.rooms.forEach(validRoom);
-  return clone(parsed.rooms);
+  // Rooms saved by older versions that seated computer players cannot be resumed: drop them.
+  const rooms = parsed.rooms.filter((room) => !(object(room) && Array.isArray(room.players) && room.players.some((p) => object(p) && p.bot === true)));
+  rooms.forEach(validRoom);
+  return clone(rooms);
 }
 
 function save(file, rooms) {

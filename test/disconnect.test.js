@@ -58,16 +58,23 @@ async function startServer(t, env) {
   return { client, port };
 }
 
-// host + one AI + one human in a started game, returning who is who
+// host + two humans in a started game. The second human (Ben) passes whenever
+// it is his turn, so Ann's turn comes round; Ann is the one the tests act on.
 async function setup(t, env) {
   const { client } = await startServer(t, env);
   const host = await client();
-  host.send({ type: 'host_create', botDelayMs: 0 });
+  host.send({ type: 'host_create' });
   const hosted = await host.wait((m) => m.type === 'hosted');
-  host.send({ type: 'add_bot' });
   const human = await client();
   human.send({ type: 'join', code: hosted.code, name: 'Ann' });
   const joined = await human.wait((m) => m.type === 'joined');
+  const ben = await client();
+  ben.send({ type: 'join', code: hosted.code, name: 'Ben' });
+  const benJoined = await ben.wait((m) => m.type === 'joined');
+  ben.ws.on('message', (raw) => {
+    const m = JSON.parse(raw);
+    if (m.type === 'state' && m.state.phase === 'playing' && m.state.current === benJoined.color) ben.send({ type: 'pass' });
+  });
   host.send({ type: 'start' });
   return { client, host, human, code: hosted.code, joined };
 }

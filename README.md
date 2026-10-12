@@ -20,7 +20,7 @@ npm start          # serves on http://localhost:3000
 - Open `/` for the marketing home page → **Host Game** or **Join Game**
 - The host screen generates a **room code + QR code**; phones that scan it land
   directly in the room
-- 2–4 players; the host can add **AI opponents** to fill seats
+- 2–4 human players, each on their own phone
 
 ### Playing with phones on your network
 
@@ -115,14 +115,14 @@ If first-request wake delay is not acceptable, choose an always-on plan. Confirm
 - Node.js + Express + `ws` (no build step); vanilla JS frontend
 - `qrcode` for join QR generation; four-letter rooms use atomic local checkpoints for single-instance restart recovery
 - Server-authoritative rules engine in `server/game.js` (pure, unit-tested)
-- Built-in AI opponents (`findMove`) used both in-game and by the test harness
+- No computer players: the server never plays for anyone. `findMove` in `server/game.js` is a move-search helper used only by tests (scripted players, parity checks)
 
 ## Testing
 
 ```bash
 npm test           # rules engine unit tests (node:test)
 npm run e2e        # spawns the real server, verifies room codes + decodes the
-                   # QR PNG, then AI players play 5 full games over WebSockets
+                   # QR PNG, then scripted players play 5 full games over WebSockets
 node test/ui.js    # legacy Playwright browser test; run the current 3D flow with
                    # node test/visual-3d.js (Chromium + SwiftShader required)
 ```

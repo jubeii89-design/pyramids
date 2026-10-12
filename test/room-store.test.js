@@ -11,11 +11,11 @@ function fixture() {
   const playerSocket = { readyState: 1 };
   const room = {
     code: 'ABCD', hostTokenHash: 'a'.repeat(64), host, players: [
-      { ws: playerSocket, name: 'Ada', color: 'red', bot: false, tokenHash: 'b'.repeat(64) },
-      { ws: null, name: 'Sphinx (AI)', color: 'blue', bot: true },
+      { ws: playerSocket, name: 'Ada', color: 'red', tokenHash: 'b'.repeat(64) },
+      { ws: { readyState: 1 }, name: 'Ben', color: 'blue', tokenHash: 'c'.repeat(64) },
     ],
     phase: 'playing', state: { players: ['red', 'blue'], turn: 0, phase: 'playing', cells: Array.from({length:10}, () => Array.from({length:10}, () => ({printed:null,stack:[]}))) },
-    gameId: 'game-id', revision: 4, botDelayMs: 0, created: 100, lastSeen: 200,
+    gameId: 'game-id', revision: 4, created: 100, lastSeen: 200,
   };
   return room;
 }
@@ -82,4 +82,16 @@ test('a finished game whose third player has left still reloads (state keeps sea
   room.state.phase = 'playing';
   save(file, new Map([[room.code, room]]));
   assert.throws(() => load(file), /bad game state/);
+});
+
+test('a checkpoint from an older version that seated computer players is dropped, not fatal', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pyramids-store-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'rooms.json');
+  const good = snapshot(fixture());
+  const legacy = { ...snapshot(fixture()), code: 'WXYZ' };
+  legacy.players = [legacy.players[0], { name: 'Sphinx (AI)', color: 'blue', bot: true }];
+  fs.writeFileSync(file, JSON.stringify({ version: VERSION, rooms: [good, legacy] }));
+  const rooms = load(file);
+  assert.deepEqual(rooms.map((r) => r.code), ['ABCD']);
 });

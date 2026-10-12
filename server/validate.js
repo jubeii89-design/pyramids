@@ -1,7 +1,7 @@
 'use strict';
 // Shape-checks every client message once, so handlers only ever see typed,
 // bounded fields. Returns { msg } (normalised) or { error }.
-const TYPES = new Set(['host_create', 'join', 'add_bot', 'start', 'play', 'preview', 'pass', 'again', 'feedback']);
+const TYPES = new Set(['host_create', 'join', 'start', 'play', 'preview', 'pass', 'again', 'feedback']);
 
 function cleanName(value) {
   const name = String(value == null ? '' : value)
@@ -30,7 +30,6 @@ function message(raw) {
       const resume = raw.resume === undefined || raw.resume === '' ? '' : str(raw.resume, 4);
       if (resume === null || (resume && !/^[A-Za-z]{4}$/.test(resume))) return { error: 'Bad room code.' };
       msg.resume = resume.toUpperCase();
-      if (typeof raw.botDelayMs === 'number' && raw.botDelayMs >= 0 && raw.botDelayMs <= 10000) msg.botDelayMs = raw.botDelayMs;
       break;
     }
     case 'join': {
@@ -81,7 +80,7 @@ function message(raw) {
       }
       break;
     }
-    default: break; // add_bot, start, pass, again carry no fields
+    default: break; // start, pass, again carry no fields
   }
   return { msg };
 }

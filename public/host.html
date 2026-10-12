@@ -53,7 +53,6 @@
       <p id="waitmsg" style="color: var(--sand); margin: 10px 0">Waiting for players (2&ndash;4)&hellip;</p>
       <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:14px">
         <button class="btn" id="startBtn" disabled>Start Game</button>
-        <button class="btn secondary" id="botBtn">+ Add AI Player</button>
       </div>
     </div>
   </div>
@@ -173,7 +172,6 @@ function renderLobby() {
   ul.innerHTML = room.players.map(p =>
     `<li><span class="chip ${p.color}"></span>${escapeHTML(p.name)}${p.connected ? '' : ' (disconnected)'}</li>`).join('');
   document.getElementById('startBtn').disabled = room.players.length < 2;
-  document.getElementById('botBtn').disabled = room.players.length >= 4;
   document.getElementById('waitmsg').style.display = room.players.length >= 2 ? 'none' : '';
 }
 
@@ -224,7 +222,6 @@ if (navigator.share) {
 }
 installFeedback((m) => sendWS(ws, m));
 document.getElementById('startBtn').addEventListener('click', () => sendWS(ws, { type: 'start' }));
-document.getElementById('botBtn').addEventListener('click', () => sendWS(ws, { type: 'add_bot' }));
 document.getElementById('againBtn').addEventListener('click', () => { hide('over'); sendWS(ws, { type: 'again' }); });
 document.getElementById('menuBtn').addEventListener('click', () => { location.href = '/'; });
 </script>

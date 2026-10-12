@@ -8,6 +8,7 @@
 // Usage: node test/ui.js
 
 const { spawn } = require('child_process');
+const { scriptedPlayer } = require('./helpers/scripted-player');
 const path = require('path');
 const { chromium } = require('playwright');
 
@@ -22,10 +23,14 @@ function check(cond, label) {
 }
 
 async function main() {
+<<<<<<< HEAD
   // A dedicated subdirectory, not os.tmpdir() itself: the server chmods the
   // checkpoint's directory to 0700, and a shared /tmp can't be locked down
   // that way (EPERM on CI, and wrong on any box where other processes use /tmp).
   const storeDir = require('fs').mkdtempSync(path.join(require('os').tmpdir(), 'pyramids-ui-'));
+=======
+  const scripted = [];
+>>>>>>> 0db66f5 (Remove computer players: humans only)
   const proc = spawn('node', ['server/index.js'], {
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, PORT: String(PORT), ROOM_STORE_PATH: path.join(storeDir, 'rooms.json') },
@@ -74,15 +79,15 @@ async function main() {
     await host.screenshot({ path: path.join(SHOTS, 'host-lobby.png') });
     await phone.screenshot({ path: path.join(SHOTS, 'phone-lobby.png') });
 
-    // --- C: add bots, start, run to game over (phone leaves; bots-only game)
+    // --- C: two scripted players, start, run to game over (the phone leaves first)
     console.log('C) Full game on the big screen');
     await phone.close(); // seat is removed in lobby phase
     await host.waitForFunction(() => document.querySelectorAll('#players li').length === 0);
-    await host.click('#botBtn');
-    await host.click('#botBtn');
+    const codeC = await host.locator('#code').textContent();
+    // Held until the opening-board checks are done, so they see an untouched board.
+    scripted.push(await scriptedPlayer(BASE, codeC, 'Scripted1', { hold: true }), await scriptedPlayer(BASE, codeC, 'Scripted2', { hold: true }));
     await host.waitForFunction(() => document.querySelectorAll('#players li').length === 2);
-    check(true, 'two AI players added');
-    // speed the bots up for the test
+    check(true, 'two scripted players joined');
     await host.click('#startBtn');
     await host.waitForSelector('#gamearea:not(.hidden)');
     check((await host.locator('#board .cell').count()) === 100, 'board renders 100 cells');
@@ -94,6 +99,7 @@ async function main() {
     check((await host.locator('#tracker .trk').count()) === 5, 'pyramid tracker shows 4 colors + house');
     check((await host.locator('#tracker').textContent()).includes('Gold'), 'Gold color naming in tracker');
     await host.screenshot({ path: path.join(SHOTS, 'host-game.png') });
+    scripted.forEach((s) => s.release());
     await host.waitForSelector('#over:not(.hidden)', { timeout: 180000 });
     const finals = await host.locator('#finals').textContent();
     check(/wins!/.test(finals), `game over overlay shows winner (${finals.trim().slice(0, 60)}…)`);
@@ -110,7 +116,7 @@ async function main() {
     await p1.fill('#namein', 'Memphis');
     await p1.click('#joinBtn');
     await p1.waitForSelector('#waitview:not(.hidden)');
-    await host2.click('#botBtn');
+    scripted.push(await scriptedPlayer(BASE, code2, 'Scripted', { hold: true })); // never released: this section only inspects the opening board
     await host2.waitForFunction(() => document.querySelectorAll('#players li').length === 2);
     await host2.click('#startBtn');
     await p1.waitForSelector('#gameview:not(.hidden)');
@@ -142,7 +148,7 @@ async function main() {
     await ph.fill('#namein', 'Cleo');
     await ph.click('#joinBtn');
     await ph.waitForSelector('#waitview:not(.hidden)');
-    await host3.click('#botBtn');
+    scripted.push(await scriptedPlayer(BASE, code3, 'Scripted'));
     await host3.waitForFunction(() => document.querySelectorAll('#players li').length === 2);
     await host3.click('#startBtn');
     await ph.waitForSelector('#gameview:not(.hidden)');
@@ -270,7 +276,7 @@ async function main() {
     await survivor.fill('#namein', 'Cleo');
     await survivor.click('#joinBtn');
     await survivor.waitForSelector('#waitview:not(.hidden)');
-    await host5.click('#botBtn');
+    scripted.push(await scriptedPlayer(BASE, code5, 'Scripted'));
     await host5.waitForFunction(() => document.querySelectorAll('#players li').length === 2);
     await host5.click('#startBtn');
     await survivor.waitForSelector('#gameview:not(.hidden)');
@@ -290,6 +296,7 @@ async function main() {
     check(await survivor.locator('#gameview').isVisible(), 'the player was never kicked');
     await host5b.close(); await survivor.close(); await hostCtx.close();
   } finally {
+    for (const s of scripted) s.close();
     await browser.close();
     proc.kill();
     require('fs').rmSync(storeDir, { recursive: true, force: true });

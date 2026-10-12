@@ -75,12 +75,12 @@ These override anything older in the README or in my earlier commit messages:
 
 ## What is built and working
 
-Host QR lobby, phone join, spelling with tap/swipe preview, AI opponents,
+Host QR lobby, phone join, spelling with tap/swipe preview, (no computer players),
 mid-game rejoin, host-screen reconnect, pyramid tracker, hidden scores until
 the end, game over with Play Again / Main Menu, restart straight into a new
 game, and the scoring above.
 
-Tests: `npm test` (14 unit), `npm run e2e` (5 AI games over WebSockets),
+Tests: `npm test` (14 unit), `npm run e2e` (5 games played by scripted socket players),
 `node test/ui.js` (Playwright, ~49 checks). CI runs the first two on every PR.
 `node test/ui.js` hardcodes a container Chromium path at `test/ui.js:35` —
 **change that locally** to your own Chromium or let Playwright find it.
@@ -89,7 +89,7 @@ Tests: `npm test` (14 unit), `npm run e2e` (5 AI games over WebSockets),
 
 - **Never deployed.** `crosswordpyramids.duckdns.org` resolves to DuckDNS's
   default, not to any AWS instance. Deploy steps are in `deploy/aws.md`.
-- **No human has ever played it.** Every test player is a bot.
+- **No human has ever played it.** Every test player is a script (the server has no computer players).
 - Known and deliberately unfixed: no payload/rate limits, no room persistence
   across restarts, no corner "bend" words, no challenge/forfeit flow.
 

@@ -458,6 +458,8 @@ function serialize(state) {
 
 // Find a legal move for `color`. Tries dictionary words (shuffled, feasibility
 // filtered) across all placements; returns the best of the first few found.
+// Searches for a legal move. The server never plays for anyone; this exists
+// for tests and analysis (scripted players, parity checks, replays).
 function findMove(state, color, botWords, rng = Math.random, maxFound = 4) {
   // Multiset of every available letter (exposed pyramids + printed)
   const avail = {};

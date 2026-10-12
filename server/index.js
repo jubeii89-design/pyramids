@@ -25,8 +25,6 @@ const words = fs
   .split(/\r?\n/)
   .filter(Boolean);
 const DICT = new Set(words);
-// Bot vocabulary: short, common-shaped words keep move search fast
-const BOT_WORDS = words.filter((w) => w.length >= 3 && w.length <= 6);
 
 const app = express();
 // Optional voluntary-support link, shown only after a game. Off unless TIP_URL is an https URL.
@@ -95,8 +93,7 @@ function roomSnapshot(room) {
     players: room.players.map((p) => ({
       name: p.name,
       color: p.color,
-      bot: !!p.bot,
-      connected: !!(p.bot || (p.ws && p.ws.readyState === 1)),
+      connected: !!(p.ws && p.ws.readyState === 1),
     })),
   };
 }
@@ -116,7 +113,6 @@ function clearHostGrace(room) {
 
 function closeRoom(room, reason) {
   broadcast(room, { type: 'error', error: reason });
-  if (room.botTimer) clearTimeout(room.botTimer);
   clearTurn(room);
   clearHostGrace(room);
   rooms.delete(room.code);
@@ -136,12 +132,12 @@ function broadcastAll(room) {
 // There is no turn clock: a player takes as long as they like, and ends their
 // turn by playing a word or pressing Pass. The only timer is a safety net for
 // a disconnected phone; its turn is skipped after GONE_MS. Reconnecting with
-// its private credential cancels the timer. Bots are driven by scheduleBots.
+// its private credential cancels the timer.
 function armTurn(room) {
   if (!room.state || room.state.phase !== 'playing') { clearTurn(room); return; }
   const cur = room.state.players[room.state.turn];
   const player = room.players.find((p) => p.color === cur);
-  if (!player || player.bot || (player.ws && player.ws.readyState === 1)) { clearTurn(room); return; }
+  if (!player || (player.ws && player.ws.readyState === 1)) { clearTurn(room); return; }
   if (room.armedFor === cur && room.turnTimer) return; // already counting for this turn
   clearTurn(room);
   room.armedFor = cur;
@@ -157,7 +153,6 @@ function armTurn(room) {
     persistRooms();
     broadcast(room, { type: 'skipped', color: cur });
     broadcastAll(room);
-    scheduleBots(room);
   }, remaining);
 }
 
@@ -165,31 +160,6 @@ function clearTurn(room) {
   if (room.turnTimer) clearTimeout(room.turnTimer);
   room.turnTimer = null;
   room.armedFor = null;
-}
-
-function scheduleBots(room) {
-  if (!room.state || room.state.phase !== 'playing') return;
-  const current = room.state.players[room.state.turn];
-  const player = room.players.find((p) => p.color === current);
-  if (!player || !player.bot || room.botTimer) return;
-  room.botTimer = setTimeout(() => {
-    room.botTimer = null;
-    if (!room.state || room.state.phase !== 'playing') return;
-    if (room.state.players[room.state.turn] !== current) return;
-    const move = game.findMove(room.state, current, BOT_WORDS);
-    let result;
-    if (move) {
-      result = game.playWord(room.state, current, move, DICT);
-      if (result.ok) {
-        room.revision++;
-        persistRooms();
-        broadcast(room, { type: 'played', color: current, word: move.word, bot: true, gameId: room.gameId, revision: room.revision, actionId: randomUUID(), presentation: result.presentation });
-      }
-    }
-    if (!move || !result.ok) { game.passTurn(room.state, current); room.revision++; }
-    broadcastAll(room);
-    scheduleBots(room);
-  }, room.botDelayMs != null ? room.botDelayMs : 1200);
 }
 
 wss.on('connection', (ws, req) => {
@@ -256,10 +226,8 @@ wss.on('connection', (ws, req) => {
             state: null,
             gameId: null,
             revision: 0,
-            botTimer: null,
             turnTimer: null,
             hostGraceTimer: null,
-            botDelayMs: msg.botDelayMs,
             created: Date.now(),
           };
           rooms.set(code, r);
@@ -282,7 +250,7 @@ wss.on('connection', (ws, req) => {
           const name = msg.name;
           const between = r.phase !== 'lobby' && r.state && r.state.phase === 'over';
           const seat = r.players.find(
-            (p) => !p.bot && (!p.ws || p.ws.readyState !== 1) && security.matches(msg.token, p.tokenHash)
+            (p) => (!p.ws || p.ws.readyState !== 1) && security.matches(msg.token, p.tokenHash)
           );
           if (seat) {
             seat.ws = ws;
@@ -314,22 +282,13 @@ wss.on('connection', (ws, req) => {
           if (r.players.length >= 4) return send(ws, { type: 'error', error: 'Room is full (4 players max).' });
           const color = game.COLORS.find((c) => !r.players.some((p) => p.color === c));
           const seatToken = security.token();
-          const player = { ws, name, color, bot: false, tokenHash: security.hash(seatToken) };
+          const player = { ws, name, color, tokenHash: security.hash(seatToken) };
           r.players.push(player);
           ws.roomCode = code;
           ws.role = 'player';
           ws.color = color;
           send(ws, { type: 'joined', code, color, name, token: seatToken });
           broadcastAll(r);
-          break;
-        }
-        case 'add_bot': {
-          if (!room || ws.role !== 'host') return;
-          if (room.phase !== 'lobby' || room.players.length >= 4) return;
-          const color = game.COLORS.find((c) => !room.players.some((p) => p.color === c));
-          const names = ['Sphinx', 'Giza', 'Rosetta', 'Anubis'];
-          room.players.push({ ws: null, name: names[room.players.length % names.length] + ' (AI)', color, bot: true });
-          broadcastAll(room);
           break;
         }
         case 'start': {
@@ -340,7 +299,6 @@ wss.on('connection', (ws, req) => {
           room.state = game.createGame(room.players.map((p) => p.color));
           room.gameId = randomUUID(); room.revision = 0;
           broadcastAll(room);
-          scheduleBots(room);
           break;
         }
         case 'preview': {
@@ -360,7 +318,6 @@ wss.on('connection', (ws, req) => {
           persistRooms();
           broadcast(room, { type: 'played', color: ws.color, word: result.word, gameId: room.gameId, revision: room.revision, actionId: randomUUID(), presentation: result.presentation });
           broadcastAll(room);
-          scheduleBots(room);
           break;
         }
         case 'feedback': {
@@ -376,17 +333,15 @@ wss.on('connection', (ws, req) => {
           if (!result.ok) return send(ws, { type: 'reject', error: result.error });
           room.revision++;
           broadcastAll(room);
-          scheduleBots(room);
           break;
         }
         case 'again': {
           if (!room || ws.role !== 'host') return;
           if (!room.state || room.state.phase !== 'over') return;
           clearTurn(room);
-          if (room.botTimer) { clearTimeout(room.botTimer); room.botTimer = null; }
           // Anyone who dropped out during the last game doesn't get a seat in
-          // the next one; bots and everyone still connected keep theirs.
-          room.players = room.players.filter((p) => p.bot || p.ws);
+          // the next one; everyone still connected keeps theirs.
+          room.players = room.players.filter((p) => p.ws);
           if (room.players.length >= 2) {
             // Straight into the next game on the same room code — no second
             // trip through the lobby for the people who are already here.
@@ -394,7 +349,6 @@ wss.on('connection', (ws, req) => {
             room.state = game.createGame(room.players.map((p) => p.color));
             room.gameId = randomUUID(); room.revision = 0;
             broadcastAll(room);
-            scheduleBots(room);
           } else {
             // Not enough players left to deal a board — back to the lobby so
             // the host can wait for more phones to join.
@@ -463,9 +417,8 @@ for (const saved of savedRooms) {
     players: saved.players.map((player) => ({
       ...player,
       ws: null,
-      ...(player.bot ? {} : { disconnectedAt: player.disconnectedAt || startupNow }),
+      disconnectedAt: player.disconnectedAt || startupNow,
     })),
-    botTimer: null,
     turnTimer: null,
     hostGraceTimer: null,
     armedFor: null,
@@ -477,7 +430,6 @@ for (const saved of savedRooms) {
   const hostDelay = HOST_GRACE_MS - (startupNow - room.hostGoneAt);
   room.hostGraceTimer = setTimeout(() => closeRoom(room, 'Host never came back. Room closed.'), hostDelay);
   armTurn(room);
-  scheduleBots(room);
 }
 // Drop rooms that expired while the process was offline from the checkpoint too.
 const resumableCount = savedRooms.filter((saved) => {
@@ -506,4 +458,4 @@ server.listen(PORT, () => {
   console.log(`Crossword Pyramids listening on http://localhost:${PORT} (dictionary: ${DICT.size} words)`);
 });
 
-module.exports = { server, app, DICT, BOT_WORDS };
+module.exports = { server, app, DICT };
