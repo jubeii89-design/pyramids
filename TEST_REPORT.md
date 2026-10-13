@@ -22,4 +22,4 @@ browser suites (they need Playwright's Chromium: `npx playwright install chromiu
   under test.
 - The HTTPS origin check has not been exercised behind a real reverse proxy.
 - Load, soak and accessibility testing are not done.
-- The word list is public-domain ENABLE with slurs removed; its content and reproducibility are locked in by `test/wordlist.test.js`. Whether it suits your audience (it has no recent slang such as "rizz", and general profanity is allowed) is a product call.
+- The word list is public-domain ENABLE plus a short house list of modern words, with slurs removed; its content and reproducibility are locked in by `test/wordlist.test.js`. Whether it suits your audience (it is not a complete modern dictionary, and general profanity is allowed) is a product call.

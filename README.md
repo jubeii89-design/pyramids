@@ -58,7 +58,8 @@ Change the port with `PORT=8080 npm start` (PowerShell: `$env:PORT=8080; npm sta
 ### Digital adaptations from the tabletop rules
 
 - Word validity is checked automatically against a built word list: ENABLE
-  (public domain) with slurs removed. Rebuild with
+  (public domain), plus the project's own short list of modern words, with slurs
+  removed. Rebuild with
   `node tools/build-wordlist.js`; sources, licences and credits are in
   `data/WORDLIST.md` and `/credits.html`, so the challenge/forfeit flow isn't needed — illegal words are
   simply rejected with no penalty and the turn continues.

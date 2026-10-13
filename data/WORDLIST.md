@@ -1,40 +1,37 @@
 # Word list provenance
 
 `words.txt` is **generated** by `node tools/build-wordlist.js` from the files in
-`data/wordlists/`. It holds 125,378 lowercase words of 3-10 letters, one per
+`data/wordlists/`. It holds 125,651 lowercase words of 3-10 letters, one per
 line. Do not edit it by hand; edit a source file and rebuild.
 
 | Source file | What it is | Licence |
 |---|---|---|
-| `wordlists/enable.txt` | The **ENABLE** word list (172,823 words), the only word source | Public domain, as documented by its maintainers and reproduced in Debian's `scowl` package copyright file (<https://sources.debian.org/src/scowl/7.1-1/Copyright/>). Credit: the ENABLE originators; Alan Beale and M. Cooper are named in that notice. |
-| `wordlists/exclude.txt` | 69 slur and hateful-term forms removed | n/a (our editorial list) |
+| `wordlists/enable.txt` | The **ENABLE** word list (172,823 words), the base | Public domain, as documented by its maintainers and reproduced in Debian's `scowl` package copyright file (<https://sources.debian.org/src/scowl/7.1-1/Copyright/>). Credit: the ENABLE originators; Alan Beale and M. Cooper are named in that notice. |
+| `wordlists/house.txt` | 273 modern English words that ENABLE (compiled in the 1990s) predates, such as selfie, emoji, rizz, yeet, doomscroll. Written for this game from general knowledge; **no third-party word list was copied or used as a source.** | The project's own file. No outside licence applies. |
+| `wordlists/exclude.txt` | 69 slur and hateful-term forms removed from every source | n/a (our editorial list) |
 
 **No share-alike or attribution-licensed material is included.** An earlier
-revision added a hand-picked supplement of modern words checked against
-Wiktionary (CC BY-SA 4.0); it was removed on purpose so the word list carries no
-licence conditions beyond crediting ENABLE. The trade-off is that the list has
-no post-2000 slang (for example "rizz", "yeet", "selfie", "emoji").
+revision shipped a supplement checked against Wiktionary (CC BY-SA 4.0) and
+credited it; that file was removed. The house list carries the same kind of words
+(individual words are facts, not copyrightable), but is authored here and does
+not depend on, copy, or credit any outside dataset. The words were spell-checked
+against a public dictionary site once, as quality control only.
 
-## Adding words later
-Only add words from a source whose licence you have read and that permits
-bundling in a game. Put them in a new file under `data/wordlists/`, add that file
-to `tools/build-wordlist.js`, record it in the table above, and rebuild.
-Candidate sources and their terms were researched on 2026-10-13: the ESDB/SCOWL
-list (MIT-like; abbreviations, brand names and slurs must be filtered out), Open
-English WordNet (CC BY 4.0, base forms only), and the NASPA Word List (licensed
-by NASPA; free developer tier under about US$1,000 annual revenue). None is in
-use.
-
-## Offensive words
-ENABLE, like other Scrabble-style lists, contains slurs. They are removed by
-`exclude.txt`. General profanity is left in. Words that are ordinary words but
-sometimes used as slurs (for example "chink", "dyke", "queer") are also left in;
-add them to `exclude.txt` and rebuild if you want them gone.
-`test/wordlist.test.js` checks every excluded word is absent and that innocent
-look-alikes (spicy, spices, beanery) were not removed by accident.
+## Limits
+- The house list is a **short** set of modern words, not a complete modern
+  dictionary. The base is still a 1990s Scrabble-style list.
+- General profanity remains playable. Slurs are removed (`exclude.txt`).
+  Ordinary words that are sometimes used as slurs (for example "chink", "dyke",
+  "queer") are left in; add them to `exclude.txt` and rebuild to remove them.
+- A wider modern vocabulary would need a source whose licence has been read and
+  permits bundling in a game. Candidates researched on 2026-10-13: Alan Beale's
+  `neol2016` neologism list in 12dicts (public domain; 2016, contains slurs and
+  needs filtering), ESDB/SCOWL (MIT-like; abbreviations, brands and slurs must be
+  filtered), Open English WordNet (CC BY 4.0, base forms only), and the NASPA Word
+  List (licensed by NASPA). None is in use.
+- This note is not legal advice.
 
 ## Integrity
-- **SHA-256 of words.txt (LF line endings):** `9fc0a9e45b23fece9b7a10fd39634f4345ffa993f781eb72f7f233f33cb50ba1`
+- **SHA-256 of words.txt (LF line endings):** `56d590bb350539fed79d22d64831ca98939aedc20fce0f37d34df92c1de209ec`
 - `test/wordlist.test.js` fails if the file drifts from a fresh build, if known
   junk or an excluded word appears, or if this note stops matching the file.
-- This note is not legal advice.
