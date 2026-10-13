@@ -52,5 +52,5 @@ These override anything older:
 - Never deployed; no human has played a full game under test.
 - Rights to the name, rules text and art are unconfirmed; written permission
   is needed before anything public or paid. Nothing paid is built.
-- Sound, tutorial, accessibility pass, graceful shutdown, a stricter word list.
+- Sound, tutorial, accessibility pass, graceful shutdown. (The word list is now ENABLE; see `data/WORDLIST.md`.)
 - See `IMPROVEMENT-PLAN.md` / `PUBLIC-READINESS-REVIEW.md` if present locally.

@@ -57,8 +57,8 @@ Change the port with `PORT=8080 npm start` (PowerShell: `$env:PORT=8080; npm sta
 
 ### Digital adaptations from the tabletop rules
 
-- Word validity is checked automatically against a 359k-word English
-  dictionary, so the challenge/forfeit flow isn't needed — illegal words are
+- Word validity is checked automatically against the ENABLE English
+  word list (about 173k words, public domain; see `data/WORDLIST.md`), so the challenge/forfeit flow isn't needed — illegal words are
   simply rejected with no penalty and the turn continues.
 - Words are straight lines only (runway squares can be used, but the corner
   "bend" rule is not implemented). The runway is optional space: use it or
