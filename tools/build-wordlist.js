@@ -1,8 +1,7 @@
 'use strict';
 // Builds data/words.txt (the list the game validates against) from its sources:
-//   data/wordlists/enable.txt      ENABLE, public domain (the base)
-//   data/wordlists/supplement.txt  hand-picked modern words, each checked against Wiktionary
-//   data/wordlists/exclude.txt     optional: words to remove from either source
+//   data/wordlists/enable.txt   ENABLE, public domain
+//   data/wordlists/exclude.txt  words to remove (slurs and hateful terms)
 // Only 3-10 letter lowercase a-z words are kept (the lengths the game accepts).
 //   node tools/build-wordlist.js          write data/words.txt
 //   node tools/build-wordlist.js --check  exit 1 if data/words.txt is out of date
@@ -18,7 +17,7 @@ const read = (name) => {
 
 function build() {
   const exclude = new Set(read('exclude.txt'));
-  const all = new Set([...read('enable.txt'), ...read('supplement.txt')]);
+  const all = new Set(read('enable.txt'));
   const words = [...all].filter((w) => /^[a-z]{3,10}$/.test(w) && !exclude.has(w)).sort();
   return { text: words.join('\n') + '\n', count: words.length };
 }

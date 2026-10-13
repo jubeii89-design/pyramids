@@ -14,7 +14,7 @@ const set = new Set(words);
 const lines = (f) => fs.readFileSync(path.join(root, 'data', 'wordlists', f), 'utf8').split(/\r?\n/).filter(Boolean);
 
 test('word list is plain lowercase a-z, 3-10 letters, sorted, no duplicates', () => {
-  assert.ok(words.length > 120000 && words.length < 140000, `unexpected size ${words.length}`);
+  assert.ok(words.length > 120000 && words.length < 130000, `unexpected size ${words.length}`);
   assert.ok(words.every((w) => /^[a-z]{3,10}$/.test(w)), '3-10 letters, a-z only');
   assert.strictEqual(set.size, words.length, 'no duplicates');
   assert.deepStrictEqual(words, [...words].sort(), 'sorted');
@@ -31,15 +31,17 @@ test('known junk from the previous lists stays out', () => {
   }
 });
 
-test('ordinary words and the modern supplement are present', () => {
+test('ordinary words and the playable lengths are present', () => {
   for (const ok of ['cat', 'quiz', 'pyramid', 'zebra', 'letter', 'aah', 'vizsla', 'haloed', 'wined']) assert.ok(set.has(ok), `"${ok}" should be accepted`);
-  for (const modern of ['rizz', 'yeet', 'doomscroll', 'selfie', 'emoji', 'hashtag', 'deepfake', 'podcast', 'webcam']) assert.ok(set.has(modern), `"${modern}" should be accepted`);
-  const supplement = lines('supplement.txt');
-  assert.ok(supplement.length > 150, 'supplement is present');
-  assert.ok(supplement.every((w) => /^[a-z]{3,10}$/.test(w)), 'supplement is clean a-z');
-  assert.ok(supplement.every((w) => set.has(w)), 'every supplement word is in the built list');
-  const enable = new Set(lines('enable.txt'));
-  assert.ok(supplement.every((w) => !enable.has(w)), 'supplement only holds words ENABLE lacks');
+  assert.ok(words.filter((w) => w.length === 3).length > 800, 'enough three-letter words to play with');
+});
+
+test('only the public-domain source is used: no share-alike or attribution-licensed material', () => {
+  const files = fs.readdirSync(path.join(root, 'data', 'wordlists')).sort();
+  assert.deepStrictEqual(files, ['enable.txt', 'exclude.txt'], 'no other word source files');
+  assert.ok(!fs.existsSync(path.join(root, 'data', 'licenses')) || fs.readdirSync(path.join(root, 'data', 'licenses')).length === 0, 'no third-party licence notices needed');
+  const credits = fs.readFileSync(path.join(root, 'public', 'credits.html'), 'utf8');
+  assert.ok(!/CC BY-SA|Wiktionary|ESDB/i.test(credits), 'credits do not claim sources that are not used');
 });
 
 test('excluded slurs are absent and innocent look-alikes are not caught by accident', () => {
@@ -63,6 +65,5 @@ test('provenance note and credits match the file they describe', () => {
   assert.ok(note.includes(sha), 'WORDLIST.md must record the current SHA-256; update it when words.txt changes');
   assert.ok(note.includes(words.length.toLocaleString('en-US')), 'WORDLIST.md must record the current word count');
   const credits = fs.readFileSync(path.join(root, 'public', 'credits.html'), 'utf8');
-  for (const needle of ['ENABLE', 'Wiktionary', 'CC BY-SA', 'Atkinson']) assert.ok(credits.includes(needle), `credits page must mention ${needle}`);
-  assert.ok(fs.existsSync(path.join(root, 'public', 'licenses', 'ESDB-COPYRIGHT.txt')), 'ESDB notice must be served');
+  for (const needle of ['ENABLE', 'public domain', 'three.js']) assert.ok(credits.includes(needle), `credits page must mention ${needle}`);
 });

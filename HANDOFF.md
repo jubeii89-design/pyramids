@@ -52,5 +52,5 @@ These override anything older:
 - Never deployed; no human has played a full game under test.
 - Rights to the name, rules text and art are unconfirmed; written permission
   is needed before anything public or paid. Nothing paid is built.
-- Sound, tutorial, accessibility pass, graceful shutdown. (The word list is ENABLE plus a vetted modern supplement; see `data/WORDLIST.md` and `tools/build-wordlist.js`.)
+- Sound, tutorial, accessibility pass, graceful shutdown. (The word list is public-domain ENABLE with slurs removed; see `data/WORDLIST.md` and `tools/build-wordlist.js`. It has no post-2000 slang; adding words later needs a source whose licence you have checked.)
 - See `IMPROVEMENT-PLAN.md` / `PUBLIC-READINESS-REVIEW.md` if present locally.

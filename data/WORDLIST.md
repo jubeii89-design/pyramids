@@ -1,44 +1,40 @@
 # Word list provenance
 
 `words.txt` is **generated** by `node tools/build-wordlist.js` from the files in
-`data/wordlists/`. It holds 125,592 lowercase words of 3-10 letters, one per
+`data/wordlists/`. It holds 125,378 lowercase words of 3-10 letters, one per
 line. Do not edit it by hand; edit a source file and rebuild.
 
 | Source file | What it is | Licence |
 |---|---|---|
-| `wordlists/enable.txt` | The **ENABLE** word list (172,823 words), the base | Public domain, as documented by its maintainers and reproduced in Debian's `scowl` package copyright file (<https://sources.debian.org/src/scowl/7.1-1/Copyright/>). Credit: the ENABLE originators; Alan Beale and M. Cooper are named in that notice. |
-| `wordlists/supplement.txt` | 214 modern words (e.g. rizz, yeet, doomscroll, selfie, emoji) chosen by hand; each was confirmed to have an English entry on Wiktionary on 2026-10-13. Candidates came from the ESDB list below, dictionary new-word announcements, and Wiktionary. | The selection is offered under **CC BY-SA 4.0** (<https://creativecommons.org/licenses/by-sa/4.0/>) with attribution to Wiktionary contributors (<https://en.wiktionary.org>). |
-| `wordlists/exclude.txt` | 69 slur and hateful-term forms removed from every source | n/a (our editorial list) |
+| `wordlists/enable.txt` | The **ENABLE** word list (172,823 words), the only word source | Public domain, as documented by its maintainers and reproduced in Debian's `scowl` package copyright file (<https://sources.debian.org/src/scowl/7.1-1/Copyright/>). Credit: the ENABLE originators; Alan Beale and M. Cooper are named in that notice. |
+| `wordlists/exclude.txt` | 69 slur and hateful-term forms removed | n/a (our editorial list) |
 
-**ESDB / SCOWL v2** (<https://github.com/en-wl/wordlist>, Kevin Atkinson, release
-2026-02-25) was used as a source of candidate words. It is not copied in bulk
-(it contains abbreviations, brand names and offensive words). Its licence
-notice is kept in `licenses/ESDB-COPYRIGHT.txt` and credited on the Credits page.
+**No share-alike or attribution-licensed material is included.** An earlier
+revision added a hand-picked supplement of modern words checked against
+Wiktionary (CC BY-SA 4.0); it was removed on purpose so the word list carries no
+licence conditions beyond crediting ENABLE. The trade-off is that the list has
+no post-2000 slang (for example "rizz", "yeet", "selfie", "emoji").
 
-## Why not a bulk import
-Filtering the ESDB list to lowercase a-z still brought back abbreviations
-(bldg, rcpt, adv), Roman numerals, brand names (google, hoover) and slurs. The
-Wiktionary check only confirms a word *has an English entry* (it also accepts
-abbreviations), so every supplement word was picked by hand first.
+## Adding words later
+Only add words from a source whose licence you have read and that permits
+bundling in a game. Put them in a new file under `data/wordlists/`, add that file
+to `tools/build-wordlist.js`, record it in the table above, and rebuild.
+Candidate sources and their terms were researched on 2026-10-13: the ESDB/SCOWL
+list (MIT-like; abbreviations, brand names and slurs must be filtered out), Open
+English WordNet (CC BY 4.0, base forms only), and the NASPA Word List (licensed
+by NASPA; free developer tier under about US$1,000 annual revenue). None is in
+use.
 
 ## Offensive words
 ENABLE, like other Scrabble-style lists, contains slurs. They are removed by
 `exclude.txt`. General profanity is left in. Words that are ordinary words but
 sometimes used as slurs (for example "chink", "dyke", "queer") are also left in;
-add them to `exclude.txt` and rebuild if you want them gone. `test/wordlist.test.js`
-checks every excluded word is absent and that innocent look-alikes
-(spicy, spices, beanery) were not removed by accident.
-
-## The share-alike question
-The supplement was assembled by hand; Wiktionary was queried only to confirm that
-each word exists, and no Wiktionary entry text or data file is copied. Whether
-such a bare list could ever count as a derivative under CC BY-SA is untested, so
-the supplement is kept in its **own file**, licensed CC BY-SA 4.0 and credited. If
-that file's terms were ever a concern, deleting `supplement.txt` and rebuilding
-removes it completely; nothing else depends on it. For a commercial launch, have
-counsel confirm. This note is not legal advice.
+add them to `exclude.txt` and rebuild if you want them gone.
+`test/wordlist.test.js` checks every excluded word is absent and that innocent
+look-alikes (spicy, spices, beanery) were not removed by accident.
 
 ## Integrity
-- **SHA-256 of words.txt (LF line endings):** `9747f98c115d0db72fcbed5dbfd6cb2dea6b2bd984dc1e0c0fbe8ab236ba99c8`
+- **SHA-256 of words.txt (LF line endings):** `9fc0a9e45b23fece9b7a10fd39634f4345ffa993f781eb72f7f233f33cb50ba1`
 - `test/wordlist.test.js` fails if the file drifts from a fresh build, if known
   junk or an excluded word appears, or if this note stops matching the file.
+- This note is not legal advice.
