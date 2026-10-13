@@ -23,14 +23,11 @@ function check(cond, label) {
 }
 
 async function main() {
-<<<<<<< HEAD
   // A dedicated subdirectory, not os.tmpdir() itself: the server chmods the
   // checkpoint's directory to 0700, and a shared /tmp can't be locked down
   // that way (EPERM on CI, and wrong on any box where other processes use /tmp).
   const storeDir = require('fs').mkdtempSync(path.join(require('os').tmpdir(), 'pyramids-ui-'));
-=======
   const scripted = [];
->>>>>>> 0db66f5 (Remove computer players: humans only)
   const proc = spawn('node', ['server/index.js'], {
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, PORT: String(PORT), ROOM_STORE_PATH: path.join(storeDir, 'rooms.json') },
