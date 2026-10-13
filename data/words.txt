@@ -23153,8 +23153,6 @@ cooler
 coolers
 coolest
 coolheaded
-coolie
-coolies
 cooling
 coolish
 coolly
@@ -26501,11 +26499,8 @@ daggles
 daggling
 daglock
 daglocks
-dago
 dagoba
 dagobas
-dagoes
-dagos
 dags
 dagwood
 dagwoods
@@ -26806,8 +26801,6 @@ darker
 darkest
 darkey
 darkeys
-darkie
-darkies
 darking
 darkish
 darkle
@@ -26823,7 +26816,6 @@ darkroom
 darkrooms
 darks
 darksome
-darky
 darling
 darlingly
 darlings
@@ -38460,28 +38452,13 @@ faenas
 faerie
 faeries
 faery
-fag
-fagged
-fagging
-faggot
-faggoted
-faggoting
 faggotings
 faggotries
 faggotry
-faggots
-faggoty
 faggy
 fagin
 fagins
-fagot
-fagoted
-fagoter
-fagoters
-fagoting
 fagotings
-fagots
-fags
 fahlband
 fahlbands
 faience
@@ -46554,8 +46531,6 @@ googolplex
 googols
 gooier
 gooiest
-gook
-gooks
 gooky
 goombah
 goombahs
@@ -48322,14 +48297,8 @@ gynoecia
 gynoecium
 gynophore
 gynophores
-gyp
 gyplure
 gyplures
-gypped
-gypper
-gyppers
-gypping
-gyps
 gypseian
 gypseous
 gypsied
@@ -49912,8 +49881,6 @@ heavyset
 hebdomad
 hebdomadal
 hebdomads
-hebe
-hebes
 hebetate
 hebetated
 hebetates
@@ -51595,11 +51562,8 @@ honker
 honkers
 honkey
 honkeys
-honkie
-honkies
 honking
 honks
-honky
 honor
 honorable
 honorably
@@ -57042,8 +57006,6 @@ jiffies
 jiffs
 jiffy
 jig
-jigaboo
-jigaboos
 jigged
 jigger
 jiggered
@@ -58454,8 +58416,6 @@ kiester
 kiesters
 kif
 kifs
-kike
-kikes
 kilderkin
 kilderkins
 kilim
@@ -69502,9 +69462,6 @@ mukluk
 mukluks
 muktuk
 muktuks
-mulatto
-mulattoes
-mulattos
 mulberries
 mulberry
 mulch
@@ -71357,8 +71314,6 @@ niggarded
 niggarding
 niggardly
 niggards
-nigger
-niggers
 niggle
 niggled
 niggler
@@ -80451,7 +80406,6 @@ pickaback
 pickabacks
 pickadil
 pickadils
-pickaninny
 pickaroon
 pickaroons
 pickax
@@ -82728,12 +82682,8 @@ pood
 poodle
 poodles
 poods
-poof
-poofs
 pooftah
 pooftahs
-poofter
-poofters
 poofy
 pooh
 poohed
@@ -89323,8 +89273,6 @@ redshifts
 redshirt
 redshirted
 redshirts
-redskin
-redskins
 redstart
 redstarts
 redtail
@@ -95169,8 +95117,6 @@ sambhar
 sambhars
 sambhur
 sambhurs
-sambo
-sambos
 sambuca
 sambucas
 sambuke
@@ -103425,7 +103371,6 @@ spay
 spayed
 spaying
 spays
-spaz
 spazzes
 speak
 speakable
@@ -103685,7 +103630,6 @@ sphinxlike
 sphygmic
 sphygmus
 sphygmuses
-spic
 spica
 spicae
 spicas
@@ -103708,9 +103652,6 @@ spiciest
 spicily
 spiciness
 spicing
-spick
-spicks
-spics
 spicula
 spiculae
 spicular
@@ -104561,7 +104502,6 @@ squattier
 squattiest
 squatting
 squatty
-squaw
 squawfish
 squawk
 squawked
@@ -104571,7 +104511,6 @@ squawking
 squawks
 squawroot
 squawroots
-squaws
 squeak
 squeaked
 squeaker
@@ -122607,8 +122546,6 @@ wests
 westward
 westwards
 wet
-wetback
-wetbacks
 wether
 wethers
 wetland
@@ -123855,8 +123792,6 @@ woes
 woesome
 woful
 wofully
-wog
-wogs
 wok
 woke
 woken
@@ -124109,8 +124044,6 @@ wooziest
 woozily
 wooziness
 woozy
-wop
-wops
 word
 wordage
 wordages
@@ -124945,8 +124878,6 @@ yeuks
 yeuky
 yew
 yews
-yid
-yids
 yield
 yielded
 yielder

@@ -42,6 +42,16 @@ test('ordinary words and the modern supplement are present', () => {
   assert.ok(supplement.every((w) => !enable.has(w)), 'supplement only holds words ENABLE lacks');
 });
 
+test('excluded slurs are absent and innocent look-alikes are not caught by accident', () => {
+  const excluded = fs.readFileSync(path.join(root, 'data', 'wordlists', 'exclude.txt'), 'utf8')
+    .split(/\r?\n/).filter((l) => l && !l.startsWith('#'));
+  assert.ok(excluded.length > 40, 'exclusion list is populated');
+  for (const w of excluded) assert.ok(!set.has(w), `excluded word "${w}" must not be playable`);
+  for (const ok of ['spicy', 'spices', 'spiced', 'beanery', 'poofy', 'classic', 'assassin', 'cocktail']) {
+    assert.ok(set.has(ok), `"${ok}" is an ordinary word and must stay`);
+  }
+});
+
 test('the vowel-less entries are a short, known set', () => {
   const noVowel = words.filter((w) => !/[aeiouy]/.test(w));
   assert.ok(noVowel.length < 30, `unexpected number of vowel-less words: ${noVowel.length}`);
