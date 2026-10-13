@@ -22,4 +22,4 @@ browser suites (they need Playwright's Chromium: `npx playwright install chromiu
   under test.
 - The HTTPS origin check has not been exercised behind a real reverse proxy.
 - Load, soak and accessibility testing are not done.
-- The word list is ENABLE (public domain); its quality is locked in by `test/wordlist.test.js`, but whether it suits your audience (for example, newer words) is a product call.
+- The word list is ENABLE plus a hand-vetted supplement; its quality and reproducibility are locked in by `test/wordlist.test.js`, but whether it suits your audience (offensive words in ENABLE, newer words) is a product call.
