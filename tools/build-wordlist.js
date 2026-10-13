@@ -2,6 +2,7 @@
 // Builds data/words.txt (the list the game validates against) from its sources:
 //   data/wordlists/enable.txt   ENABLE, public domain (the base)
 //   data/wordlists/house.txt    this project's own modern words (no outside licence)
+//   data/wordlists/neol2016.txt reviewed words from Alan Beale's neol2016 (public domain)
 //   data/wordlists/exclude.txt  words to remove (slurs and hateful terms)
 // Only 3-10 letter lowercase a-z words are kept (the lengths the game accepts).
 //   node tools/build-wordlist.js          write data/words.txt
@@ -18,7 +19,7 @@ const read = (name) => {
 
 function build() {
   const exclude = new Set(read('exclude.txt'));
-  const all = new Set([...read('enable.txt'), ...read('house.txt')]);
+  const all = new Set([...read('enable.txt'), ...read('house.txt'), ...read('neol2016.txt')]);
   const words = [...all].filter((w) => /^[a-z]{3,10}$/.test(w) && !exclude.has(w)).sort();
   return { text: words.join('\n') + '\n', count: words.length };
 }

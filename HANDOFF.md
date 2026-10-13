@@ -52,5 +52,5 @@ These override anything older:
 - Never deployed; no human has played a full game under test.
 - Rights to the name, rules text and art are unconfirmed; written permission
   is needed before anything public or paid. Nothing paid is built.
-- Sound, tutorial, accessibility pass, graceful shutdown. (The word list is public-domain ENABLE plus our own short modern-words file, with slurs removed; see `data/WORDLIST.md` and `tools/build-wordlist.js`. A wider modern vocabulary needs a source whose licence you have checked.)
+- Sound, tutorial, accessibility pass, graceful shutdown. (The word list is public-domain ENABLE plus our own short modern-words file and reviewed words from Alan Beale's public-domain neol2016, with slurs removed; see `data/WORDLIST.md` and `tools/build-wordlist.js`. A wider modern vocabulary needs a source whose licence you have checked.)
 - See `IMPROVEMENT-PLAN.md` / `PUBLIC-READINESS-REVIEW.md` if present locally.
