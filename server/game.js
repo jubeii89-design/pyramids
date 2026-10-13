@@ -157,24 +157,40 @@ function pathCells(r, c, dir, len) {
  *  - otherwise an exposed player pyramid elsewhere is moved onto that cell
  * Returns {ok:true, result} and mutates state, or {ok:false, error}.
  */
+// A refused move: `error` is the short reason, `hint` says what to try next, `code`
+// is stable for clients and tests. Hints only mention what is already public.
+function refuse(code, error, hint, extra = {}) {
+  return { ok: false, code, error, hint, ...extra };
+}
+
 function playWord(state, color, move, dict, preview = false) {
-  if (state.phase !== 'playing') return { ok: false, error: 'Game is not in progress.' };
-  if (state.players[state.turn] !== color) return { ok: false, error: 'Not your turn.' };
+  if (state.phase !== 'playing') return refuse('GAME_OVER', 'Game is not in progress.', 'This game has ended; wait for the host to start a new one.');
+  if (state.players[state.turn] !== color) return refuse('NOT_YOUR_TURN', 'Not your turn.', 'Wait for the banner to say it is your turn, then try again.');
 
   const word = String(move.word || '').toLowerCase().trim();
-  if (!/^[a-z]{3,}$/.test(word)) return { ok: false, error: 'Words must be at least 3 letters (A-Z only).' };
-  if (!dict.has(word)) return { ok: false, error: `"${word.toUpperCase()}" is not in the dictionary.` };
-  if (move.dir !== 'H' && move.dir !== 'V') return { ok: false, error: 'Direction must be H or V.' };
-  if (!Number.isInteger(move.r) || !Number.isInteger(move.c)) return { ok: false, error: 'Choose a board square.' };
+  if (!/^[a-z]{3,}$/.test(word)) {
+    return refuse('BAD_WORD', 'Words must be at least 3 letters (A-Z only).', 'Use three or more letters, A to Z only: no spaces, numbers or punctuation.');
+  }
+  if (!dict.has(word)) {
+    return refuse('NOT_A_WORD', `"${word.toUpperCase()}" is not in the dictionary.`,
+      'Check the spelling. The word list leaves out proper names, abbreviations and a lot of slang.', { word });
+  }
+  if (move.dir !== 'H' && move.dir !== 'V') return refuse('BAD_DIRECTION', 'Direction must be H or V.', 'Choose Across or Down.');
+  if (!Number.isInteger(move.r) || !Number.isInteger(move.c)) return refuse('NO_START', 'Choose a board square.', 'Tap the square where the word should start.');
 
   const path = pathCells(move.r | 0, move.c | 0, move.dir, word.length);
-  if (!path) return { ok: false, error: 'Word does not fit on the board there.' };
+  if (!path) {
+    const room = SIZE - (move.dir === 'H' ? (move.c | 0) : (move.r | 0));
+    return refuse('OFF_BOARD', 'Word does not fit on the board there.',
+      `From this square there are only ${Math.max(room, 0)} squares in that direction and the word needs ${word.length}. Start further back, or switch direction.`,
+      { needed: word.length, available: Math.max(room, 0) });
+  }
 
   // Optional manual choice of source pieces: one square per letter (or null for
   // "let the engine pick"). A hint can only narrow the engine's own candidates,
   // so every rule check below still applies and no hint means unchanged behaviour.
   const hints = Array.isArray(move.sources) ? move.sources : null;
-  if (hints && hints.length !== word.length) return { ok: false, error: 'Pick one piece per letter, or leave it automatic.' };
+  if (hints && hints.length !== word.length) return refuse('BAD_PICKS', 'Pick one piece per letter, or leave it automatic.', 'Press Auto to clear your choices and try again.');
 
   const cells = state.cells;
   const onPath = new Set(path.map(([r, c]) => r * SIZE + c));
@@ -198,16 +214,23 @@ function playWord(state, color, move, dict, preview = false) {
         if (top.o !== 'house' && top.l === need) opts.push({ type: 'move', from: rr * SIZE + cc, owner: top.o });
       }
     }
-    if (!opts.length) return { ok: false, error: `No available letter "${need.toUpperCase()}" for position ${i + 1}.` };
+    if (!opts.length) {
+      return refuse('MISSING_LETTER', `No available letter "${need.toUpperCase()}" for position ${i + 1}.`,
+        `Nothing on the path already shows ${need.toUpperCase()}, and no player's pyramid with that letter is showing on top elsewhere (house pyramids never move, and letters under other pyramids can't be used this turn). Try another word or start square.`,
+        { letter: need, position: i + 1 });
+    }
     allPositions.push(opts.slice());
     const hint = hints && hints[i];
     if (hint) {
       if (!Number.isInteger(hint.r) || !Number.isInteger(hint.c) || hint.r < 0 || hint.r >= SIZE || hint.c < 0 || hint.c >= SIZE) {
-        return { ok: false, error: `Letter ${i + 1}: choose a board square.` };
+        return refuse('BAD_PICKS', `Letter ${i + 1}: choose a board square.`, 'Tap one of the highlighted pieces, or press Auto.');
       }
       const idx = hint.r * SIZE + hint.c;
       const narrowed = opts.filter((o) => (o.type === 'inplace' ? idx === r * SIZE + c : o.from === idx));
-      if (!narrowed.length) return { ok: false, error: `That piece cannot supply "${need.toUpperCase()}" for letter ${i + 1}.` };
+      if (!narrowed.length) {
+        return refuse('BAD_PICKS', `That piece cannot supply "${need.toUpperCase()}" for letter ${i + 1}.`,
+          'Pick one of the highlighted pieces for that letter, or press Auto.', { letter: need, position: i + 1 });
+      }
       positions.push(narrowed);
     } else positions.push(opts);
   }
@@ -257,11 +280,26 @@ function playWord(state, color, move, dict, preview = false) {
   search(0);
 
   if (!solution) {
-    return {
-      ok: false,
-      error: (hints && hints.some(Boolean) ? 'Cannot form that word with the pieces you picked: ' : 'Cannot form that word legally: ') +
-        'it must use at least one of your own pyramids, one black letter (house pyramid or printed letter), and move at least one pyramid.',
-    };
+    // Say which rule is the problem. Each check looks at every letter's candidate sources.
+    const picked = hints && hints.some(Boolean);
+    const lead = picked ? 'Cannot form that word with the pieces you picked: ' : 'Cannot form that word legally: ';
+    const tail = picked ? ' Press Auto to let the game choose.' : '';
+    const some = (test) => positions.some((opts) => opts.some(test));
+    const mine = color;
+    if (!some((o) => o.type === 'inplace' && (o.ex.kind === 'printed' || o.ex.owner === 'house'))) {
+      return refuse('NO_BLACK', lead + 'it needs a black letter already in place.',
+        'One letter has to be showing on a house (black) pyramid or a printed square on the squares the word covers. Start the word on or across one.' + tail);
+    }
+    if (!some((o) => (o.type === 'inplace' && o.ex.kind === 'pyramid' && o.ex.owner === mine) || (o.type === 'move' && o.owner === mine))) {
+      return refuse('NO_OWN', lead + 'it must use one of your own pyramids.',
+        'At least one letter has to come from a pyramid of your colour that is showing on top of its stack. Choose a word with a letter you can reach.' + tail);
+    }
+    if (!some((o) => o.type === 'move')) {
+      return refuse('NO_MOVE', lead + 'at least one pyramid has to move.',
+        'Every letter is already sitting on its square. Start where at least one letter is missing, so a pyramid of yours can move in.' + tail);
+    }
+    return refuse('CONFLICT', lead + 'the pieces it needs overlap.',
+      'The same pyramid would have to be used twice, or the letters that satisfy one rule block another. Try a different start square, direction or word.' + tail);
   }
 
   // Describe only pre-turn exposed pieces, using the exact resolved choices.
@@ -323,8 +361,8 @@ function planWord(state, color, move, dict) {
 }
 
 function passTurn(state, color, rng = Math.random) {
-  if (state.phase !== 'playing') return { ok: false, error: 'Game is not in progress.' };
-  if (state.players[state.turn] !== color) return { ok: false, error: 'Not your turn.' };
+  if (state.phase !== 'playing') return refuse('GAME_OVER', 'Game is not in progress.', 'This game has ended; wait for the host to start a new one.');
+  if (state.players[state.turn] !== color) return refuse('NOT_YOUR_TURN', 'Not your turn.', 'Wait for the banner to say it is your turn.');
   state.passes++;
   state.log.push({ color, word: null, points: 0, pass: true });
   if (state.log.length > 60) state.log.shift();

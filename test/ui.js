@@ -74,6 +74,11 @@ async function main() {
     await phone.click('#joinBtn');
     await phone.waitForSelector('#waitview:not(.hidden)');
     check(await phone.locator('#mycolor').textContent().then((t) => /red/i.test(t)), 'phone got red (first seat)');
+    await phone.click('#howtoWaitBtn');
+    check(await phone.locator('dialog#howto[open]').isVisible(), 'how-to-play guide opens from the waiting screen');
+    check((await phone.locator('dialog#howto').textContent()).includes('Where the letters come from'), 'guide explains where letters come from');
+    await phone.click('dialog#howto button');
+    check(await phone.locator('dialog#howto[open]').count() === 0, 'guide closes');
     await host.waitForFunction(() => document.querySelectorAll('#players li').length === 1);
     check((await host.locator('#players li').first().textContent()).includes('Cleo'), 'host lobby shows Cleo');
     await host.screenshot({ path: path.join(SHOTS, 'host-lobby.png') });
@@ -179,6 +184,14 @@ async function main() {
     check(/take your time/.test(banner) && !/\d+s/.test(banner), 'no countdown on the phone, just the turn prompt');
     check(!/\d+s/.test(await host3.locator('#scores').textContent()), 'no countdown on the big screen');
     await ph.screenshot({ path: path.join(SHOTS, 'phone-spelling.png') });
+    // A refused word is explained, with what to try, and the explanation clears when the word changes
+    await ph.fill('#wordin', 'QXQXQ');
+    await ph.click('#playBtn');
+    await ph.waitForSelector('#whybox:not(.hidden)', { timeout: 10000 });
+    const why = await ph.locator('#whybox').textContent();
+    check(/dictionary/i.test(why) && /spelling/i.test(why), `refused word explains why and what to try (${why.trim().slice(0, 70)}…)`);
+    await ph.fill('#wordin', 'CAT');
+    check(await ph.locator('#whybox').isHidden(), 'explanation clears when the word changes');
     await host3.close(); await ph.close();
 
     // --- F: game-over options (play again / main menu) on both screens

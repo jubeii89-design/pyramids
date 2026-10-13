@@ -73,6 +73,49 @@ function gameRecapHTML(state, nameOf) {
   return html;
 }
 
+// ---- How to play: a guide any page can open from a [data-howto] button ----
+const HOWTO_STEPS = [
+  ['The goal', 'Spell words on the board. Every pyramid you collect scores the number on its tip, and your own pyramids still on the board when the game ends cost you their tips. Scores stay hidden until the end.'],
+  ['Your turn', 'Tap the square where your word starts, choose Across or Down, type the word, then press Build in 3D to preview it and Submit word to play it. There is no clock: take as long as you like, or press Pass.'],
+  ['Where the letters come from', 'A letter can come from a pyramid showing on top of its stack, or from a letter already sitting on the squares the word covers. Letters already on the path stay put; any letter that is missing is brought in from a pyramid elsewhere. Pyramids buried under others cannot be used this turn.'],
+  ['Rules for every word', 'It must use at least one pyramid of your own colour, at least one black letter already in place (a house pyramid or a printed square), and at least one pyramid must move. Words are checked against the game\u2019s word list.'],
+  ['Captured pyramids', 'Every pyramid used in your word is yours. Lifting one uncovers the letter underneath for the next player, so the board keeps changing. The small \u00d7 number shows how many are stacked on a square.'],
+  ['Choosing your pieces', 'After Build in 3D, tap a letter under the word and then a glowing piece to use that one instead. Letters you leave alone are chosen for you; Auto clears your choices.'],
+  ['Looking around', 'View switches between Table, Top-down and Close-up. Rotate turns the board a quarter turn. My pieces fades the other players\u2019 colours so yours stand out.'],
+  ['How it ends', 'The game ends when any player has no pyramids of their colour left on the board, or after two full rounds of passes. The highest total wins; a tie is settled by a random draw.'],
+];
+function installHowTo() {
+  if (document.getElementById('howto')) return;
+  const dlg = document.createElement('dialog');
+  dlg.id = 'howto'; dlg.className = 'howto-dialog';
+  const form = document.createElement('form');
+  form.method = 'dialog';
+  const h = document.createElement('h2'); h.className = 'gold'; h.tabIndex = -1; h.textContent = 'How to play';
+  const list = document.createElement('ol'); list.className = 'howto-steps';
+  for (const [title, body] of HOWTO_STEPS) {
+    const li = document.createElement('li');
+    const b = document.createElement('b'); b.textContent = title;
+    const p = document.createElement('p'); p.textContent = body;
+    li.append(b, p); list.append(li);
+  }
+  const close = document.createElement('button');
+  close.className = 'btn'; close.value = 'close'; close.textContent = 'Got it';
+  form.append(h, list, close);
+  dlg.append(form);
+  document.body.append(dlg);
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest && e.target.closest('[data-howto]');
+    if (!t) return;
+    e.preventDefault();
+    try { localStorage.setItem('cp_howto_seen', '1'); } catch {}
+    document.querySelectorAll('[data-howto-new]').forEach((n) => n.removeAttribute('data-howto-new'));
+    if (typeof dlg.showModal === 'function') { dlg.showModal(); dlg.scrollTop = 0; dlg.querySelector('h2').focus(); } else alert(HOWTO_STEPS.map(([a, b]) => a + ': ' + b).join('\n\n'));
+  });
+  let seen = false;
+  try { seen = localStorage.getItem('cp_howto_seen') === '1'; } catch {}
+  if (!seen) document.querySelectorAll('[data-howto]').forEach((n) => n.setAttribute('data-howto-new', ''));
+}
+
 // Adds a small Feedback button and dialog. `send` posts a message to the server.
 function installFeedback(send) {
   const btn = document.createElement('button');

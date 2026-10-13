@@ -53,6 +53,7 @@
       <p id="waitmsg" style="color: var(--sand); margin: 10px 0">Waiting for players (2&ndash;4)&hellip;</p>
       <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:14px">
         <button class="btn" id="startBtn" disabled>Start Game</button>
+        <button class="btn secondary" id="howtoHostBtn" data-howto>How to play</button>
       </div>
     </div>
   </div>
@@ -221,6 +222,7 @@ if (navigator.share) {
   shareBtn.addEventListener('click', () => { if (inviteUrl) navigator.share({ title: 'Crossword Pyramids', text: 'Join my game', url: inviteUrl }).catch(() => {}); });
 }
 installFeedback((m) => sendWS(ws, m));
+installHowTo();
 document.getElementById('startBtn').addEventListener('click', () => sendWS(ws, { type: 'start' }));
 document.getElementById('againBtn').addEventListener('click', () => { hide('over'); sendWS(ws, { type: 'again' }); });
 document.getElementById('menuBtn').addEventListener('click', () => { location.href = '/'; });

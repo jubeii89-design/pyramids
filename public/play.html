@@ -44,7 +44,7 @@
     <h2 class="gold">You're in!</h2>
     <p id="mycolor" style="font-size:1.3rem; margin:14px 0"></p>
     <p style="color:var(--sand)">Waiting for the host to start the game&hellip;</p>
-    <p><button class="btn secondary" id="inviteBtn">Invite a friend</button></p>
+    <p><button class="btn secondary" id="inviteBtn">Invite a friend</button> <button class="btn secondary" id="howtoWaitBtn" data-howto>How to play</button></p>
     <div class="rules-mini panel" style="margin-top:20px; text-align:left">
       <b class="gold">How to play:</b> On your turn, <b>tap</b> the square where your word
       starts, then <b>swipe</b> across or down to aim it — the squares light up and show
@@ -58,7 +58,7 @@
   <div id="gameview" class="hidden">
     <div class="topbar">
       <span class="me" id="me"></span>
-      <span id="roomcode" style="letter-spacing:.2em; color:var(--gold)"></span>
+      <span><button class="btn secondary" id="howtoBtn" data-howto aria-label="How to play" style="padding:4px 10px; margin-right:8px">?</button><span id="roomcode" style="letter-spacing:.2em; color:var(--gold)"></span></span>
     </div>
     <div class="turnbanner" id="turnbanner"></div>
     <div class="board3d"><div class="board" id="board"></div></div>
@@ -82,6 +82,7 @@
         <button class="btn secondary" id="cancelBtn" disabled>Cancel</button>
       </div>
       <div id="draftstatus" class="draft-status" role="status">Choose a start square and type a word to build it.</div>
+      <div id="whybox" class="whybox hidden" role="alert"><b></b><span></span></div>
       <div id="pickrow" class="pickrow hidden" role="group" aria-label="Choose which piece supplies each letter"></div>
       <div id="pickhint" class="hint hidden">Optional: tap a letter, then a glowing piece to use that one. Letters you don't touch are chosen for you.</div>
       <div class="row">
@@ -153,8 +154,16 @@ function trySources(next) {
   sendWS(ws, { type: 'preview', requestId: ++previewRequest, r: sel.r, c: sel.c, dir, word: draft.word, gameId: state.gameId, revision: state.revision, sources: next });
   draftStatus('Checking your choice…');
 }
+// Why a word was refused: the reason, then what to try. Stays until the word changes.
+function showWhy(msg) {
+  const box = document.getElementById('whybox');
+  box.querySelector('b').textContent = msg.error || 'That move was not accepted.';
+  box.querySelector('span').textContent = msg.hint || '';
+  box.classList.remove('hidden');
+}
+function clearWhy() { document.getElementById('whybox').classList.add('hidden'); }
 function cancelDraft() {
-  previewRequest++; draft=null;placed=0;draftBusy=false;picks=null;pickIndex=null;pendingPicks=null;resetBoardDraft(boardElement);renderPickRow();
+  clearWhy(); previewRequest++; draft=null;placed=0;draftBusy=false;picks=null;pickIndex=null;pendingPicks=null;resetBoardDraft(boardElement);renderPickRow();
   draftStatus('Choose a start square and type a word to build it.');
 }
 function nextInstruction() {
@@ -229,12 +238,13 @@ function onMsg(msg) {
   if(msg.type==='preview') {
     if(msg.requestId!==previewRequest || msg.gameId!==state?.gameId || msg.revision!==state?.revision)return;
     if(!msg.ok) {
+      showWhy(msg);
       if (pendingPicks) { pendingPicks = null; toast(msg.error); return nextInstruction(); } // keep the previous, working choice
       return draftStatus(msg.error);
     }
     if (pendingPicks) { picks = pendingPicks; pendingPicks = null; resetBoardDraft(boardElement); }
     else picks = msg.word.split('').map(() => null);
-    draft=msg;placed=0;nextInstruction();renderPickRow();renderGame();
+    clearWhy(); draft=msg;placed=0;nextInstruction();renderPickRow();renderGame();
   } else if (msg.type === 'joined') {
     rejoinTries = 0;
     myColor = msg.color;
@@ -269,6 +279,7 @@ function onMsg(msg) {
     show('gameview'); hide('overview'); renderGame();
   } else if (msg.type === 'reject') {
     cancelDraft();
+    showWhy(msg);
     toast(msg.error);
   } else if (msg.type === 'played') {
     animateBoard(document.getElementById('board'), msg);
@@ -405,6 +416,7 @@ document.getElementById('againBtn').addEventListener('click', () => {
 });
 document.getElementById('menuBtn').addEventListener('click', () => { location.href = '/'; });
 installFeedback((m) => { if (ws && ws.readyState === 1) sendWS(ws, m); else toast('Not connected right now.'); });
+installHowTo();
 document.getElementById('inviteBtn').addEventListener('click', async () => {
   const url = `${location.origin}/play.html?room=${joinedCode || ''}`;
   if (navigator.share) { try { await navigator.share({ title: 'Crossword Pyramids', text: 'Join my game', url }); return; } catch { return; } }

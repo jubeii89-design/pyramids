@@ -165,3 +165,16 @@ test('/health reports which build is running and when it started', { timeout: 20
   assert.match(h.startedAt, /^\d{4}-\d\d-\d\dT/);
   assert.ok(h.version);
 });
+
+test('a refused word reaches the player with a code and a hint', { timeout: 20000 }, async (t) => {
+  const { human, joined } = await setup(t, {});
+  await human.wait((m) => m.type === 'state' && m.state.current === joined.color);
+  human.send({ type: 'play', r: 4, c: 2, dir: 'H', word: 'qxqxq' });
+  const rej = await human.wait((m) => m.type === 'reject');
+  assert.equal(rej.code, 'NOT_A_WORD');
+  assert.match(rej.error, /dictionary/i);
+  assert.ok(rej.hint && rej.hint.length > 20);
+  human.send({ type: 'play', r: 4, c: 9, dir: 'H', word: 'cat' });
+  const off = await human.wait((m) => m.type === 'reject' && m.code === 'OFF_BOARD');
+  assert.match(off.hint, /squares/);
+});
