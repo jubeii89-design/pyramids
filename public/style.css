@@ -43,10 +43,8 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .btn.secondary { background: linear-gradient(180deg, #52407a, #3a2c59); color: var(--ink); box-shadow: 0 6px 0 #241a3a, 0 10px 22px rgba(0,0,0,.45); }
 .btn:disabled { opacity: .45; cursor: default; transform: none; }
 
-/* ================= 3D BOARD ================= */
-.board3d { perspective: 1100px; min-width: 0; }
-.board.live-board { display: block; padding: 0; border: none; outline: none; transform: none; background: radial-gradient(ellipse, #59472e, #201b15 75%); overflow: hidden; border-radius: 18px; }
-.live-board canvas { display: block; width: 100%; height: 100%; touch-action: pan-y; }
+/* ================= BOARD ================= */
+.boardwrap { min-width: 0; }
 .piece-inspector { min-height: 2.7em; padding: 10px 4px; color: #ead7ac; text-align: center; font-size: .88rem; }
 .draft-controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
 .draft-controls .btn { padding: 11px 16px; font-size: .85rem; }
@@ -78,7 +76,7 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .pick-chip.active { background: #ffc21a; color: #2a1d05; border-color: #fff0b0; }
 .pick-auto { min-height: 44px; padding: 6px 12px; }
 .cell.cand { outline: 3px solid #ffc21a; outline-offset: -3px; }
-@media (min-width: 901px) { .gamegrid .board3d { max-width: min(100%, calc(100vh - 155px)); margin-inline: auto; width: 100%; } }
+@media (min-width: 901px) { .gamegrid .boardwrap { max-width: min(100%, calc(100vh - 155px)); margin-inline: auto; width: 100%; } }
 .board {
   display: grid;
   grid-template-columns: repeat(10, 1fr);
@@ -91,9 +89,7 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
   aspect-ratio: 1;
   width: 100%;
   user-select: none;
-  transform: rotateX(16deg);
-  transform-style: preserve-3d;
-  box-shadow: 0 30px 40px -18px rgba(0,0,0,.7);
+  box-shadow: 0 12px 24px -12px rgba(0,0,0,.7);
 }
 .cell {
   position: relative;
@@ -112,11 +108,6 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
   background-image:
     linear-gradient(to top right, transparent calc(50% - .7px), rgba(70,48,18,.55) 50%, transparent calc(50% + .7px)),
     linear-gradient(to bottom right, transparent calc(50% - .7px), rgba(70,48,18,.55) 50%, transparent calc(50% + .7px)); }
-/* "My pieces": fade other players' colours (house stays solid) */
-.board[data-focus="red"] .pyr:not(.house):not([data-owner="red"]),
-.board[data-focus="blue"] .pyr:not(.house):not([data-owner="blue"]),
-.board[data-focus="green"] .pyr:not(.house):not([data-owner="green"]),
-.board[data-focus="yellow"] .pyr:not(.house):not([data-owner="yellow"]) { opacity: .3; }
 .printed-letter {
   font-family: Georgia, serif;
   font-weight: bold;
@@ -134,8 +125,6 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
   transition: transform .15s;
 }
 .pyr .f { position: absolute; inset: 0; }
-/* sprite pieces (board): square sprite, scaled by the percent-based atlas CSS */
-.pyr[class*="spr-"] { inset: 0; filter: none; }
 /* north face (lit from above) */
 .pyr .fn { clip-path: polygon(0 0, 100% 0, 50% 50%); background: linear-gradient(180deg, var(--pyr-lite), var(--pyr-mid)); }
 /* east face */
@@ -161,6 +150,43 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
   font-family: Georgia, serif;
   box-shadow: 0 1px 3px rgba(0,0,0,.35);
 }
+
+/* --- Flat tile: letter centred, value top-left, stack count bottom-right --- */
+.tile {
+  position: absolute; inset: 4%;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+  background: linear-gradient(180deg, var(--pyr-lite), var(--pyr-mid));
+  border: 2px solid #8d8470;
+  box-shadow: 0 2px 4px rgba(0,0,0,.4);
+  transition: transform .12s;
+  pointer-events: none;
+}
+.tile .L {
+  font-family: Georgia, serif; font-weight: bold; line-height: 1;
+  font-size: clamp(13px, 3.4vmin, 34px);
+  -webkit-text-stroke: 1px #000;
+  paint-order: stroke fill;
+}
+.tile .v, .tile .n {
+  position: absolute; font-style: normal; font-weight: bold; line-height: 1;
+  font-size: clamp(7px, 1.5vmin, 13px); color: #2b2418;
+}
+.tile .v { top: 6%; left: 8%; }
+.tile .n { bottom: 6%; right: 8%; color: #5a4a20; }
+.tile.o-red    { border-color: var(--red); }
+.tile.o-blue   { border-color: var(--blue); }
+.tile.o-green  { border-color: var(--green); }
+.tile.o-yellow { border-color: var(--yellow); }
+.tile.o-red .L    { color: var(--red); }
+.tile.o-blue .L   { color: var(--blue); }
+.tile.o-green .L  { color: var(--green); }
+.tile.o-yellow .L { color: var(--yellow); }
+/* black house squares */
+.tile.o-house { background: linear-gradient(180deg, #3b3842, #232128); border-color: #000; }
+.tile.o-house .L { color: #e8d5a3; -webkit-text-stroke: 0; }
+.tile.o-house .v { color: #c9b98b; }
+.tile.o-house .n { color: #ffd76a; }
 /* the letter on the front face */
 .pyr .pl {
   position: absolute;
@@ -198,9 +224,9 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
   z-index: 3;
   box-shadow: 0 2px 4px rgba(0,0,0,.5);
 }
-.cell:hover .pyr { transform: scale(1.12) translateY(-2px); z-index: 5; }
+.cell:hover .tile { transform: scale(1.06); z-index: 5; }
 .cell.sel { outline: 3px solid #fff; outline-offset: -1px; z-index: 4; border-radius: 4px; }
-.cell.sel .pyr { transform: scale(1.15) translateY(-3px); }
+.cell.sel .tile { transform: scale(1.06); }
 .cell.path-hint { box-shadow: inset 0 0 0 3px rgba(255,215,106,.85); border-radius: 4px; }
 
 /* --- Spelling glow: the active word being placed --- */
@@ -211,7 +237,7 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
   animation: glowpulse 1.1s ease-in-out infinite;
 }
 .cell.glow-start { box-shadow: inset 0 0 0 4px #fff, 0 0 14px 4px rgba(255,215,106,.9); }
-.cell.glow-match .pyr { transform: scale(1.12); filter: drop-shadow(0 0 6px #ffd76a); }
+.cell.glow-match .tile { transform: scale(1.06); filter: drop-shadow(0 0 6px #ffd76a); }
 @keyframes glowpulse {
   0%, 100% { box-shadow: inset 0 0 0 3px #ffd76a, 0 0 8px 1px rgba(255,215,106,.55); }
   50%      { box-shadow: inset 0 0 0 3px #fff4cf, 0 0 16px 5px rgba(255,215,106,.95); }

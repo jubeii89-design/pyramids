@@ -101,6 +101,7 @@ function roomSnapshot(room) {
       name: p.name,
       color: p.color,
       connected: !!(p.ws && p.ws.readyState === 1),
+      ...(p.hostSeat ? { hostSeat: true, claimed: !!p.claimed } : {}),
     })),
   };
 }
@@ -224,11 +225,13 @@ wss.on('connection', (ws, req) => {
           if (rooms.size >= MAX_ROOMS) return send(ws, { type: 'error', error: 'The server is busy. Try again shortly.' });
           const code = newCode();
           const hostToken = security.token();
+          // The host gets a seat of their own, claimed from their phone with a one-time link.
+          const hostSeatToken = security.token();
           const r = {
             code,
             hostTokenHash: security.hash(hostToken),
             host: ws,
-            players: [],
+            players: [{ ws: null, name: 'Host', color: game.COLORS[0], tokenHash: security.hash(hostSeatToken), hostSeat: true, disconnectedAt: Date.now() }],
             phase: 'lobby',
             state: null,
             gameId: null,
@@ -243,7 +246,9 @@ wss.on('connection', (ws, req) => {
           ws.role = 'host';
           const joinUrl = `${origin}/play.html?room=${code}`;
           const qr = await QRCode.toDataURL(joinUrl, { margin: 1, width: 360 });
-          send(ws, { type: 'hosted', code, joinUrl, qr, token: hostToken });
+          const playUrl = `${origin}/play.html?room=${code}#seat=${hostSeatToken}`;
+          const playQr = await QRCode.toDataURL(playUrl, { margin: 1, width: 240 });
+          send(ws, { type: 'hosted', code, joinUrl, qr, token: hostToken, playUrl, playQr });
           send(ws, roomSnapshot(r));
           break;
         }
@@ -262,6 +267,10 @@ wss.on('connection', (ws, req) => {
           if (seat) {
             seat.ws = ws;
             seat.disconnectedAt = null;
+            if (seat.hostSeat && !seat.claimed) { // first time the host sits down: they pick their own name
+              if (!r.players.some((p) => p !== seat && p.name.toLowerCase() === name.toLowerCase())) seat.name = name;
+              seat.claimed = true;
+            }
             ws.roomCode = code;
             ws.role = 'player';
             ws.color = seat.color;
@@ -286,6 +295,10 @@ wss.on('connection', (ws, req) => {
           if (r.players.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
             return send(ws, { type: 'error', error: `"${name}" is taken — pick another name.` });
           }
+          if (r.players.length >= 4) { // a host seat nobody has claimed makes way for a fourth guest
+            const idle = r.players.findIndex((p) => p.hostSeat && !p.claimed);
+            if (idle >= 0) r.players.splice(idle, 1);
+          }
           if (r.players.length >= 4) return send(ws, { type: 'error', error: 'Room is full (4 players max).' });
           const color = game.COLORS.find((c) => !r.players.some((p) => p.color === c));
           const seatToken = security.token();
@@ -301,6 +314,8 @@ wss.on('connection', (ws, req) => {
         case 'start': {
           if (!room || ws.role !== 'host') return;
           if (room.phase !== 'lobby') return;
+          // A host seat that was never claimed would stall the game: drop it.
+          room.players = room.players.filter((p) => !(p.hostSeat && !p.claimed));
           if (room.players.length < 2) return send(ws, { type: 'error', error: 'Need at least 2 players.' });
           room.phase = 'playing';
           room.state = game.createGame(room.players.map((p) => p.color));
@@ -313,6 +328,14 @@ wss.on('connection', (ws, req) => {
           if (msg.gameId !== room.gameId || msg.revision !== room.revision) return send(ws, { type: 'preview', requestId: msg.requestId, ok: false, error: 'The board changed. Try again.' });
           const result = game.planWord(room.state, ws.color, msg, DICT);
           send(ws, { type: 'preview', requestId: msg.requestId, gameId: room.gameId, revision: room.revision, ...result });
+          break;
+        }
+        case 'lift': {
+          if (!room || ws.role !== 'player' || !room.state || room.state.phase !== 'playing') return;
+          if (room.state.players[room.state.turn] !== ws.color) return;
+          if (!limiter.hit('lift:' + ip, 120, 10 * 1000)) return;
+          if (msg.gameId !== room.gameId || msg.revision !== room.revision) return send(ws, { type: 'lift', requestId: msg.requestId, ok: false, error: 'The board changed. Try again.' });
+          send(ws, { type: 'lift', requestId: msg.requestId, ok: true, gameId: room.gameId, revision: room.revision, under: game.peekUnder(room.state, msg.cells) });
           break;
         }
         case 'play': {

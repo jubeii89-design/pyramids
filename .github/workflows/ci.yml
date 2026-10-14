@@ -14,12 +14,12 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
-      # Rules engine, then five full AI games over real WebSockets.
+      # Rules engine, then five full scripted games over real WebSockets.
       - run: npm test
       - run: npm run e2e
 
-  # Real-browser suites: the DOM board, the WebGL 3D board and the
-  # piece-picking flow. Separate job so a browser problem is easy to tell
+  # Real-browser suites: lobby, join and a full game, and the tap-to-build
+  # word flow on a phone. Separate job so a browser problem is easy to tell
   # apart from a rules failure.
   browser:
     runs-on: ubuntu-latest

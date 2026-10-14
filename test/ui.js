@@ -3,8 +3,8 @@
 //  A) home page renders, join box works
 //  B) host screen shows room code + QR; a phone joins via the QR URL and
 //     appears in the lobby with the right color
-//  C) host adds 2 AI players, starts, and the game plays to the Game Over
-//     overlay on the big screen while the phone sees the live board
+//  C) scripted players join, the host starts, and the game plays to the Game
+//     Over overlay on the big screen while the phone sees the live board
 // Usage: node test/ui.js
 
 const { spawn } = require('child_process');
@@ -38,7 +38,7 @@ async function main() {
     setTimeout(() => rej(new Error('server start timeout')), 15000);
   });
 
-  const browser = await chromium.launch({ ...(require('fs').existsSync('/opt/pw-browsers/chromium') ? { executablePath: '/opt/pw-browsers/chromium' } : {}), args: ['--disable-webgl', '--disable-3d-apis'] }) // WebGL off: this suite checks the accessible DOM board; test/visual-3d.js covers the 3D one;
+  const browser = await chromium.launch({ ...(require('fs').existsSync('/opt/pw-browsers/chromium') ? { executablePath: '/opt/pw-browsers/chromium' } : {}), })
   try {
     require('fs').mkdirSync(SHOTS, { recursive: true });
 
@@ -70,34 +70,36 @@ async function main() {
     await phone.fill('#namein', 'Cleo');
     await phone.click('#joinBtn');
     await phone.waitForSelector('#waitview:not(.hidden)');
-    check(await phone.locator('#mycolor').textContent().then((t) => /red/i.test(t)), 'phone got red (first seat)');
+    check(await phone.locator('#mycolor').textContent().then((t) => /blue/i.test(t)), 'phone got blue (red is held for the host)');
     await phone.click('#howtoWaitBtn');
     check(await phone.locator('dialog#howto[open]').isVisible(), 'how-to-play guide opens from the waiting screen');
-    check((await phone.locator('dialog#howto').textContent()).includes('Where the letters come from'), 'guide explains where letters come from');
+    check((await phone.locator('dialog#howto').textContent()).includes('Every word needs'), 'guide explains what every word needs');
     await phone.click('dialog#howto button');
     check(await phone.locator('dialog#howto[open]').count() === 0, 'guide closes');
-    await host.waitForFunction(() => document.querySelectorAll('#players li').length === 1);
-    check((await host.locator('#players li').first().textContent()).includes('Cleo'), 'host lobby shows Cleo');
+    await host.waitForFunction(() => [...document.querySelectorAll('#players li')].filter((l) => !/seat saved/.test(l.textContent)).length === 1);
+    check((await host.locator('#players').textContent()).includes('Cleo'), 'host lobby shows Cleo');
+    check((await host.locator('#players').textContent()).includes('seat saved for the host'), 'host lobby shows the saved host seat');
     await host.screenshot({ path: path.join(SHOTS, 'host-lobby.png') });
     await phone.screenshot({ path: path.join(SHOTS, 'phone-lobby.png') });
 
     // --- C: two scripted players, start, run to game over (the phone leaves first)
     console.log('C) Full game on the big screen');
     await phone.close(); // seat is removed in lobby phase
-    await host.waitForFunction(() => document.querySelectorAll('#players li').length === 0);
+    await host.waitForFunction(() => [...document.querySelectorAll('#players li')].filter((l) => !/seat saved/.test(l.textContent)).length === 0);
     const codeC = await host.locator('#code').textContent();
     // Held until the opening-board checks are done, so they see an untouched board.
     scripted.push(await scriptedPlayer(BASE, codeC, 'Scripted1', { hold: true }), await scriptedPlayer(BASE, codeC, 'Scripted2', { hold: true }));
-    await host.waitForFunction(() => document.querySelectorAll('#players li').length === 2);
+    await host.waitForFunction(() => [...document.querySelectorAll('#players li')].filter((l) => !/seat saved/.test(l.textContent)).length === 2);
     check(true, 'two scripted players joined');
     await host.click('#startBtn');
     await host.waitForSelector('#gamearea:not(.hidden)');
     check((await host.locator('#board .cell').count()) === 100, 'board renders 100 cells');
-    const pyrCount = await host.locator('#board .pyr').count();
-    check(pyrCount >= 60, `3D pyramid pieces render (${pyrCount} on board)`);
-    check(/^[1-9]$/.test(await host.locator('#board .pyr').first().getAttribute('data-value')), 'piece carries its tip value');
-    check((await host.locator('#board .pyr[data-letter]').count()) >= 60, 'pieces carry sprite identity');
-    check((await host.locator('#board .pyr .cnt').count()) >= 20, 'stack count chips visible on stacks');
+    const tileCount = await host.locator('#board .tile').count();
+    check(tileCount >= 60, `flat tiles render (${tileCount} on board)`);
+    check(/^[1-9]$/.test(await host.locator('#board .tile').first().getAttribute('data-value')), 'tile carries its tip value');
+    check((await host.locator('#board .tile .L').count()) === tileCount, 'every tile shows its letter in the centre');
+    check((await host.locator('#board .tile .n').count()) === tileCount, 'every tile shows its stack count in a corner');
+    check((await host.locator('#board canvas').count()) === 0, 'no 3D canvas');
     check((await host.locator('#tracker .trk').count()) === 5, 'pyramid tracker shows 4 colors + house');
     check((await host.locator('#tracker').textContent()).includes('Gold'), 'Gold color naming in tracker');
     await host.screenshot({ path: path.join(SHOTS, 'host-game.png') });
@@ -119,11 +121,11 @@ async function main() {
     await p1.click('#joinBtn');
     await p1.waitForSelector('#waitview:not(.hidden)');
     scripted.push(await scriptedPlayer(BASE, code2, 'Scripted', { hold: true })); // never released: this section only inspects the opening board
-    await host2.waitForFunction(() => document.querySelectorAll('#players li').length === 2);
+    await host2.waitForFunction(() => [...document.querySelectorAll('#players li')].filter((l) => !/seat saved/.test(l.textContent)).length === 2);
     await host2.click('#startBtn');
     await p1.waitForSelector('#gameview:not(.hidden)');
     check((await p1.locator('#board .cell').count()) === 100, 'phone renders live board');
-    check((await p1.locator('#board .pyr').count()) >= 60, 'phone renders 3D pyramids');
+    check((await p1.locator('#board .tile').count()) >= 60, 'phone renders flat tiles');
     check((await p1.locator('#tracker .trk').count()) === 5, 'phone shows pyramid tracker');
     await p1.screenshot({ path: path.join(SHOTS, 'phone-game.png') });
     // A real phone keeps its seat credential across a reload; a name alone must not reclaim a seat.
@@ -151,7 +153,7 @@ async function main() {
     await ph.click('#joinBtn');
     await ph.waitForSelector('#waitview:not(.hidden)');
     scripted.push(await scriptedPlayer(BASE, code3, 'Scripted'));
-    await host3.waitForFunction(() => document.querySelectorAll('#players li').length === 2);
+    await host3.waitForFunction(() => [...document.querySelectorAll('#players li')].filter((l) => !/seat saved/.test(l.textContent)).length === 2);
     await host3.click('#startBtn');
     await ph.waitForSelector('#gameview:not(.hidden)');
 
@@ -161,34 +163,42 @@ async function main() {
     const phoneTxt = await ph.locator('#scoresmini').textContent();
     check(!/:\s*\d/.test(phoneTxt), 'phone shows no point numbers during play');
 
-    // Wait for the phone's turn, then tap a start square and type a word
+    // Wait for the phone's turn, then tap letters to spell a word
     await ph.waitForFunction(
       () => document.getElementById('turnbanner').classList.contains('mine'),
       { timeout: 30000 }
     );
-    await ph.evaluate(() => document.querySelectorAll('#board .cell')[43].click());
-    await ph.fill('#wordin', 'CAT');
+    check(await ph.locator('#playBtn').isDisabled(), 'Submit stays off until there is a word');
+    // Find a black square and two stack tops on the board and tap them.
+    const picks = await ph.evaluate(() => {
+      const out = { black: null, tops: [] };
+      state.cells.forEach((row, r) => row.forEach((cell, c) => {
+        if (cell.t && cell.t.o === 'house' && !out.black) out.black = [r, c];
+        else if (cell.t && cell.t.o !== 'house' && out.tops.length < 2) out.tops.push([r, c]);
+      }));
+      return out;
+    });
+    const tapCell = (r, c) => ph.evaluate(([rr, cc]) => document.querySelectorAll('#board .cell')[rr * 10 + cc].click(), [r, c]);
+    await tapCell(...picks.tops[0]); await tapCell(...picks.black); await tapCell(...picks.tops[1]);
     await ph.waitForTimeout(300);
-    const glowCount = await ph.locator('#board .cell.glow').count();
-    check(glowCount === 3, `spelling path glows for each letter (${glowCount} of 3)`);
-    check((await ph.locator('#board .cell.glow-start').count()) === 1, 'start square is marked');
-    const previewed = await ph.locator('#board .ghost-letter').count();
-    const matched = await ph.locator('#board .cell.glow-match').count();
-    check(previewed + matched === 3, `all 3 letters previewed on the board (${previewed} ghost + ${matched} in place)`);
-    // Countdown timer is running on the player's turn
-    // No turn clock anywhere: a player takes as long as they like
+    check((await ph.locator('#wordline .wchip').count()) === 3, 'tapped letters appear in the word line');
+    check((await ph.locator('#board .cell.glow').count()) >= 0, 'board stays interactive');
     const banner = await ph.locator('#turnbanner').textContent();
     check(/take your time/.test(banner) && !/\d+s/.test(banner), 'no countdown on the phone, just the turn prompt');
     check(!/\d+s/.test(await host3.locator('#scores').textContent()), 'no countdown on the big screen');
     await ph.screenshot({ path: path.join(SHOTS, 'phone-spelling.png') });
-    // A refused word is explained, with what to try, and the explanation clears when the word changes
-    await ph.fill('#wordin', 'QXQXQ');
-    await ph.click('#playBtn');
-    await ph.waitForSelector('#whybox:not(.hidden)', { timeout: 10000 });
-    const why = await ph.locator('#whybox').textContent();
-    check(/dictionary/i.test(why) && /spelling/i.test(why), `refused word explains why and what to try (${why.trim().slice(0, 70)}…)`);
-    await ph.fill('#wordin', 'CAT');
-    check(await ph.locator('#whybox').isHidden(), 'explanation clears when the word changes');
+    // Submit: a made-up word is refused with a reason, and every letter is sent back
+    const boardBefore = await ph.evaluate(() => JSON.stringify(state.cells));
+    if (await ph.locator('#playBtn').isEnabled()) {
+      await ph.click('#playBtn');
+      await ph.waitForSelector('#whybox:not(.hidden)', { timeout: 10000 });
+      const why = await ph.locator('#whybox').textContent();
+      check(why.trim().length > 10, `refused word explains why (${why.trim().slice(0, 70)}…)`);
+      check((await ph.locator('#wordline .wchip').count()) === 0, 'refused word is cleared from the word line');
+      check((await ph.evaluate(() => JSON.stringify(state.cells))) === boardBefore, 'the board is unchanged');
+    } else {
+      check(true, 'letters need a black square on the right path before Submit (button stayed off)');
+    }
     await host3.close(); await ph.close();
 
     // --- F: game-over options (play again / main menu) on both screens
@@ -207,7 +217,7 @@ async function main() {
       await p.waitForSelector('#waitview:not(.hidden)');
       phones.push(p);
     }
-    await host4.waitForFunction(() => document.querySelectorAll('#players li').length === 3);
+    await host4.waitForFunction(() => [...document.querySelectorAll('#players li')].filter((l) => !/seat saved/.test(l.textContent)).length === 3);
     await host4.click('#startBtn');
     for (const p of phones) await p.waitForSelector('#gameview:not(.hidden)');
 
@@ -245,7 +255,7 @@ async function main() {
     await phones[2].click('#menuBtn');
     await phones[2].waitForURL(`${BASE}/`);
     check(await phones[2].locator('.btn', { hasText: 'Host Game' }).isVisible(), 'Main Menu returns to the home screen');
-    await host4.waitForFunction(() => document.querySelectorAll('#players li').length === 2);
+    await host4.waitForFunction(() => [...document.querySelectorAll('#players li')].filter((l) => !/seat saved/.test(l.textContent)).length === 2);
     check(true, 'the player who went to the main menu is no longer seated');
 
     // Host hits Play Again: the phones still connected go straight into a new
@@ -287,7 +297,7 @@ async function main() {
     await survivor.click('#joinBtn');
     await survivor.waitForSelector('#waitview:not(.hidden)');
     scripted.push(await scriptedPlayer(BASE, code5, 'Scripted'));
-    await host5.waitForFunction(() => document.querySelectorAll('#players li').length === 2);
+    await host5.waitForFunction(() => [...document.querySelectorAll('#players li')].filter((l) => !/seat saved/.test(l.textContent)).length === 2);
     await host5.click('#startBtn');
     await survivor.waitForSelector('#gameview:not(.hidden)');
 

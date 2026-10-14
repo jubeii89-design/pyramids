@@ -1,4 +1,4 @@
-// Shared 3D board renderer + ws helper for host and player screens
+// Shared flat board renderer + ws helper for host and player screens
 'use strict';
 
 // Names are plain text even when interpolated into an HTML template.
@@ -76,12 +76,10 @@ function gameRecapHTML(state, nameOf) {
 // ---- How to play: a guide any page can open from a [data-howto] button ----
 const HOWTO_STEPS = [
   ['The goal', 'Spell words on the board. Every pyramid you collect scores the number on its tip, and your own pyramids still on the board when the game ends cost you their tips. Scores stay hidden until the end.'],
-  ['Your turn', 'Tap the square where your word starts, choose Across or Down, type the word, then press Build in 3D to preview it and Submit word to play it. There is no clock: take as long as you like, or press Pass.'],
-  ['Where the letters come from', 'A letter can come from a pyramid showing on top of its stack, or from a letter already sitting on the squares the word covers. Letters already on the path stay put; any letter that is missing is brought in from a pyramid elsewhere. Pyramids buried under others cannot be used this turn.'],
-  ['Rules for every word', 'It must use at least one pyramid of your own colour, at least one black letter already in place (a house pyramid or a printed square), and at least one pyramid must move. Words are checked against the game\u2019s word list.'],
-  ['Captured pyramids', 'Every pyramid used in your word is yours. Lifting one uncovers the letter underneath for the next player, so the board keeps changing. The small \u00d7 number shows how many are stacked on a square.'],
-  ['Choosing your pieces', 'After Build in 3D, tap a letter under the word and then a glowing piece to use that one instead. Letters you leave alone are chosen for you; Auto clears your choices.'],
-  ['Looking around', 'View switches between Table, Top-down and Close-up. Rotate turns the board a quarter turn. My pieces fades the other players\u2019 colours so yours stand out.'],
+  ['Your turn', 'Tap letters on the board in the order you want to spell them. Each tile shows its letter in the middle, its point value in the top-left corner and how many are stacked there (5×, 4× …) in the bottom-right. Choose Across or Down, then press Submit. There is no clock: take as long as you like, or press Pass.'],
+  ['Every word needs', 'At least one black letter (a black house pyramid or a printed square), at least one pyramid of your own colour, and at least one pyramid that moves. The black letter stays where it is, so it decides where your word sits on the board.'],
+  ['Undoing', 'Tap a letter in your word to take it out, or press Clear to start again. A refused word sends every letter straight back to the stack it came from.'],
+  ['Captured pyramids', 'Every pyramid used in your word is yours. Lifting one uncovers the letter underneath, which you see at once but cannot use this turn. The count in the corner of each stack drops as you lift.'],
   ['How it ends', 'The game ends when any player has no pyramids of their colour left on the board, or after two full rounds of passes. The highest total wins; a tie is settled by a random draw.'],
 ];
 function installHowTo() {
@@ -144,46 +142,16 @@ function keepAwake() {
 }
 
 const COLOR_NAMES = { red: 'Red', blue: 'Blue', green: 'Green', yellow: 'Gold', house: 'House' };
-let Board3D;
-const boardInstances = new Map();
-const pendingBoards = new Map();
-import('/board-3d.js').then(module => {
-  Board3D = module.PyramidBoard;
-  document.dispatchEvent(new Event('board3d-ready'));
-  for (const [el, args] of pendingBoards) renderBoard(el, ...args);
-  pendingBoards.clear();
-}).catch(() => { /* The accessible sprite renderer remains available. */ });
-function animateBoard(el, event) { boardInstances.get(el)?.play(event); }
-function resetBoardDraft(el) { boardInstances.get(el)?.resetDraft(); }
-async function animateDraftStep(el, step) { await boardInstances.get(el)?.draftStep(step); }
-
-// One pyramid piece: a Blender-rendered sprite (letter in the owner's colour,
-// value on the tip; see public/assets/pyr.css), plus the stack count chip.
-function pyramidHTML(top, depth) {
-  const houseCls = top.o === 'house' ? ' house' : '';
-  return `<div class="pyr${houseCls} spr-${top.o} pyr-${top.o}-${top.l}" data-owner="${top.o}" data-letter="${top.l}" data-value="${top.v}">
-    ${depth > 1 ? `<span class="cnt">×${depth}</span>` : ''}
+// One stack top, flat: the letter in the centre, its point value in the top-left
+// corner and the stack count (5x, 4x ...) in the bottom-right corner.
+function tileHTML(top, depth) {
+  return `<div class="tile o-${top.o}" data-owner="${top.o}" data-letter="${top.l}" data-value="${top.v}">
+    <b class="L">${top.l.toUpperCase()}</b><i class="v">${top.v}</i><i class="n">${depth}&times;</i>
   </div>`;
 }
 
 // state.cells[r][c] = { p: printedLetter|null, n: stackDepth, t: {l,v,o}|null }
 function renderBoard(el, state, opts = {}) {
-  if (Board3D && !el.dataset.fallback) {
-    try {
-      let instance = boardInstances.get(el);
-      if (!instance) {
-        instance = new Board3D(el); boardInstances.set(el,instance);
-        el.addEventListener('board-context-lost', () => {
-          instance.dispose(); boardInstances.delete(el); el.dataset.fallback='true';
-          el.classList.remove('live-board'); renderBoard(el,instance.latest,instance.opts);
-        }, {once:true});
-      }
-      instance.sync(state,opts); return;
-    } catch (error) {
-      console.warn('3D board unavailable; using accessible board.',error);
-      boardInstances.get(el)?.dispose(); boardInstances.delete(el); el.dataset.fallback='true'; el.classList.remove('live-board');
-    }
-  } else if(!el.dataset.fallback) pendingBoards.set(el,[state,opts]);
   el.dataset.focus = opts.focus || '';
   el.innerHTML = '';
   const size = state.size;
@@ -196,7 +164,7 @@ function renderBoard(el, state, opts = {}) {
       const runway = r === 0 || r === size - 1 || c === 0 || c === size - 1;
       if (runway && !cell.t && !cell.p) div.classList.add('runway');
       if (cell.t) {
-        div.innerHTML = pyramidHTML(cell.t, cell.n);
+        div.innerHTML = tileHTML(cell.t, cell.n);
       } else if (cell.p) {
         div.innerHTML = `<span class="printed-letter">${cell.p.toUpperCase()}</span>`;
       }
@@ -253,6 +221,19 @@ function renderTracker(el, state, names = {}) {
     <b>${rem.house || 0}<small>/36</small></b>
   </div>`);
   el.innerHTML = rows.join('');
+}
+
+// Every word played so far, grouped under the player who spelled it.
+function renderWords(el, state, names = {}) {
+  const by = {};
+  for (const e of state.log || []) if (e.word) (by[e.color] = by[e.color] || []).push(e.word);
+  el.innerHTML = state.players.map((c) => {
+    const words = by[c] || [];
+    return `<div class="wp-row${state.current === c && state.phase === 'playing' ? ' wp-turn' : ''}">
+      <span class="wp-who"><span class="chip ${c}"></span>${escapeHTML(names[c] || COLOR_NAMES[c])}</span>
+      <span class="wp-words">${words.length ? words.map((w) => `<b>${escapeHTML(w.toUpperCase())}</b>`).join(' ') : '<i>no words yet</i>'}</span>
+    </div>`;
+  }).join('');
 }
 
 function toast(text, good) {

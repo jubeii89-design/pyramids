@@ -5,13 +5,12 @@ local files outside git are needed. Commands are the same in CI.
 
 | Gate | Command | What it covers |
 |---|---|---|
-| Unit and socket tests | `npm test` (65 tests) | Rules engine (setup, word legality, capture, scoring with the penalty, tie-break draw, end conditions); move previews and piece choices; resolver parity; message validation; per-address limits; origin allow-list; credentialed reconnect; disconnect skip; feedback and `/health`; room checkpoint save/load |
+| Unit and socket tests | `npm test` | Rules engine (setup, word legality, capture, scoring with the penalty, tie-break draw, end conditions); move previews and piece choices; resolver parity; message validation; per-address limits; origin allow-list; credentialed reconnect; disconnect skip; feedback and `/health`; room checkpoint save/load |
 | Played games | `npm run e2e` | Five complete games (2, 3 and 4 players) over real WebSockets, played by scripted socket players; room code and QR decode; full-room and bad-code rejection; bandwidth per turn |
-| Browser: DOM board | `node test/ui.js` | Home, QR join, lobby, a full game to the results screen, rejoin with the seat credential, spelling preview, scores hidden until the end, play again / main menu, host-screen reconnect |
-| Browser: 3D board | `node test/visual-3d.js` | Real WebGL board, mobile layout, inert player names, draft undo, atomic submit, capture animation |
-| Browser: piece choice | `node test/pick-pieces.js` | Chooses an alternative source piece and checks exactly the previewed pieces were captured |
+| Browser: lobby and game | `node test/ui.js` | Home, QR join, lobby with the host's saved seat, a full game to the results screen, rejoin with the seat credential, tap letters into the word line, a refused word explained and cleared, scores hidden until the end, play again / main menu, host-screen reconnect |
+| Browser: tap-to-build | `node test/tap-build.js` | Host seat link seats the host as red; flat tiles show letter, value and stack count; tapping a legal word lifts the stacks and fills the word line; removing one letter; Clear and a refused word restore every stack exactly; an accepted word lands in the words panel on phone and big screen |
 
-`npx grunt verify` runs the first two; `npx grunt verify-ui` runs the three
+`npx grunt verify` runs the first two; `npx grunt verify-ui` runs the two
 browser suites (they need Playwright's Chromium: `npx playwright install chromium`).
 
 ## What is not covered

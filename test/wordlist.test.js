@@ -88,5 +88,5 @@ test('provenance note and credits match the file they describe', () => {
   assert.ok(note.includes(sha), 'WORDLIST.md must record the current SHA-256; update it when words.txt changes');
   assert.ok(note.includes(words.length.toLocaleString('en-US')), 'WORDLIST.md must record the current word count');
   const credits = fs.readFileSync(path.join(root, 'public', 'credits.html'), 'utf8');
-  for (const needle of ['ENABLE', 'public domain', 'modern words', 'Alan Beale', 'neol2016', 'three.js']) assert.ok(credits.includes(needle), `credits page must mention ${needle}`);
+  for (const needle of ['ENABLE', 'public domain', 'modern words', 'Alan Beale', 'neol2016']) assert.ok(credits.includes(needle), `credits page must mention ${needle}`);
 });

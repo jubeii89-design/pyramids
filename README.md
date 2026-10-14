@@ -126,8 +126,9 @@ If first-request wake delay is not acceptable, choose an always-on plan. Confirm
 npm test           # rules engine unit tests (node:test)
 npm run e2e        # spawns the real server, verifies room codes + decodes the
                    # QR PNG, then scripted players play 5 full games over WebSockets
-node test/ui.js    # legacy Playwright browser test; run the current 3D flow with
-                   # node test/visual-3d.js (Chromium + SwiftShader required)
+node test/ui.js    # Playwright browser test: lobby, join, a full game, rejoin
+node test/tap-build.js   # tap-to-build a word on a phone, clear, refuse, accept
+                   # (both need Chromium: npx playwright install chromium)
 ```
 
 `npm test` runs its files with `--test-concurrency=1` on purpose. Several of

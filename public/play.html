@@ -5,16 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Crossword Pyramids — Play</title>
 <link rel="stylesheet" href="/style.css">
-<link rel="stylesheet" href="/assets/pyr.css">
 <style>
   .wrap { max-width: 560px; margin: 0 auto; padding: 14px; }
   .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
   .topbar .me { font-size: 1.1rem; }
   .turnbanner { text-align: center; padding: 10px; border-radius: 10px; margin-bottom: 10px; font-size: 1.1rem; background: #241d14; }
   .turnbanner.mine { background: #3a5a2c; color: #eaffdc; font-weight: bold; }
-  .viewbar { display: flex; gap: 8px; margin-top: 8px; }
-  .viewbar .btn { flex: 1; padding: 9px 6px; font-size: .85rem; }
-  .viewbar .btn[aria-pressed="true"] { background: #ffc21a; color: #2a1d05; }
+  .wordline { display: flex; gap: 6px; flex-wrap: wrap; min-height: 52px; align-items: center; padding: 8px; background: #241d14; border-radius: 10px; margin-bottom: 10px; }
+  .wordline .ph { color: #8f8363; font-size: .9rem; }
+  .wchip { width: 42px; height: 46px; border-radius: 8px; border: 2px solid #8d8470; background: linear-gradient(180deg, var(--pyr-lite), var(--pyr-mid)); color: #000; font: bold 1.3rem Georgia, serif; position: relative; padding: 0; }
+  .wchip.black { background: linear-gradient(180deg, #3b3842, #232128); border-color: #000; color: #e8d5a3; }
+  .wchip small { position: absolute; top: 2px; left: 4px; font: bold .6rem Verdana, sans-serif; }
+  .wchip.o-red { border-color: var(--red); } .wchip.o-blue { border-color: var(--blue); }
+  .wchip.o-green { border-color: var(--green); } .wchip.o-yellow { border-color: var(--yellow); }
+  .wp-row { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px solid #3d2f56; font-size: .92rem; }
+  .wp-row.wp-turn .wp-who { color: var(--gold); }
+  .wp-who { flex: 0 0 38%; }
+  .wp-words b { margin-right: 8px; letter-spacing: .04em; } .wp-words i { color: #8f8363; }
   .controls { margin-top: 12px; }
   .controls .row { display: flex; gap: 8px; margin-bottom: 10px; }
   .dirbtn { flex: 0 0 auto; padding: 12px 16px; background: #33291a; color: var(--sand); border: 2px solid #4a3d28; }
@@ -46,11 +53,10 @@
     <p style="color:var(--sand)">Waiting for the host to start the game&hellip;</p>
     <p><button class="btn secondary" id="inviteBtn">Invite a friend</button> <button class="btn secondary" id="howtoWaitBtn" data-howto>How to play</button></p>
     <div class="rules-mini panel" style="margin-top:20px; text-align:left">
-      <b class="gold">How to play:</b> On your turn, <b>tap</b> the square where your word
-      starts, then <b>swipe</b> across or down to aim it — the squares light up and show
-      your letters filling in. Type the word and hit Play. Every word needs one of
-      <b>your</b> pyramids and one <b>black</b> letter; the game grabs and moves the
-      exposed pyramids for you. Focus on spelling — points are tallied at the end!
+      <b class="gold">How to play:</b> On your turn, <b>tap letters</b> on the board in the
+      order you want to spell them, pick <b>Across</b> or <b>Down</b>, and press Submit.
+      Every word needs one of <b>your</b> pyramids and one <b>black</b> letter.
+      Tap a letter in your word to take it back out. Points are tallied at the end!
     </div>
   </div>
 
@@ -61,35 +67,24 @@
       <span><button class="btn secondary" id="howtoBtn" data-howto aria-label="How to play" style="padding:4px 10px; margin-right:8px">?</button><span id="roomcode" style="letter-spacing:.2em; color:var(--gold)"></span></span>
     </div>
     <div class="turnbanner" id="turnbanner"></div>
-    <div class="board3d"><div class="board" id="board"></div></div>
-    <div class="viewbar" id="viewbar">
-      <button class="btn secondary" id="viewBtn">View: Table</button>
-      <button class="btn secondary" id="rotBtn" aria-label="Rotate the board a quarter turn">&#8635; Rotate</button>
-      <button class="btn secondary" id="mineBtn" aria-pressed="false">My pieces</button>
-    </div>
+    <div class="boardwrap"><div class="board" id="board"></div></div>
     <div class="controls" id="controls">
+      <div class="wordline" id="wordline" aria-live="polite"></div>
+      <div id="whybox" class="whybox hidden" role="alert"><b></b><span></span></div>
       <div class="row">
         <button class="dirbtn active" id="dirH">Across &#8594;</button>
         <button class="dirbtn" id="dirV">Down &#8595;</button>
+        <button class="btn secondary" id="clearBtn" style="flex:1" disabled>Clear</button>
       </div>
       <div class="row">
-        <input type="text" id="wordin" placeholder="WORD" autocomplete="off" autocapitalize="characters">
-      </div>
-      <div class="draft-controls">
-        <button class="btn secondary" id="previewBtn">Build in 3D</button>
-        <button class="btn secondary" id="nextPieceBtn" disabled>Place next letter</button>
-        <button class="btn secondary" id="undoBtn" disabled>Undo</button>
-        <button class="btn secondary" id="cancelBtn" disabled>Cancel</button>
-      </div>
-      <div id="draftstatus" class="draft-status" role="status">Choose a start square and type a word to build it.</div>
-      <div id="whybox" class="whybox hidden" role="alert"><b></b><span></span></div>
-      <div id="pickrow" class="pickrow hidden" role="group" aria-label="Choose which piece supplies each letter"></div>
-      <div id="pickhint" class="hint hidden">Optional: tap a letter, then a glowing piece to use that one. Letters you don't touch are chosen for you.</div>
-      <div class="row">
-        <button class="btn" id="playBtn" style="flex:1">Submit Word</button>
+        <button class="btn" id="playBtn" style="flex:1" disabled>Submit Word</button>
         <button class="btn secondary" id="passBtn">Pass</button>
       </div>
-      <div class="hint" id="selhint">Tap the square where your word starts.</div>
+      <div class="hint" id="selhint">Tap letters on the board to spell your word.</div>
+    </div>
+    <div class="panel wordspanel" style="margin-top:12px; padding:12px">
+      <b class="gold" style="font-size:.9rem">WORDS PLAYED</b>
+      <div id="wordspanel"></div>
     </div>
     <div class="scoresmini" id="scoresmini"></div>
     <div class="panel" style="margin-top:12px; padding:12px">
@@ -114,46 +109,16 @@
 <script>
 const params = new URLSearchParams(location.search);
 let myColor = null, myName = null, state = null, names = {};
-let sel = null, dir = 'H';
-let draft = null, placed = 0, previewRequest = 0, draftBusy = false;
-let picks = null, pickIndex = null, pendingPicks = null; // optional manual choice of source piece per letter
+let dir = 'H';
+// The word being built: letters in spelling order. Each item is a board square
+// the player tapped. Nothing is sent to the server until Submit, so clearing
+// is just forgetting this list - every stack goes back exactly as it was.
+let build = [];           // [{ r, c, l, v, o, black }]
+let lifted = new Map();   // "r,c" -> what is under the lifted top ({l,v,o} or null)
+let liftRequest = 0;
 const boardElement = document.getElementById('board');
-function draftStatus(text) {
-  document.getElementById('draftstatus').textContent=text;
-  document.getElementById('nextPieceBtn').disabled=!draft || draftBusy || placed >= draft.presentation.steps.length;
-  document.getElementById('undoBtn').disabled=!draft || draftBusy || !placed;
-  document.getElementById('cancelBtn').disabled=!draft;
-}
-function renderPickRow() {
-  const row = document.getElementById('pickrow'), hintEl = document.getElementById('pickhint');
-  row.replaceChildren();
-  const show = !!draft && !!picks;
-  row.classList.toggle('hidden', !show); hintEl.classList.toggle('hidden', !show);
-  if (!show) return;
-  draft.word.split('').forEach((ch, i) => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'pick-chip' + (picks[i] ? ' picked' : '') + (pickIndex === i ? ' active' : '');
-    b.textContent = ch.toUpperCase();
-    const n = draft.choices[i].options.length;
-    b.setAttribute('aria-label', `Letter ${i + 1}, ${ch.toUpperCase()}: ${n} piece${n === 1 ? '' : 's'} could supply it${picks[i] ? ', chosen by you' : ''}`);
-    b.setAttribute('aria-pressed', String(pickIndex === i));
-    b.onclick = () => { pickIndex = pickIndex === i ? null : i; renderPickRow(); renderGame(); };
-    row.appendChild(b);
-  });
-  if (picks.some(Boolean)) {
-    const auto = document.createElement('button');
-    auto.type = 'button'; auto.className = 'btn secondary pick-auto'; auto.textContent = 'Auto';
-    auto.onclick = () => trySources(picks.map(() => null));
-    row.appendChild(auto);
-  }
-}
-// Ask the server whether the word still works with these picks; they only take effect if it does.
-function trySources(next) {
-  if (!draft || !sel) return;
-  pendingPicks = next;
-  sendWS(ws, { type: 'preview', requestId: ++previewRequest, r: sel.r, c: sel.c, dir, word: draft.word, gameId: state.gameId, revision: state.revision, sources: next });
-  draftStatus('Checking your choice…');
-}
+const key = (r, c) => r + ',' + c;
+
 // Why a word was refused: the reason, then what to try. Stays until the word changes.
 function showWhy(msg) {
   const box = document.getElementById('whybox');
@@ -162,36 +127,72 @@ function showWhy(msg) {
   box.classList.remove('hidden');
 }
 function clearWhy() { document.getElementById('whybox').classList.add('hidden'); }
-function cancelDraft() {
-  clearWhy(); previewRequest++; draft=null;placed=0;draftBusy=false;picks=null;pickIndex=null;pendingPicks=null;resetBoardDraft(boardElement);renderPickRow();
-  draftStatus('Choose a start square and type a word to build it.');
+
+function resetBuild() { build = []; lifted = new Map(); liftRequest++; }
+
+// A black letter is a house pyramid on top of a stack, or a printed square nothing covers.
+function blackAt(cell) { return (cell.t && cell.t.o === 'house') || (!cell.t && !!cell.p); }
+function letterAt(cell) { return cell.t ? cell.t.l : cell.p; }
+
+// Where the word sits: its first black letter stays put, so it fixes the start square.
+function placement() {
+  const idx = build.findIndex((x) => x.black);
+  if (idx < 0 || build.length < 3) return null;
+  const a = build[idx];
+  const r = dir === 'V' ? a.r - idx : a.r, c = dir === 'H' ? a.c - idx : a.c;
+  const endR = dir === 'V' ? r + build.length - 1 : r, endC = dir === 'H' ? c + build.length - 1 : c;
+  if (r < 0 || c < 0 || endR >= state.size || endC >= state.size) return { r, c, off: true };
+  return { r, c };
 }
-function nextInstruction() {
-  const step=draft?.presentation.steps[placed];
-  if(!step)return draftStatus('Your word is ready. Submit to finish your turn.');
-  draftStatus(`${step.letter.toUpperCase()} → row ${step.to[0]+1}, column ${step.to[1]+1}. ${step.kind==='move'?'Select its source at row '+(step.from[0]+1)+', column '+(step.from[1]+1)+', or use Place next letter.':'Use Place next letter to include the letter already here.'}`);
+function pathCells() {
+  const p = placement(); if (!p || p.off) return [];
+  return build.map((_, i) => [dir === 'V' ? p.r + i : p.r, dir === 'H' ? p.c + i : p.c]);
 }
-async function placeNext() {
-  if(!draft || draftBusy || placed>=draft.presentation.steps.length)return;
-  const current=draft;draftBusy=true;nextInstruction();
-  await animateDraftStep(boardElement,draft.presentation.steps[placed]);
-  if(draft!==current)return;
-  placed++;draftBusy=false;nextInstruction();
+
+// The board as this player sees it mid-build: lifted tops show what is underneath.
+function viewState() {
+  if (!lifted.size) return state;
+  const cells = state.cells.map((row, r) => row.map((cell, c) => {
+    const k = key(r, c);
+    if (!lifted.has(k) || cell.t === null) return cell;
+    const under = lifted.get(k);
+    return { ...cell, n: cell.n - 1, t: under ? { id: 'u' + k, ...under } : null };
+  }));
+  return { ...state, cells };
 }
-document.getElementById('previewBtn').onclick=()=>{
-  if(!myTurn()||!sel)return toast('Choose a start square on your turn.');
-  cancelDraft();
-  sendWS(ws,{type:'preview',requestId:++previewRequest,r:sel.r,c:sel.c,dir,word:document.getElementById('wordin').value,gameId:state.gameId,revision:state.revision});
-  draftStatus('Checking your word…');
-};
-document.getElementById('nextPieceBtn').onclick=placeNext;
-document.getElementById('cancelBtn').onclick=cancelDraft;
-document.getElementById('undoBtn').onclick=async()=>{
-  if(!draft || draftBusy || !placed)return;
-  const current=draft;placed--;resetBoardDraft(boardElement);draftBusy=true;nextInstruction();
-  for(let i=0;i<placed;i++){await animateDraftStep(boardElement,current.presentation.steps[i]);if(draft!==current)return;}
-  draftBusy=false;nextInstruction();
-};
+
+function onCell(r, c) {
+  if (!myTurn()) return;
+  const k = key(r, c);
+  if (build.some((x) => x.r === r && x.c === c)) return;          // already in the word: take it out from the word line
+  if (lifted.has(k)) return;                                       // uncovered this turn: not usable
+  const cell = state.cells[r][c];
+  if (!cell.t && !cell.p) return toast('That square is empty.');
+  if (build.length >= 10) return toast('Words are 3 to 10 letters.');
+  const black = blackAt(cell);
+  const top = cell.t;
+  build.push({ r, c, l: letterAt(cell), v: top ? top.v : 0, o: top ? top.o : 'house', black });
+  if (!black) { // take the top off: ask the server what is underneath, for this player only
+    lifted.set(k, null);
+    sendWS(ws, { type: 'lift', requestId: ++liftRequest, gameId: state.gameId, revision: state.revision, cells: [{ r, c }] });
+  }
+  clearWhy(); renderGame();
+}
+
+function removeItem(i) {
+  const it = build[i]; if (!it) return;
+  lifted.delete(key(it.r, it.c));
+  build.splice(i, 1);
+  clearWhy(); renderGame();
+}
+
+function currentWord() { return build.map((x) => x.l).join(''); }
+function sourcesFor(p) {
+  return build.map((it, i) => {
+    const pr = dir === 'V' ? p.r + i : p.r, pc = dir === 'H' ? p.c + i : p.c;
+    return it.r === pr && it.c === pc ? null : { r: it.r, c: it.c };
+  });
+}
 
 const codein = document.getElementById('codein');
 if (params.get('room')) {
@@ -199,6 +200,17 @@ if (params.get('room')) {
   document.getElementById('roomlabel').textContent = 'Room ' + codein.value;
   codein.classList.add('hidden');
 }
+// The host's own seat arrives as a link with the seat credential in the fragment,
+// so it never reaches server logs. Keep it for this tab and remove it from the address bar.
+(function () {
+  const m = /(?:^|[#&])seat=([A-Za-z0-9_-]{8,100})/.exec(location.hash);
+  const code = (params.get('room') || '').toUpperCase();
+  if (m && code) {
+    try { sessionStorage.setItem('cp_seat_' + code, JSON.stringify({ name: 'Host', token: m[1] })); } catch {}
+    document.getElementById('namein').value = 'Host';
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+})();
 
 keepAwake();
 let ws = null, joinedCode = null;
@@ -235,16 +247,11 @@ document.getElementById('joinBtn').addEventListener('click', () => {
 });
 
 function onMsg(msg) {
-  if(msg.type==='preview') {
-    if(msg.requestId!==previewRequest || msg.gameId!==state?.gameId || msg.revision!==state?.revision)return;
-    if(!msg.ok) {
-      showWhy(msg);
-      if (pendingPicks) { pendingPicks = null; toast(msg.error); return nextInstruction(); } // keep the previous, working choice
-      return draftStatus(msg.error);
-    }
-    if (pendingPicks) { picks = pendingPicks; pendingPicks = null; resetBoardDraft(boardElement); }
-    else picks = msg.word.split('').map(() => null);
-    clearWhy(); draft=msg;placed=0;nextInstruction();renderPickRow();renderGame();
+  if (msg.type === 'lift') {
+    if (!state || msg.requestId !== liftRequest || msg.gameId !== state.gameId || msg.revision !== state.revision) return;
+    if (!msg.ok) { resetBuild(); toast(msg.error); return renderGame(); }
+    for (const u of msg.under) if (lifted.has(key(u.r, u.c))) lifted.set(key(u.r, u.c), u.under);
+    renderGame();
   } else if (msg.type === 'joined') {
     rejoinTries = 0;
     myColor = msg.color;
@@ -263,33 +270,25 @@ function onMsg(msg) {
     // board): drop the finished game and put everyone — including anyone
     // still on the results screen — back on the waiting screen.
     if (msg.phase === 'lobby') {
-      state = null;
+      state = null; resetBuild();
       if (myColor) { show('waitview'); hide('gameview'); hide('overview'); }
     }
   } else if (msg.type === 'state') {
     const prev = state;
     state = msg.state;
-    if(draft && (draft.gameId!==state.gameId || draft.revision!==state.revision)) {draft=null;placed=0;draftBusy=false;picks=null;pickIndex=null;pendingPicks=null;renderPickRow();draftStatus('Board updated. Choose your next word.');}
+    // Any change to the board (a turn passing, someone's word) voids a half-built word.
+    if (!prev || prev.gameId !== state.gameId || prev.revision !== state.revision) { if (build.length) toast('The board changed - your word was cleared.'); resetBuild(); }
     hide('waitview'); hide('joinview');
     if (state.phase === 'over') { renderOver(); return; }
-    // A fresh board (the host hit Play Again): clear the last game's typing
-    // and jump straight back in, as long as we still hold a seat in it.
-    if (!prev || prev.phase === 'over') { sel = null; document.getElementById('wordin').value = ''; }
     if (!state.players.includes(myColor)) { hide('gameview'); hide('overview'); show('waitview'); return; }
     show('gameview'); hide('overview'); renderGame();
   } else if (msg.type === 'reject') {
-    cancelDraft();
-    showWhy(msg);
-    toast(msg.error);
+    resetBuild(); showWhy(msg); toast(msg.error); if (state) renderGame();
   } else if (msg.type === 'played') {
-    animateBoard(document.getElementById('board'), msg);
-    if (msg.color === myColor) {
-      document.getElementById('wordin').value = '';
-      sel = null;
-      toast(`You spelled ${msg.word.toUpperCase()}!`, true);
-    } else toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}`, true);
+    if (msg.color === myColor) toast(`You spelled ${msg.word.toUpperCase()}!`, true);
+    else toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}`, true);
   } else if (msg.type === 'skipped') {
-    if (msg.color === myColor) { sel = null; document.getElementById('wordin').value = ''; toast('You dropped off — your turn was skipped.'); }
+    if (msg.color === myColor) { resetBuild(); toast('You dropped off — your turn was skipped.'); }
   } else if (msg.type === 'feedback_ok') {
     toast('Thanks - feedback sent.', true);
   } else if (msg.type === 'error') {
@@ -309,89 +308,55 @@ function hide(id) { document.getElementById(id).classList.add('hidden'); }
 
 function myTurn() { return state && state.phase === 'playing' && state.current === myColor; }
 
-// Cells covered by the word being spelled, from the start square in the
-// chosen direction (used for the glowing preview).
-function spellPath() {
-  if (!sel) return [];
-  const word = document.getElementById('wordin').value.trim();
-  const len = Math.max(word.length, 2);
-  const out = [];
-  for (let i = 0; i < len; i++) {
-    const r = dir === 'V' ? sel.r + i : sel.r;
-    const c = dir === 'H' ? sel.c + i : sel.c;
-    if (r < state.size && c < state.size) out.push([r, c]);
-  }
-  return out;
-}
-
-// ---- view controls: camera presets and rotation need the 3D board; the DOM board has one fixed view ----
-const VIEW_ORDER = ['table', 'top', 'close'];
-const VIEW_LABEL = { table: 'Table', top: 'Top-down', close: 'Close-up' };
-const OWN_QUARTER = { yellow: 0, blue: 1, red: 2, green: 3 }; // turns the board so your own start edge is nearest you
-const ARROWS = { H: ['→', '↓', '←', '↑'], V: ['↓', '←', '↑', '→'] }; // board directions as seen after each quarter turn
-let viewPref = {};
-try { viewPref = JSON.parse(localStorage.getItem('cp_view') || '{}') || {}; } catch {}
-function saveViewPref() { try { localStorage.setItem('cp_view', JSON.stringify(viewPref)); } catch {} }
-function boardIs3D() { return boardInstances.has(document.getElementById('board')); }
-function viewOpts() {
-  const own = viewPref.qColor === myColor && Number.isInteger(viewPref.quarter);
-  return {
-    view: VIEW_ORDER.includes(viewPref.view) ? viewPref.view : 'table',
-    quarter: own ? viewPref.quarter : (OWN_QUARTER[myColor] ?? 0),
-    focus: viewPref.mine ? myColor : null,
-  };
-}
-function quarterNow() { return boardIs3D() ? viewOpts().quarter : 0; }
-document.addEventListener('board3d-ready', () => { if (state && myColor) renderGame(); });
-document.getElementById('viewBtn').addEventListener('click', () => {
-  viewPref.view = VIEW_ORDER[(VIEW_ORDER.indexOf(viewOpts().view) + 1) % VIEW_ORDER.length]; saveViewPref(); if (state) renderGame();
-});
-document.getElementById('rotBtn').addEventListener('click', () => {
-  viewPref.qColor = myColor; viewPref.quarter = (viewOpts().quarter + 1) % 4; saveViewPref(); if (state) renderGame();
-});
-document.getElementById('mineBtn').addEventListener('click', () => {
-  viewPref.mine = !viewPref.mine; saveViewPref(); if (state) renderGame();
-});
-
 function renderGame() {
   document.getElementById('me').innerHTML = `<span class="chip ${myColor}"></span>${escapeHTML(myName)} (${COLOR_NAMES[myColor]})`;
   const tb = document.getElementById('turnbanner');
   if (myTurn()) { tb.textContent = '▲ Your turn — take your time. Play a word, or Pass.'; tb.classList.add('mine'); }
   else { tb.textContent = `Waiting for ${names[state.current] || COLOR_NAMES[state.current]}…`; tb.classList.remove('mine'); }
-  const word = document.getElementById('wordin').value.trim();
-  renderBoard(document.getElementById('board'), state, {
-    ...viewOpts(),
-    selected: sel,
-    spelling: myTurn() && sel ? { path: spellPath(), word } : null,
-    candidates: draft && picks && pickIndex !== null ? draft.choices[pickIndex].options.map((o) => o.from) : null,
-    onCell: (r, c) => { if (myTurn()) {
-      if (draft && picks && pickIndex !== null) {
-        const hit = draft.choices[pickIndex].options.find((o) => o.from[0] === r && o.from[1] === c);
-        if (hit) { const next = picks.slice(); next[pickIndex] = { r, c }; trySources(next); return; }
-      }
-      if(draft) { const step=draft.presentation.steps[placed]; if(step && step.from[0]===r && step.from[1]===c)placeNext(); return; }
-      sel = { r, c }; renderGame();
-    } },
+  const word = currentWord();
+  const p = placement();
+  const path = pathCells();
+  const anchor = build.find((x) => x.black);
+  renderBoard(boardElement, viewState(), {
+    selected: anchor ? { r: anchor.r, c: anchor.c } : null,
+    spelling: myTurn() && path.length ? { path, word } : null,
+    onCell: myTurn() ? onCell : null,
   });
+  // The word line: every letter is a button that takes that letter back out.
+  const line = document.getElementById('wordline');
+  line.replaceChildren();
+  if (!build.length) {
+    const ph = document.createElement('span'); ph.className = 'ph';
+    ph.textContent = myTurn() ? 'Tap letters on the board to spell your word.' : 'Your word will appear here on your turn.';
+    line.append(ph);
+  }
+  build.forEach((it, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'wchip ' + (it.black ? 'black' : 'o-' + it.o);
+    b.textContent = it.l.toUpperCase();
+    if (it.v) { const s = document.createElement('small'); s.textContent = it.v; b.append(s); }
+    b.setAttribute('aria-label', `Letter ${i + 1}: ${it.l.toUpperCase()}. Tap to remove.`);
+    b.onclick = () => removeItem(i);
+    line.append(b);
+  });
+  const hasBlack = build.some((x) => x.black);
+  const ok = myTurn() && build.length >= 3 && hasBlack && p && !p.off;
+  document.getElementById('playBtn').disabled = !ok;
+  document.getElementById('clearBtn').disabled = !build.length;
   document.getElementById('controls').style.opacity = myTurn() ? 1 : 0.45;
-  const v = viewOpts(), q = quarterNow();
-  document.getElementById('viewBtn').classList.toggle('hidden', !boardIs3D());
-  document.getElementById('rotBtn').classList.toggle('hidden', !boardIs3D());
-  document.getElementById('viewBtn').textContent = 'View: ' + VIEW_LABEL[v.view];
-  document.getElementById('mineBtn').setAttribute('aria-pressed', String(!!v.focus));
-  document.getElementById('dirH').textContent = 'Across ' + ARROWS.H[q];
-  document.getElementById('dirV').textContent = 'Down ' + ARROWS.V[q];
-  document.getElementById('selhint').innerHTML = !myTurn()
-    ? 'Waiting for your turn&hellip;'
-    : sel
-      ? `Start: row ${sel.r + 1}, col ${sel.c + 1} — <b>${dir === 'H' ? 'Across ' + ARROWS.H[q] : 'Down ' + ARROWS.V[q]}</b>. Swipe on the board to change direction.`
-      : 'Tap the square where your word starts, then swipe the direction.';
+  document.getElementById('selhint').textContent = !myTurn() ? 'Waiting for your turn…'
+    : !build.length ? 'Tap letters on the board in the order you want to spell them.'
+    : build.length < 3 ? 'Words are at least 3 letters.'
+    : !hasBlack ? 'Add a black letter (a black pyramid or a printed square) - every word needs one.'
+    : p && p.off ? 'That would run off the board - try the other direction or fewer letters.'
+    : `Ready: ${word.toUpperCase()} ${dir === 'H' ? 'across' : 'down'}. Submit, or tap a letter to take it out.`;
   // Scores stay hidden until the end — this row just shows who is connected.
   document.getElementById('scoresmini').innerHTML = state.players.map(c => {
-    const p = names[c] || COLOR_NAMES[c];
+    const nm = names[c] || COLOR_NAMES[c];
     const turn = state.current === c ? ' ▲' : '';
-    return `<span><span class="chip ${c}"></span>${escapeHTML(p)}${turn}</span>`;
+    return `<span><span class="chip ${c}"></span>${escapeHTML(nm)}${turn}</span>`;
   }).join('');
+  renderWords(document.getElementById('wordspanel'), state, names);
   renderTracker(document.getElementById('tracker'), state, names);
 }
 
@@ -423,49 +388,27 @@ document.getElementById('inviteBtn').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(url); toast('Invite link copied.', true); } catch { prompt('Copy this invite link:', url); }
 });
 
-document.getElementById('dirH').addEventListener('click', () => { dir = 'H'; setDir(); });
-document.getElementById('dirV').addEventListener('click', () => { dir = 'V'; setDir(); });
-function setDir() {
-  cancelDraft();
+function setDir(d) {
+  dir = d;
   document.getElementById('dirH').classList.toggle('active', dir === 'H');
   document.getElementById('dirV').classList.toggle('active', dir === 'V');
+  clearWhy();
   if (state) renderGame();
 }
-document.getElementById('wordin').addEventListener('input', () => { cancelDraft(); if (state && myTurn()) renderGame(); });
-
-// Finger-swipe on the board sets the spelling direction (and start square).
-(function () {
-  const board = document.getElementById('board');
-  let sx = 0, sy = 0;
-  board.addEventListener('touchstart', (e) => {
-    const t = e.changedTouches[0]; sx = t.clientX; sy = t.clientY;
-  }, { passive: true });
-  board.addEventListener('touchend', (e) => {
-    if (!myTurn()) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - sx, dy = t.clientY - sy;
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) return; // a tap, not a swipe
-    // Map the screen swipe back onto board axes, whatever quarter turn the view is at.
-    const th = quarterNow() * Math.PI / 2;
-    const bx = dx * Math.cos(th) + dy * Math.sin(th), bz = -dx * Math.sin(th) + dy * Math.cos(th);
-    dir = Math.abs(bx) >= Math.abs(bz) ? 'H' : 'V';
-    setDir();
-  }, { passive: true });
-})();
+document.getElementById('dirH').addEventListener('click', () => setDir('H'));
+document.getElementById('dirV').addEventListener('click', () => setDir('V'));
+document.getElementById('clearBtn').addEventListener('click', () => { resetBuild(); clearWhy(); if (state) renderGame(); });
 
 document.getElementById('playBtn').addEventListener('click', () => {
   if (!myTurn()) return toast('Not your turn yet.');
-  if (!sel) return toast('Tap the square where your word starts.');
-  const word = document.getElementById('wordin').value.trim();
-  if (word.length < 3) return toast('Words must be at least 3 letters.');
-  const withPicks = draft && picks && draft.word === word.toLowerCase() && picks.some(Boolean) ? { sources: picks } : {};
-  sendWS(ws, { type: 'play', r: sel.r, c: sel.c, dir, word, gameId: state.gameId, revision: state.revision, ...withPicks });
+  const p = placement();
+  if (!p || p.off) return toast('Add letters, including a black one.');
+  sendWS(ws, { type: 'play', r: p.r, c: p.c, dir, word: currentWord(), sources: sourcesFor(p), gameId: state.gameId, revision: state.revision });
 });
 document.getElementById('passBtn').addEventListener('click', () => {
   if (!myTurn()) return toast('Not your turn yet.');
-  if (confirm('Pass your turn?')) sendWS(ws, { type: 'pass' });
+  if (confirm('Pass your turn?')) { resetBuild(); sendWS(ws, { type: 'pass' }); }
 });
-document.getElementById('wordin').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('playBtn').click(); });
 </script>
 </body>
 </html>

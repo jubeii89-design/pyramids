@@ -54,7 +54,14 @@ async function scriptedPlayer(base, code, name, opts = {}) {
     const key = `${st.gameId}:${st.revision}`;
     if (key === lastActed) return;
     lastActed = key;
-    if (delayMs) { setTimeout(() => { if (!hold && latest && `${latest.gameId}:${latest.revision}` === key) decide(st); }, delayMs); return; }
+    if (delayMs) {
+      setTimeout(() => {
+        if (!latest || `${latest.gameId}:${latest.revision}` !== key) return;
+        if (hold) lastActed = null; // paused while waiting: act again on release
+        else decide(st);
+      }, delayMs);
+      return;
+    }
     decide(st);
   }
   function decide(st) {

@@ -12,11 +12,16 @@ source of truth; this file only records decisions and where things are.
   browser origins), `security.js` (credentials), `room-store.js` (restart
   checkpoint file).
 - `public/host.html` big screen, `public/play.html` phone controller,
-  `public/board.js` shared helpers + DOM fallback board, `public/board-3d.js`
-  the three.js board.
-- `tools/` + `Gruntfile.js` - Blender sprite pipeline (`npx grunt assets`);
-  built art in `public/assets` is committed, so the server needs neither
-  Blender nor Grunt.
+  `public/board.js` shared helpers and the flat board (letter centred, tip
+  value top-left, stack count bottom-right). The board is flat: the old three.js
+  and Blender sprite pipeline were removed (they are in git history).
+- Building a word on a phone: tap letters in spelling order; the first black
+  letter fixes where the word sits. Nothing reaches the server until Submit, so
+  Clear or a refusal just forgets the local list. `lift` (server) shows the
+  piece under a lifted top to the player on turn only, and never changes state.
+- The host gets a reserved seat on `host_create` and a one-time link
+  (`play.html?room=CODE#seat=TOKEN`) for their own phone; an unclaimed seat is
+  dropped at Start (or yields to a fourth guest).
 - `deploy/` and `README.md` - running it (Lightsail steps, environment variables).
 - Check which build is live: `curl https://your-domain/health` returns `build`
   (commit) and `startedAt`.

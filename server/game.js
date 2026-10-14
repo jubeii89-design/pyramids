@@ -447,6 +447,18 @@ function drawOff(state, tied, rng) {
 }
 
 // Public serialization sent to clients
+// The piece sitting under each of the given stack tops (null when the top is the
+// last one), shown only to the player who is building a word. Never mutates state.
+function peekUnder(state, cells) {
+  const out = [];
+  for (const { r, c } of cells) {
+    const stack = state.cells[r] && state.cells[r][c] ? state.cells[r][c].stack : [];
+    const below = stack.length >= 2 ? stack[stack.length - 2] : null;
+    out.push({ r, c, under: below ? { l: below.l, v: below.v, o: below.o } : null });
+  }
+  return out;
+}
+
 function serialize(state) {
   // Pyramid tracker: remaining on board + captured, per color (incl. house)
   const remaining = { red: 0, blue: 0, green: 0, yellow: 0, house: 0 };
@@ -462,7 +474,7 @@ function serialize(state) {
   // game is over. During play we expose only the word log (no point values)
   // and the pyramid-remaining tracker.
   const over = state.phase === 'over';
-  const publicLog = state.log.slice(over ? 0 : -12).map((e) => // the whole log once the game is over, for the recap
+  const publicLog = state.log.map((e) => // the whole word log: the words panel and the recap both need every word
     e.pass
       ? { color: e.color, pass: true }
       : { color: e.color, word: e.word, pyramids: e.pyramids, points: over ? e.points : undefined }
@@ -633,6 +645,6 @@ function probeMove(state, color, move, sourcesByLetter) {
 
 module.exports = {
   SIZE, COLORS, VALUES, PLAYER_LETTERS, HOUSE_LETTERS,
-  createGame, playWord, planWord, passTurn, finish, serialize, exposed, findMove, probeMove,
+  createGame, playWord, planWord, peekUnder, passTurn, finish, serialize, exposed, findMove, probeMove,
   remainingOnBoard, startSpaces,
 };

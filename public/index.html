@@ -15,7 +15,7 @@
     letter-spacing: .05em;
   }
   .hero .tag { font-size: clamp(1rem, 3vw, 1.5rem); color: var(--sand); font-style: italic; margin-top: 10px; }
-  /* hero built from the real 3D game pieces */
+  /* hero built from the game pieces */
   .pyr-scene { display: flex; justify-content: center; align-items: center; gap: 14px; margin: 26px auto 6px; perspective: 700px; }
   .pyr-scene .slot { position: relative; transform: rotateX(24deg); animation: float 3.2s ease-in-out infinite; }
   .pyr-scene .slot:nth-child(2) { animation-delay: .3s; }
@@ -70,7 +70,7 @@
     pointer-events: none; opacity: .16; filter: blur(1px) saturate(1.1);
     overflow: hidden;
   }
-  #bgboard .board3d { width: min(140vh, 150vw); transform: rotateX(20deg) scale(1.15); }
+  #bgboard .boardwrap { width: min(140vh, 150vw); transform: scale(1.15); }
   .hero, .pitch, .shots, footer { position: relative; z-index: 1; }
   footer { text-align: center; color: #9a8ab0; padding: 26px 20px 40px; }
   footer .motto { font-style: italic; margin-bottom: 18px; }
@@ -81,7 +81,7 @@
 </style>
 </head>
 <body>
-  <div id="bgboard" aria-hidden="true"><div class="board3d"><div class="board" id="bgb"></div></div></div>
+  <div id="bgboard" aria-hidden="true"><div class="boardwrap"><div class="board" id="bgb"></div></div></div>
   <div class="hero">
     <div class="pyr-scene" aria-hidden="true">
       <div class="slot" style="width:74px;height:74px"><div class="pyr"><i class="f fn"></i><i class="f fe"></i><i class="f fs"></i><i class="f fw"></i><b class="peak">1</b><span class="pl ink-red" style="font-size:26px">S</span></div></div>

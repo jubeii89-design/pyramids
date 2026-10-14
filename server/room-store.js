@@ -56,6 +56,7 @@ function snapshot(room) {
     players: room.players.map((p) => ({
       name: p.name, color: p.color,
       ...(p.tokenHash ? { tokenHash: p.tokenHash } : {}),
+      ...(p.hostSeat ? { hostSeat: true, claimed: !!p.claimed } : {}),
       ...(p.disconnectedAt ? { disconnectedAt: p.disconnectedAt } : {}),
     })),
     phase: room.phase,

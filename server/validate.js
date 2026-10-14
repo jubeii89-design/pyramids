@@ -1,7 +1,7 @@
 'use strict';
 // Shape-checks every client message once, so handlers only ever see typed,
 // bounded fields. Returns { msg } (normalised) or { error }.
-const TYPES = new Set(['host_create', 'join', 'start', 'play', 'preview', 'pass', 'again', 'feedback']);
+const TYPES = new Set(['host_create', 'join', 'start', 'play', 'preview', 'lift', 'pass', 'again', 'feedback']);
 
 function cleanName(value) {
   const name = String(value == null ? '' : value)
@@ -76,6 +76,24 @@ function message(raw) {
       if (raw.requestId !== undefined) {
         if (Number.isSafeInteger(raw.requestId) && raw.requestId >= 0) msg.requestId = raw.requestId;
         else if (typeof raw.requestId === 'string' && raw.requestId.length <= 40) msg.requestId = raw.requestId;
+        else return { error: 'Bad request id.' };
+      }
+      break;
+    }
+    case 'lift': {
+      // Which stacks the current player has picked up while building a word (their tops, in order).
+      if (!Array.isArray(raw.cells) || raw.cells.length > 10) return { error: 'Bad pieces.' };
+      msg.cells = [];
+      for (const cell of raw.cells) {
+        const r = cell && typeof cell === 'object' ? int(cell.r, 0, 9) : null, c = cell && typeof cell === 'object' ? int(cell.c, 0, 9) : null;
+        if (r === null || c === null) return { error: 'Bad piece.' };
+        msg.cells.push({ r, c });
+      }
+      msg.gameId = str(raw.gameId, 64);
+      msg.revision = int(raw.revision, 0, 1e9);
+      if (msg.gameId === null || msg.revision === null) return { error: 'Bad game id.' };
+      if (raw.requestId !== undefined) {
+        if (Number.isSafeInteger(raw.requestId) && raw.requestId >= 0) msg.requestId = raw.requestId;
         else return { error: 'Bad request id.' };
       }
       break;
