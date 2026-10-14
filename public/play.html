@@ -24,8 +24,6 @@
   .wp-words b { margin-right: 8px; letter-spacing: .04em; } .wp-words i { color: #8f8363; }
   .controls { margin-top: 12px; }
   .controls .row { display: flex; gap: 8px; margin-bottom: 10px; }
-  .dirbtn { flex: 0 0 auto; padding: 12px 16px; background: #33291a; color: var(--sand); border: 2px solid #4a3d28; }
-  .dirbtn.active { background: var(--gold); color: #241a05; font-weight: bold; }
   .hint { color: #b9a87c; font-size: .9rem; margin-top: 6px; line-height: 1.4; }
   .scoresmini { display: flex; gap: 12px; flex-wrap: wrap; font-size: .95rem; margin-top: 10px; }
   .hidden { display: none !important; }
@@ -54,7 +52,7 @@
     <p><button class="btn secondary" id="inviteBtn">Invite a friend</button> <button class="btn secondary" id="howtoWaitBtn" data-howto>How to play</button></p>
     <div class="rules-mini panel" style="margin-top:20px; text-align:left">
       <b class="gold">How to play:</b> On your turn, <b>tap letters</b> on the board in the
-      order you want to spell them, pick <b>Across</b> or <b>Down</b>, and press Submit.
+      order you want to spell them, and press Submit.
       Every word needs one of <b>your</b> pyramids and one <b>black</b> letter.
       Tap a letter in your word to take it back out. Points are tallied at the end!
     </div>
@@ -72,8 +70,6 @@
       <div class="wordline" id="wordline" aria-live="polite"></div>
       <div id="whybox" class="whybox hidden" role="alert"><b></b><span></span></div>
       <div class="row">
-        <button class="dirbtn active" id="dirH">Across &#8594;</button>
-        <button class="dirbtn" id="dirV">Down &#8595;</button>
         <button class="btn secondary" id="clearBtn" style="flex:1" disabled>Clear</button>
       </div>
       <div class="row">
@@ -109,7 +105,10 @@
 <script>
 const params = new URLSearchParams(location.search);
 let myColor = null, myName = null, state = null, names = {};
-let dir = 'H';
+let dir = 'H';             // effective direction ('H' across, 'V' down); recomputed every render
+let dirChosen = false;     // true once the player tapped beside the black letter
+let pick = null;           // { sq, prevDir, prevChosen } while a direction tap can still become a letter tap
+let spectDraft = null;     // another player's in-progress word, shown read-only
 // The word being built: letters in spelling order. Each item is a board square
 // the player tapped. Nothing is sent to the server until Submit, so clearing
 // is just forgetting this list - every stack goes back exactly as it was.
@@ -128,7 +127,29 @@ function showWhy(msg) {
 }
 function clearWhy() { document.getElementById('whybox').classList.add('hidden'); }
 
-function resetBuild() { build = []; lifted = new Map(); liftRequest++; }
+function resetBuild() { build = []; lifted = new Map(); liftRequest++; dirChosen = false; pick = null; }
+
+// Across unless that runs off the board and Down fits; a chosen direction always wins.
+function effectiveDir() {
+  if (dirChosen) return dir;
+  const idx = build.findIndex((x) => x.black);
+  if (idx < 0 || !state) return 'H';
+  const a = build[idx], n = build.length, size = state.size;
+  const hFits = a.c - idx >= 0 && a.c - idx + n - 1 < size;
+  const vFits = a.r - idx >= 0 && a.r - idx + n - 1 < size;
+  return !hFits && vFits ? 'V' : 'H';
+}
+function recomputeDir() { dir = effectiveDir(); }
+function anchorItem() { return build.find((x) => x.black) || null; }
+// Which side of the anchor (r,c) is on: { axis, glyph } or null.
+function neighbourOf(r, c) {
+  const a = anchorItem(); if (!a) return null;
+  if (r === a.r && c === a.c + 1) return { axis: 'H', glyph: '\u2192' };
+  if (r === a.r && c === a.c - 1) return { axis: 'H', glyph: '\u2190' };
+  if (c === a.c && r === a.r + 1) return { axis: 'V', glyph: '\u2193' };
+  if (c === a.c && r === a.r - 1) return { axis: 'V', glyph: '\u2191' };
+  return null;
+}
 
 // A black letter is a house pyramid on top of a stack, or a printed square nothing covers.
 function blackAt(cell) { return (cell.t && cell.t.o === 'house') || (!cell.t && !!cell.p); }
@@ -164,6 +185,18 @@ function viewState() {
 function onCell(r, c) {
   if (!myTurn()) return;
   const k = key(r, c);
+  const nb = neighbourOf(r, c);
+  if (nb && pick && pick.sq.r === r && pick.sq.c === c) {
+    // Second tap on the square that just set the direction: now it is a letter.
+    if (pick.prevChosen) dir = pick.prevDir; // else the new direction stays
+    dirChosen = true; pick = null;
+  } else if (nb && (!dirChosen || nb.axis !== dir)) {
+    pick = { sq: { r, c }, prevDir: dir, prevChosen: dirChosen };
+    dir = nb.axis; dirChosen = true;
+    clearWhy(); renderGame(); return;
+  } else {
+    pick = null;
+  }
   if (build.some((x) => x.r === r && x.c === c)) return;          // already in the word: take it out from the word line
   if (lifted.has(k)) return;                                       // uncovered this turn: not usable
   const cell = state.cells[r][c];
@@ -181,6 +214,8 @@ function onCell(r, c) {
 
 function removeItem(i) {
   const it = build[i]; if (!it) return;
+  pick = null;
+  if (it === anchorItem()) dirChosen = false;
   lifted.delete(key(it.r, it.c));
   build.splice(i, 1);
   clearWhy(); renderGame();
@@ -259,6 +294,7 @@ function onMsg(msg) {
     if (msg.token) seatToken = msg.token;
     try { sessionStorage.setItem('cp_seat_' + msg.code, JSON.stringify({ name: myName, token: seatToken })); } catch {}
     document.getElementById('roomcode').textContent = msg.code;
+    if (build.length) { draftLast = ''; pushDraft(); }
     document.getElementById('mycolor').innerHTML = `You are <span class="chip ${myColor}"></span><b>${COLOR_NAMES[myColor]}</b>`;
     show('waitview'); hide('joinview');
   } else if (msg.type === 'room') {
@@ -270,24 +306,33 @@ function onMsg(msg) {
     // board): drop the finished game and put everyone — including anyone
     // still on the results screen — back on the waiting screen.
     if (msg.phase === 'lobby') {
-      state = null; resetBuild();
+      state = null; resetBuild(); spectDraft = null;
       if (myColor) { show('waitview'); hide('gameview'); hide('overview'); }
     }
   } else if (msg.type === 'state') {
     const prev = state;
     state = msg.state;
     // Any change to the board (a turn passing, someone's word) voids a half-built word.
-    if (!prev || prev.gameId !== state.gameId || prev.revision !== state.revision) { if (build.length) toast('The board changed - your word was cleared.'); resetBuild(); }
+    const changed = !prev || prev.gameId !== state.gameId || prev.revision !== state.revision;
+    if (changed) { if (build.length) toast('The board changed - your word was cleared.'); resetBuild(); draftLast = ''; draftSentNonEmpty = false; }
+    if (changed || prev.current !== state.current) spectDraft = null;
     hide('waitview'); hide('joinview');
     if (state.phase === 'over') { renderOver(); return; }
     if (!state.players.includes(myColor)) { hide('gameview'); hide('overview'); show('waitview'); return; }
     show('gameview'); hide('overview'); renderGame();
   } else if (msg.type === 'reject') {
     resetBuild(); showWhy(msg); toast(msg.error); if (state) renderGame();
+  } else if (msg.type === 'draft') {
+    if (msg.color === myColor || !state) return;
+    if (msg.gameId !== state.gameId || msg.revision !== state.revision || msg.color !== state.current) return;
+    spectDraft = msg.items && msg.items.length ? msg : null;
+    if (!myTurn() && state.phase === 'playing' && state.players.includes(myColor)) renderGame();
   } else if (msg.type === 'played') {
+    spectDraft = null;
     if (msg.color === myColor) toast(`You spelled ${msg.word.toUpperCase()}!`, true);
     else toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}`, true);
   } else if (msg.type === 'skipped') {
+    spectDraft = null;
     if (msg.color === myColor) { resetBuild(); toast('You dropped off — your turn was skipped.'); }
   } else if (msg.type === 'feedback_ok') {
     toast('Thanks - feedback sent.', true);
@@ -309,6 +354,7 @@ function hide(id) { document.getElementById(id).classList.add('hidden'); }
 function myTurn() { return state && state.phase === 'playing' && state.current === myColor; }
 
 function renderGame() {
+  recomputeDir();
   document.getElementById('me').innerHTML = `<span class="chip ${myColor}"></span>${escapeHTML(myName)} (${COLOR_NAMES[myColor]})`;
   const tb = document.getElementById('turnbanner');
   if (myTurn()) { tb.textContent = '▲ Your turn — take your time. Play a word, or Pass.'; tb.classList.add('mine'); }
@@ -316,14 +362,89 @@ function renderGame() {
   const word = currentWord();
   const p = placement();
   const path = pathCells();
-  const anchor = build.find((x) => x.black);
-  renderBoard(boardElement, viewState(), {
-    selected: anchor ? { r: anchor.r, c: anchor.c } : null,
-    spelling: myTurn() && path.length ? { path, word } : null,
-    onCell: myTurn() ? onCell : null,
-  });
-  // The word line: every letter is a button that takes that letter back out.
+  const anchor = anchorItem();
   const line = document.getElementById('wordline');
+  const spect = !myTurn() && spectDraft && typeof draftOpts === 'function' ? draftOpts(state, spectDraft) : null;
+  if (spect) {
+    renderBoard(boardElement, spect.state, { selected: spect.selected, spelling: spect.spelling, hintCells: spect.hintCells, onCell: null });
+    line.replaceChildren();
+    if (typeof renderDraftLine === 'function') renderDraftLine(line, spectDraft, names[spectDraft.color] || COLOR_NAMES[spectDraft.color]);
+  } else {
+    const arrows = [];
+    if (myTurn() && anchor) {
+      for (const [dr, dc] of [[0, 1], [1, 0], [0, -1], [-1, 0]]) {
+        const rr = anchor.r + dr, cc = anchor.c + dc;
+        if (rr < 0 || cc < 0 || rr >= state.size || cc >= state.size) continue;
+        const nb = neighbourOf(rr, cc);
+        if (dirChosen && nb.axis !== dir) continue;
+        arrows.push({ r: rr, c: cc, glyph: nb.glyph });
+      }
+    }
+    let hintCells = [];
+    if (myTurn() && anchor && dirChosen) {
+      const idx = build.indexOf(anchor);
+      const sr = dir === 'V' ? anchor.r - idx : anchor.r, sc = dir === 'H' ? anchor.c - idx : anchor.c;
+      const nr = dir === 'V' ? sr + build.length : sr, nc = dir === 'H' ? sc + build.length : sc;
+      if (sr >= 0 && sc >= 0 && nr < state.size && nc < state.size && build.length < 10) hintCells = [[nr, nc]];
+    }
+    renderBoard(boardElement, viewState(), {
+      selected: anchor ? { r: anchor.r, c: anchor.c } : null,
+      spelling: myTurn() && path.length ? { path, word } : null,
+      arrows, hintCells,
+      onCell: myTurn() ? onCell : null,
+    });
+    renderWordLine(line);
+  }
+  const hasBlack = build.some((x) => x.black);
+  const ok = myTurn() && build.length >= 3 && hasBlack && p && !p.off;
+  document.getElementById('playBtn').disabled = !ok;
+  document.getElementById('clearBtn').disabled = !build.length;
+  document.getElementById('controls').style.opacity = myTurn() ? 1 : 0.45;
+  document.getElementById('selhint').textContent = !myTurn() ? 'Waiting for your turn\u2026'
+    : !build.length ? 'Tap letters on the board in the order you want to spell them.'
+    : anchor && !dirChosen && build.length === 1 ? 'Tap a square beside the black letter to choose the direction.'
+    : build.length < 3 ? 'Words are at least 3 letters.'
+    : !hasBlack ? 'Add a black letter (a black pyramid or a printed square) - every word needs one.'
+    : p && p.off ? 'That would run off the board - try the other direction or fewer letters.'
+    : `Ready: ${word.toUpperCase()} ${dir === 'H' ? 'across' : 'down'}. Submit, or tap a letter to take it out.` + (dirChosen ? '' : ` ${dir === 'H' ? 'Across' : 'Down'} - tap the square ${dir === 'H' ? 'below' : 'beside'} the black letter for ${dir === 'H' ? 'Down' : 'Across'}.`);
+  // Scores stay hidden until the end — this row just shows who is connected.
+  document.getElementById('scoresmini').innerHTML = state.players.map(c => {
+    const nm = names[c] || COLOR_NAMES[c];
+    const turn = state.current === c ? ' ▲' : '';
+    return `<span><span class="chip ${c}"></span>${escapeHTML(nm)}${turn}</span>`;
+  }).join('');
+  renderWords(document.getElementById('wordspanel'), state, names);
+  renderTracker(document.getElementById('tracker'), state, names);
+  pushDraft();
+}
+
+// Mirror the word being built to the big screen (and other phones), throttled.
+let draftLast = '', draftSentNonEmpty = false, draftTimer = null, draftAt = 0;
+function draftMsg() {
+  return { type: 'draft', gameId: state.gameId, revision: state.revision, dir, items: build.map(({ r, c }) => ({ r, c })) };
+}
+function draftFlush() {
+  draftTimer = null;
+  if (!myTurn() || !ws || ws.readyState !== 1) return;
+  const m = draftMsg();
+  if (!m.items.length && !draftSentNonEmpty) return;
+  const j = JSON.stringify(m);
+  if (j === draftLast) return;
+  draftLast = j; draftAt = Date.now(); draftSentNonEmpty = m.items.length > 0;
+  sendWS(ws, m);
+}
+function pushDraft() {
+  if (!myTurn()) return;
+  const m = draftMsg();
+  if (!m.items.length && !draftSentNonEmpty) return;
+  if (JSON.stringify(m) === draftLast) return;
+  const wait = 120 - (Date.now() - draftAt);
+  if (wait <= 0) draftFlush();
+  else if (!draftTimer) draftTimer = setTimeout(draftFlush, wait);
+}
+
+function renderWordLine(line) {
+  // The word line: every letter is a button that takes that letter back out.
   line.replaceChildren();
   if (!build.length) {
     const ph = document.createElement('span'); ph.className = 'ph';
@@ -339,25 +460,6 @@ function renderGame() {
     b.onclick = () => removeItem(i);
     line.append(b);
   });
-  const hasBlack = build.some((x) => x.black);
-  const ok = myTurn() && build.length >= 3 && hasBlack && p && !p.off;
-  document.getElementById('playBtn').disabled = !ok;
-  document.getElementById('clearBtn').disabled = !build.length;
-  document.getElementById('controls').style.opacity = myTurn() ? 1 : 0.45;
-  document.getElementById('selhint').textContent = !myTurn() ? 'Waiting for your turn…'
-    : !build.length ? 'Tap letters on the board in the order you want to spell them.'
-    : build.length < 3 ? 'Words are at least 3 letters.'
-    : !hasBlack ? 'Add a black letter (a black pyramid or a printed square) - every word needs one.'
-    : p && p.off ? 'That would run off the board - try the other direction or fewer letters.'
-    : `Ready: ${word.toUpperCase()} ${dir === 'H' ? 'across' : 'down'}. Submit, or tap a letter to take it out.`;
-  // Scores stay hidden until the end — this row just shows who is connected.
-  document.getElementById('scoresmini').innerHTML = state.players.map(c => {
-    const nm = names[c] || COLOR_NAMES[c];
-    const turn = state.current === c ? ' ▲' : '';
-    return `<span><span class="chip ${c}"></span>${escapeHTML(nm)}${turn}</span>`;
-  }).join('');
-  renderWords(document.getElementById('wordspanel'), state, names);
-  renderTracker(document.getElementById('tracker'), state, names);
 }
 
 function renderOver() {
@@ -388,15 +490,6 @@ document.getElementById('inviteBtn').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(url); toast('Invite link copied.', true); } catch { prompt('Copy this invite link:', url); }
 });
 
-function setDir(d) {
-  dir = d;
-  document.getElementById('dirH').classList.toggle('active', dir === 'H');
-  document.getElementById('dirV').classList.toggle('active', dir === 'V');
-  clearWhy();
-  if (state) renderGame();
-}
-document.getElementById('dirH').addEventListener('click', () => setDir('H'));
-document.getElementById('dirV').addEventListener('click', () => setDir('V'));
 document.getElementById('clearBtn').addEventListener('click', () => { resetBuild(); clearWhy(); if (state) renderGame(); });
 
 document.getElementById('playBtn').addEventListener('click', () => {

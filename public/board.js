@@ -76,7 +76,7 @@ function gameRecapHTML(state, nameOf) {
 // ---- How to play: a guide any page can open from a [data-howto] button ----
 const HOWTO_STEPS = [
   ['The goal', 'Spell words on the board. Every pyramid you collect scores the number on its tip, and your own pyramids still on the board when the game ends cost you their tips. Scores stay hidden until the end.'],
-  ['Your turn', 'Tap letters on the board in the order you want to spell them. Each tile shows its letter in the middle, its point value in the top-left corner and how many are stacked there (5×, 4× …) in the bottom-right. Choose Across or Down, then press Submit. There is no clock: take as long as you like, or press Pass.'],
+  ['Your turn', 'Tap letters on the board in the order you want to spell them. Each tile shows its letter in the middle, its point value in the top-left corner and how many are stacked there (5×, 4× …) in the bottom-right. Tap the square beside the black letter to choose Across or Down (Across if you do not), then press Submit. There is no clock: take as long as you like, or press Pass.'],
   ['Every word needs', 'At least one black letter (a black house pyramid or a printed square), at least one pyramid of your own colour, and at least one pyramid that moves. The black letter stays where it is, so it decides where your word sits on the board.'],
   ['Undoing', 'Tap a letter in your word to take it out, or press Clear to start again. A refused word sends every letter straight back to the stack it came from.'],
   ['Captured pyramids', 'Every pyramid used in your word is yours. Lifting one uncovers the letter underneath, which you see at once but cannot use this turn. The count in the corner of each stack drops as you lift.'],
@@ -145,6 +145,9 @@ const COLOR_NAMES = { red: 'Red', blue: 'Blue', green: 'Green', yellow: 'Gold', 
 // One stack top, flat: the letter in the centre, its point value in the top-left
 // corner and the stack count (5x, 4x ...) in the bottom-right corner.
 function tileHTML(top, depth) {
+  if (top.o === 'hidden') {
+    return `<div class="tile o-hidden" data-owner="hidden"><b class="L">?</b><i class="n">${depth}&times;</i></div>`;
+  }
   return `<div class="tile o-${top.o}" data-owner="${top.o}" data-letter="${top.l}" data-value="${top.v}">
     <b class="L">${top.l.toUpperCase()}</b><i class="v">${top.v}</i><i class="n">${depth}&times;</i>
   </div>`;
@@ -171,6 +174,10 @@ function renderBoard(el, state, opts = {}) {
       if (opts.selected && opts.selected.r === r && opts.selected.c === c) div.classList.add('sel');
       if (opts.candidates && opts.candidates.some(([cr, cc]) => cr === r && cc === c)) div.classList.add('cand');
       if (opts.hintCells && opts.hintCells.some(([hr, hc]) => hr === r && hc === c)) div.classList.add('path-hint');
+      if (opts.arrows) {
+        const a = opts.arrows.find((x) => x.r === r && x.c === c);
+        if (a) { div.classList.add('dir-hint'); div.dataset.arrow = a.glyph; }
+      }
       if (opts.onCell) div.addEventListener('click', () => opts.onCell(r, c));
       el.appendChild(div);
     }
@@ -200,6 +207,45 @@ function renderBoard(el, state, opts = {}) {
       }
     });
   }
+}
+
+// Live draft (another player's tentative word) -> board view options.
+function draftOpts(state, draft) {
+  const items = (draft && draft.items) || [];
+  const cells = state.cells.map((row) => row.slice());
+  for (const { r, c } of (draft && draft.lifted) || []) {
+    const cell = cells[r] && cells[r][c];
+    if (!cell || !cell.t) continue;
+    const n = cell.n - 1;
+    cells[r][c] = n > 0
+      ? { ...cell, n, t: { id: cell.t.id, l: '?', v: 0, o: 'hidden' } }
+      : { ...cell, n: 0, t: null };
+  }
+  const viewState = { ...state, cells };
+  let spelling = null;
+  const start = draft && draft.start;
+  if (start && items.length) {
+    const down = draft.dir === 'V';
+    const path = items.map((_, i) => [start.r + (down ? i : 0), start.c + (down ? 0 : i)]);
+    spelling = { path, word: items.map((i) => i.l).join('') };
+  }
+  const firstBlack = items.find((i) => i.b);
+  return {
+    state: viewState,
+    spelling,
+    selected: firstBlack ? { r: firstBlack.r, c: firstBlack.c } : null,
+    hintCells: start ? [] : items.map((i) => [i.r, i.c]),
+  };
+}
+
+// Read-only "NAME is spelling CAT, across" line with letter chips.
+function renderDraftLine(el, draft, name) {
+  if (!el) return;
+  const items = (draft && draft.items) || [];
+  if (!items.length) { el.innerHTML = ''; return; }
+  const chips = items.map((i) => `<span class="dchip${i.b ? ' dchip-black' : ''}">${escapeHTML(String(i.l || '').toUpperCase())}</span>`).join('');
+  el.innerHTML = `<span class="dtext">${escapeHTML(name || 'Player')} is spelling</span> ${chips}` +
+    `<span class="dtext">, ${draft.dir === 'V' ? 'down' : 'across'}</span>`;
 }
 
 // Pyramid tracker: how many of each color remain on the board (+ house),

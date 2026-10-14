@@ -80,3 +80,21 @@ test('feedback: 1-500 characters, control characters stripped', () => {
   assert.ok(message({ type: 'feedback', text: 5 }).error);
   assert.strictEqual(message({ type: 'feedback', text: 'x'.repeat(500) }).msg.text.length, 500);
 });
+
+test('draft shape is validated', () => {
+  const ok = { type: 'draft', gameId: 'g', revision: 0, dir: 'H', items: [{ r: 1, c: 2 }, { r: 1, c: 3 }] };
+  assert.ok(message(ok).msg);
+  assert.deepEqual(message({ ...ok, items: [] }).msg.items, []);
+  const ten = Array.from({ length: 10 }, (_, i) => ({ r: 0, c: i }));
+  assert.ok(message({ ...ok, items: ten }).msg);
+  assert.ok(message({ ...ok, items: ten.concat([{ r: 1, c: 1 }]) }).error);
+  for (const bad of [
+    { ...ok, items: [{ r: 10, c: 0 }] },
+    { ...ok, items: [{ r: -1, c: 0 }] },
+    { ...ok, dir: 'X' },
+    { ...ok, gameId: undefined },
+    { ...ok, revision: undefined },
+    { ...ok, items: [{ r: 1, c: 1 }, { r: 1, c: 1 }] },
+    { ...ok, items: 'x' },
+  ]) assert.ok(message(bad).error, JSON.stringify(bad).slice(0, 70));
+});

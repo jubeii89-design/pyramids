@@ -111,8 +111,24 @@ function broadcast(room, msg) {
   for (const p of room.players) if (p.ws) send(p.ws, msg);
 }
 
+// Same as broadcast, minus one socket (the sender of a draft).
+function broadcastExcept(room, msg, skip) {
+  if (room.host !== skip) send(room.host, msg);
+  for (const p of room.players) if (p.ws && p.ws !== skip) send(p.ws, msg);
+}
+
+// Tell everyone the draft is gone (owner left, or the seat was taken over).
+function clearDraft(room) {
+  const d = room.draft;
+  room.draft = null;
+  if (!d) return;
+  broadcast(room, { type: 'draft', color: d.color, gameId: d.gameId, revision: d.revision, dir: d.dir, items: [], start: null, lifted: [] });
+}
+
 const GONE_MS = Number(process.env.GONE_MS) || 30 * 1000;       // a turn belonging to a dropped phone is skipped after this
 const HOST_GRACE_MS = 10 * 60 * 1000; // a room outlives its host screen this long
+
+function room_draftOwner(room, seat) { return !!(room.draft && room.draft.color === seat.color); }
 
 function clearHostGrace(room) {
   if (room.hostGraceTimer) clearTimeout(room.hostGraceTimer);
@@ -130,10 +146,16 @@ function closeRoom(room, reason) {
 function broadcastAll(room) {
   room.lastSeen = Date.now(); // keeps a long game night from being swept mid-play
   persistRooms();
+  const d = room.draft;
+  if (d && !(room.state && room.state.phase === 'playing' && d.gameId === room.gameId && d.revision === room.revision && d.color === room.state.players[room.state.turn])) room.draft = null;
   broadcast(room, roomSnapshot(room));
   if (room.state) {
     armTurn(room);
     broadcast(room, { type: 'state', state: { ...game.serialize(room.state), gameId: room.gameId, revision: room.revision } });
+  }
+  if (room.draft) {
+    const owner = room.players.find((p) => p.color === room.draft.color);
+    broadcastExcept(room, room.draft, owner ? owner.ws : null);
   }
 }
 
@@ -265,6 +287,7 @@ wss.on('connection', (ws, req) => {
             (p) => (!p.ws || p.ws.readyState !== 1) && security.matches(msg.token, p.tokenHash)
           );
           if (seat) {
+            if (room_draftOwner(r, seat)) clearDraft(r);
             seat.ws = ws;
             seat.disconnectedAt = null;
             if (seat.hostSeat && !seat.claimed) { // first time the host sits down: they pick their own name
@@ -320,6 +343,7 @@ wss.on('connection', (ws, req) => {
           room.phase = 'playing';
           room.state = game.createGame(room.players.map((p) => p.color));
           room.gameId = randomUUID(); room.revision = 0;
+          room.draft = null;
           broadcastAll(room);
           break;
         }
@@ -336,6 +360,23 @@ wss.on('connection', (ws, req) => {
           if (!limiter.hit('lift:' + ip, 120, 10 * 1000)) return;
           if (msg.gameId !== room.gameId || msg.revision !== room.revision) return send(ws, { type: 'lift', requestId: msg.requestId, ok: false, error: 'The board changed. Try again.' });
           send(ws, { type: 'lift', requestId: msg.requestId, ok: true, gameId: room.gameId, revision: room.revision, under: game.peekUnder(room.state, msg.cells) });
+          break;
+        }
+        case 'draft': {
+          // Silent by design: a mirror that fails just stays quiet.
+          if (!room || ws.role !== 'player' || !room.state || room.state.phase !== 'playing') return;
+          if (room.state.players[room.state.turn] !== ws.color) return;
+          if (msg.gameId !== room.gameId || msg.revision !== room.revision) return;
+          if (msg.items.length) {
+            const now = Date.now();
+            if (ws.draftAt && now - ws.draftAt < 50) return;
+            if (!limiter.hit('draft:' + ip, 200, 10 * 1000)) return;
+            ws.draftAt = now;
+          }
+          const view = game.draftView(room.state, ws.color, msg);
+          if (!view) return;
+          room.draft = view;
+          broadcastExcept(room, view, ws);
           break;
         }
         case 'play': {
@@ -378,8 +419,10 @@ wss.on('connection', (ws, req) => {
             room.phase = 'playing';
             room.state = game.createGame(room.players.map((p) => p.color));
             room.gameId = randomUUID(); room.revision = 0;
+            room.draft = null;
             broadcastAll(room);
           } else {
+            room.draft = null;
             // Not enough players left to deal a board — back to the lobby so
             // the host can wait for more phones to join.
             room.phase = 'lobby';
@@ -413,6 +456,7 @@ wss.on('connection', (ws, req) => {
       room.hostGraceTimer = setTimeout(() => closeRoom(room, 'Host never came back. Room closed.'), HOST_GRACE_MS);
     } else {
       const p = room.players.find((x) => x.ws === ws);
+      if (p && room.draft && room.draft.color === p.color) clearDraft(room);
       if (p) {
         // Nothing to hold a seat for before the game starts, or once it's
         // finished (someone tapping "Main Menu" on the results screen).

@@ -304,3 +304,29 @@ input[type=text]:focus { outline: 3px solid var(--gold); }
 
 /* Results screen: how a tied game was settled */
 .tiebreak { color: var(--sand); font-size: .9rem; margin-bottom: 10px; }
+
+/* --- Direction hints, face-down tiles, live draft line --- */
+.cell.dir-hint { position: relative; }
+.cell.dir-hint::after {
+  content: attr(data-arrow);
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: clamp(14px, 4vmin, 38px); font-weight: bold; line-height: 1;
+  color: #ffd76a; opacity: .4; pointer-events: none; z-index: 7;
+  text-shadow: 0 0 4px rgba(0,0,0,.6);
+}
+.cell.dir-hint:hover::after, .cell.dir-hint.dir-chosen::after { opacity: 1; }
+.tile.o-hidden {
+  background: repeating-linear-gradient(45deg, #2c2438 0 5px, #231d2e 5px 10px);
+  border-color: #4a3d63;
+}
+.tile.o-hidden .L { color: #7d7196; -webkit-text-stroke: 0; }
+.tile.o-hidden .n { color: #a99ac4; }
+.draftline {
+  min-height: 2.2rem; display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+  margin-bottom: 6px; color: #ffd76a; font-size: 1rem;
+}
+.draftline .dchip {
+  display: inline-block; min-width: 1.5em; padding: 2px 5px; text-align: center;
+  background: #e9dfc2; color: #2b2418; border-radius: 4px; font: bold .9rem Georgia, serif;
+}
+.draftline .dchip-black { background: #2a2730; color: #e8d5a3; border: 1px solid #000; }

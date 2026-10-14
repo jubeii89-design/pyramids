@@ -68,7 +68,7 @@
 
   <!-- GAME -->
   <div id="gamearea" class="gamegrid hidden">
-    <div class="boardwrap"><div class="board" id="board"></div></div>
+    <div class="boardwrap"><div id="draftline" class="draftline"></div><div class="board" id="board"></div></div>
     <div>
       <div class="panel" style="margin-bottom: 14px">
         <h3 class="gold" style="margin-bottom:8px">Scores</h3>
@@ -100,7 +100,7 @@
 
 <script src="/board.js"></script>
 <script>
-let room = null, state = null, names = {};
+let room = null, state = null, names = {}, draft = null;
 
 keepAwake();
 
@@ -146,15 +146,24 @@ function onMsg(msg) {
     names = {};
     for (const p of msg.players) names[p.color] = p.name;
     renderLobby();
-    if (msg.phase === 'lobby') { show('lobby'); hide('gamearea'); hide('over'); state = null; }
+    if (msg.phase === 'lobby') { show('lobby'); hide('gamearea'); hide('over'); state = null; draft = null; }
   } else if (msg.type === 'state') {
+    const prev = state;
     state = msg.state;
+    if (draft && (!prev || prev.gameId !== state.gameId || prev.revision !== state.revision || prev.current !== state.current)) draft = null;
     hide('lobby'); show('gamearea');
     if (state.phase !== 'over') hide('over'); // a fresh board after Play Again
     renderGame();
+  } else if (msg.type === 'draft') {
+    if (state && msg.gameId === state.gameId && msg.revision === state.revision && msg.color === state.current) {
+      draft = msg.items && msg.items.length ? msg : null;
+    } else draft = null;
+    if (state) renderGame();
   } else if (msg.type === 'played') {
+    draft = null;
     toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}!`, true);
   } else if (msg.type === 'skipped') {
+    draft = null;
     toast(`${names[msg.color] || COLOR_NAMES[msg.color]} dropped off — turn skipped.`);
   } else if (msg.type === 'feedback_ok') {
     toast('Thanks - feedback sent.', true);
@@ -211,7 +220,9 @@ function connOf(c) {
 }
 
 function renderGame() {
-  renderBoard(document.getElementById('board'), state);
+  const d = draft ? draftOpts(state, draft) : null;
+  renderBoard(document.getElementById('board'), d ? d.state : state, d ? d : {});
+  renderDraftLine(document.getElementById('draftline'), draft, draft ? pname(draft.color) : '');
   renderTracker(document.getElementById('tracker'), state, names);
   // Scores stay hidden until the end — spelling is the focus. During play this
   // panel shows turn order, whose turn it is, and who is reconnecting.

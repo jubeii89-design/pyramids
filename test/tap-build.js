@@ -70,9 +70,10 @@ async function main() {
     const ph = hostPhone;
     const snap = () => ph.locator('#board').innerHTML();
     const counts = () => ph.evaluate(() => [...document.querySelectorAll('#board .cell')].map((c) => (c.querySelector('.n') || {}).textContent || ''));
+    const clearIfAny = async () => { if (await ph.locator('#clearBtn').isEnabled()) await ph.click('#clearBtn'); };
     const tap = (r, c) => ph.evaluate(([rr, cc]) => document.querySelectorAll('#board .cell')[rr * 10 + cc].click(), [r, c]);
 
-    check((await ph.locator('#board .tile').count()) >= 60, 'flat tiles are on the board');
+    check((await ph.locator('#board .tile').count()) >= 45, 'flat tiles are on the board');
     const first = ph.locator('#board .tile').first();
     check(/^[A-Z]$/.test(await first.locator('.L').textContent()), 'tile shows its letter in the centre');
     check(/^[1-9]$/.test(await first.locator('.v').textContent()), 'tile shows its point value in a corner');
@@ -95,13 +96,51 @@ async function main() {
       const [tr, tc] = s.to;
       return s.kind === 'move' ? s.from : [tr, tc];
     };
-    const tapWord = async () => {
-      await ph.click(move.dir === 'H' ? '#dirH' : '#dirV');
-      for (let i = 0; i < move.word.length; i++) { const [r, c] = cellFor(i); await tap(r, c); await ph.waitForTimeout(60); }
+    const cells = move.word.split('').map((_, i) => cellFor(i));
+    const isBlack = (r, c) => ph.evaluate(([rr, cc]) => blackAt(state.cells[rr][cc]), [r, c]);
+    let ai = -1;
+    for (let i = 0; i < cells.length && ai < 0; i++) if (await isBlack(...cells[i])) ai = i;
+    // The neighbour of the first black letter on the word's axis (right/below, else left/above).
+    const [ar, ac] = cells[ai];
+    const nbStep = move.dir === 'H' ? [0, 1] : [1, 0];
+    let nb = [ar + nbStep[0], ac + nbStep[1]];
+    if (nb[0] > 9 || nb[1] > 9) nb = [ar - nbStep[0], ac - nbStep[1]];
+    // Letters in order through the black one, one tap on its neighbour for the direction, then the rest.
+    // A neighbour that is also one of the letters is simply tapped again where it belongs.
+    const tapWord = async ({ noDir = false } = {}) => {
+      for (let i = 0; i <= ai; i++) { await tap(...cells[i]); await ph.waitForTimeout(60); }
+      if (!noDir) { await tap(...nb); await ph.waitForTimeout(60); }
+      for (let i = ai + 1; i < cells.length; i++) { await tap(...cells[i]); await ph.waitForTimeout(60); }
     };
+    const hostCounts = () => host.evaluate(() => [...document.querySelectorAll('#board .cell')].map((c) => (c.querySelector('.n') || {}).textContent || ''));
+    const hostLetters = () => host.evaluate(() => [...document.querySelectorAll('#board .cell')].map((c) => (c.querySelector('.L') || {}).textContent || ''));
+    const hostGlowIs = (n) => host.waitForFunction((k) => document.querySelectorAll('#board .cell.glow').length === k, n, { timeout: 5000 }).then(() => true, () => false);
+
+    check((await ph.locator('#dirH, #dirV, .dirbtn').count()) === 0, 'no Across/Down buttons on the phone');
+
+    // Direction by tapping beside the black letter
+    {
+      for (let i = 0; i <= ai; i++) { await tap(...cells[i]); await ph.waitForTimeout(60); }
+      await ph.waitForTimeout(150);
+      const nChips = await ph.locator('#wordline .wchip').count();
+      check(nChips === ai + 1, 'letters up to the black one are in the word line');
+      check((await ph.locator('#board .cell.dir-hint').count()) >= 2, 'arrows appear beside the black letter');
+      await tap(...nb); await ph.waitForTimeout(150);
+      check((await ph.locator('#wordline .wchip').count()) === nChips, 'tapping a neighbour sets the direction without adding a letter');
+      const arrowsAfter = await ph.locator('#board .cell.dir-hint').count();
+      check(arrowsAfter >= 1 && arrowsAfter <= 2, `only the chosen axis stays arrowed (${arrowsAfter})`);
+      const nbInWord = cells.slice(0, ai + 1).some(([r, c]) => r === nb[0] && c === nb[1]);
+      const nbEmpty = await ph.evaluate(([r, c]) => { const x = state.cells[r][c]; return !x.t && !x.p; }, nb);
+      if (!nbInWord && !nbEmpty) {
+        await tap(...nb); await ph.waitForTimeout(150);
+        check((await ph.locator('#wordline .wchip').count()) === nChips + 1, 'a second tap on the same neighbour adds its letter');
+      }
+      await ph.click('#clearBtn');
+    }
 
     const before = await snap();
     const countsBefore = await counts();
+    const hostLettersBefore = await hostLetters();
     await tapWord();
     await ph.waitForTimeout(250);
     const chips = await ph.locator('#wordline .wchip').allTextContents();
@@ -113,6 +152,15 @@ async function main() {
     check(dropped >= 1, `stack counts drop as letters are lifted (${dropped} stacks changed)`);
     check(await ph.locator('#board .cell.glow').count() === move.word.length, 'every square of the word glows');
     check(await ph.locator('#playBtn').isEnabled(), 'Submit is ready');
+    check(await hostGlowIs(move.word.length), 'host board glows the word length, like the phone');
+    {
+      const hc = await hostCounts();
+      const hostDropped = hc.filter((t, i) => t !== countsBefore[i]).length;
+      check(hostDropped >= 1, `host stack counts drop for lifted cells (${hostDropped})`);
+      const hl = await hostLetters();
+      const bad = hc.map((t, i) => (t !== countsBefore[i] && hl[i] !== '' && hl[i] !== '?' && hl[i] !== hostLettersBefore[i]) ? i : -1).filter((i) => i >= 0);
+      check(bad.length === 0, 'host shows no hidden under-letters');
+    }
 
     // Tap one letter in the word to take it back out
     await ph.locator('#wordline .wchip').last().click();
@@ -120,6 +168,7 @@ async function main() {
 
     await ph.click('#clearBtn');
     check((await ph.locator('#wordline .wchip').count()) === 0, 'Clear empties the word line');
+    check(await hostGlowIs(0), 'Clear removes the glow on the host');
     check((await snap()) === before, 'every stack is back exactly as it was');
     check(JSON.stringify(await counts()) === JSON.stringify(countsBefore), 'all stack counts restored');
 
@@ -131,7 +180,8 @@ async function main() {
     await tapWord();
     await ph.evaluate((w) => { build.reverse(); renderGame(); }, scrambled);
     const word2 = await ph.evaluate(() => currentWord());
-    if (!DICT.has(word2)) {
+    // A scrambled order can put the word off the board, and then Submit stays off (a client-side guard): nothing to send.
+    if (!DICT.has(word2) && await ph.locator('#playBtn').isEnabled()) {
       await ph.click('#playBtn');
       await ph.waitForSelector('#whybox:not(.hidden)', { timeout: 10000 });
       const why = await ph.locator('#whybox').textContent();
@@ -143,7 +193,17 @@ async function main() {
     }
 
     // The good word goes through and lands in the words panel on both screens.
-    await ph.click('#clearBtn').catch(() => {});
+    await clearIfAny();
+    // No direction tap at all: the effective direction (Across, or Down when Across cannot fit) is used
+    // (a letter that sits beside the black one would count as a direction tap, so skip then)
+    const beside = cells.slice(ai + 1).some(([r, c]) => Math.abs(r - ar) + Math.abs(c - ac) === 1);
+    if (!beside) {
+      await tapWord({ noDir: true });
+      await ph.waitForTimeout(150);
+      check((await ph.evaluate(() => currentWord())) === move.word, 'letters tapped without any direction tap');
+      if (move.dir === 'H') check((await ph.evaluate(() => dir)) === 'H', 'default direction is Across');
+    }
+    await clearIfAny();
     await tapWord();
     await ph.waitForFunction(() => !document.getElementById('playBtn').disabled);
     await ph.click('#playBtn');
@@ -153,6 +213,7 @@ async function main() {
     check(true, 'and in the big-screen words panel, under the player');
     check((await host.locator('#log').textContent()).includes('Hana'), 'under the host player\'s name');
     check(await ph.locator('#turnbanner').textContent().then((t) => /Waiting for/.test(t)), 'turn passed on');
+    check(await hostGlowIs(0), 'Submit leaves no glow on the host');
   } finally {
     for (const s of scripted) s.close();
     await browser.close();

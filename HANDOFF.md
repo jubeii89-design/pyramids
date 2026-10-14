@@ -16,9 +16,19 @@ source of truth; this file only records decisions and where things are.
   value top-left, stack count bottom-right). The board is flat: the old three.js
   and Blender sprite pipeline were removed (they are in git history).
 - Building a word on a phone: tap letters in spelling order; the first black
-  letter fixes where the word sits. Nothing reaches the server until Submit, so
+  letter fixes where the word sits. The direction comes from the neighbour tap:
+  tap the square beside the black letter (right or below = Across or Down; left
+  or above also, with the black letter then inside the word). Default is Across,
+  or Down if Across would run off the board. Nothing is played until Submit, so
   Clear or a refusal just forgets the local list. `lift` (server) shows the
   piece under a lifted top to the player on turn only, and never changes state.
+  `draft` mirrors the word live: the player on turn sends
+  `{type:'draft', gameId, revision, dir, items:[{r,c}]}` (squares in spelling
+  order, empty array = cleared); the server derives public letters and relays
+  `{type:'draft', color, items:[{r,c,l,b}], start, lifted}` to the host and the
+  other players. Under-letters are never sent. It is memory only (not in the
+  room store), rate limited, ignored when stale, cleared when the owner leaves
+  or the board changes, and replayed after each state broadcast.
 - The host gets a reserved seat on `host_create` and a one-time link
   (`play.html?room=CODE#seat=TOKEN`) for their own phone; an unclaimed seat is
   dropped at Start (or yields to a fourth guest).

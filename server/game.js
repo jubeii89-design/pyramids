@@ -459,6 +459,32 @@ function peekUnder(state, cells) {
   return out;
 }
 
+// What everyone may see of the word the player on turn is spelling. Public
+// letters only (top or printed): the pieces under a top are never included.
+// Returns null if any item is an empty square. Never mutates state.
+function draftView(state, color, msg) {
+  const items = [];
+  for (const { r, c } of msg.items) {
+    const cell = state.cells[r] && state.cells[r][c];
+    if (!cell) return null;
+    const top = cell.stack.length ? cell.stack[cell.stack.length - 1] : null;
+    if (top) items.push({ r, c, l: top.l, b: top.o === 'house' ? 1 : 0 });
+    else if (cell.printed) items.push({ r, c, l: cell.printed, b: 1 });
+    else return null;
+  }
+  const lifted = [];
+  msg.items.forEach(({ r, c }, i) => { if (!items[i].b && state.cells[r][c].stack.length) lifted.push({ r, c }); });
+  let start = null;
+  const first = items.findIndex((it) => it.b);
+  if (first >= 0 && items.length >= 3) {
+    const dr = msg.dir === 'V' ? 1 : 0, dc = msg.dir === 'H' ? 1 : 0;
+    const sr = items[first].r - dr * first, sc = items[first].c - dc * first;
+    const er = sr + dr * (items.length - 1), ec = sc + dc * (items.length - 1);
+    if (sr >= 0 && sc >= 0 && er < SIZE && ec < SIZE) start = { r: sr, c: sc };
+  }
+  return { type: 'draft', color, gameId: msg.gameId, revision: msg.revision, dir: msg.dir, items, start, lifted };
+}
+
 function serialize(state) {
   // Pyramid tracker: remaining on board + captured, per color (incl. house)
   const remaining = { red: 0, blue: 0, green: 0, yellow: 0, house: 0 };
@@ -645,6 +671,6 @@ function probeMove(state, color, move, sourcesByLetter) {
 
 module.exports = {
   SIZE, COLORS, VALUES, PLAYER_LETTERS, HOUSE_LETTERS,
-  createGame, playWord, planWord, peekUnder, passTurn, finish, serialize, exposed, findMove, probeMove,
+  createGame, playWord, planWord, peekUnder, draftView, passTurn, finish, serialize, exposed, findMove, probeMove,
   remainingOnBoard, startSpaces,
 };

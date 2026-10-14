@@ -183,6 +183,10 @@ async function main() {
     await ph.waitForTimeout(300);
     check((await ph.locator('#wordline .wchip').count()) === 3, 'tapped letters appear in the word line');
     check((await ph.locator('#board .cell.glow').count()) >= 0, 'board stays interactive');
+    check((await ph.locator('#dirH, #dirV').count()) === 0, 'Across/Down buttons are gone from the phone');
+    const phoneGlow = await ph.locator('#board .cell.glow').count();
+    await host3.waitForFunction((n) => document.querySelectorAll('#board .cell.glow').length === n, phoneGlow, { timeout: 5000 })
+      .then(() => check(true, `host glow matches the phone (${phoneGlow})`), () => check(false, `host glow matches the phone (${phoneGlow})`));
     const banner = await ph.locator('#turnbanner').textContent();
     check(/take your time/.test(banner) && !/\d+s/.test(banner), 'no countdown on the phone, just the turn prompt');
     check(!/\d+s/.test(await host3.locator('#scores').textContent()), 'no countdown on the big screen');
@@ -196,8 +200,16 @@ async function main() {
       check(why.trim().length > 10, `refused word explains why (${why.trim().slice(0, 70)}…)`);
       check((await ph.locator('#wordline .wchip').count()) === 0, 'refused word is cleared from the word line');
       check((await ph.evaluate(() => JSON.stringify(state.cells))) === boardBefore, 'the board is unchanged');
+      check((await host3.locator('#board .cell.glow').count()) === 0, 'host glow is gone once the word is refused');
     } else {
       check(true, 'letters need a black square on the right path before Submit (button stayed off)');
+    }
+    // Clear drops the host glow too (only meaningful while it is still our turn)
+    if (await ph.evaluate(() => myTurn())) {
+      await tapCell(...picks.tops[0]); await tapCell(...picks.black);
+      await ph.click('#clearBtn');
+      await host3.waitForFunction(() => document.querySelectorAll('#board .cell.glow').length === 0, null, { timeout: 5000 })
+        .then(() => check(true, 'host glow is 0 after Clear'), () => check(false, 'host glow is 0 after Clear'));
     }
     await host3.close(); await ph.close();
 
