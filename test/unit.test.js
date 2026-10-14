@@ -6,7 +6,7 @@ const path = require('path');
 const g = require('../server/game');
 
 const DICT = new Set(
-  fs.readFileSync(path.join(__dirname, '..', 'data', 'words.txt'), 'utf8').split('\n').filter(Boolean)
+  fs.readFileSync(path.join(__dirname, '..', 'data', 'words.txt'), 'utf8').split(/\r?\n/).filter(Boolean)
 );
 
 // Deterministic rng
@@ -132,11 +132,54 @@ test('pass stalemate ends game with final scoring', () => {
   }
   assert.strictEqual(st.phase, 'over');
   assert.ok(st.finalScores);
-  // nobody collected anything; both scores should equal minus their on-board value
+  // Nobody collected anything, so each player is left with their whole colour
+  // on the board — the penalty puts everyone deep in the negative.
   for (const c of st.players) {
     assert.strictEqual(st.finalScores[c], -g.remainingOnBoard(st, c).pts);
+    assert.ok(st.finalScores[c] < 0, 'leaving your colour out there costs you');
   }
   assert.ok(st.winner);
+});
+
+test('final score is what you captured minus your colour left on the board', () => {
+  const st = g.createGame(['red', 'blue'], seeded(21));
+  const words = require('fs').readFileSync(__dirname + '/../data/words.txt', 'utf8')
+    .split('\n').map((w) => w.trim().toLowerCase()).filter((w) => w.length >= 3 && w.length <= 6);
+  for (let i = 0; i < 8 && st.phase === 'playing'; i++) {
+    const cur = st.players[st.turn];
+    const mv = g.findMove(st, cur, words, seeded(30 + i));
+    if (mv) g.playWord(st, cur, mv, DICT); else g.passTurn(st, cur);
+  }
+  if (st.phase === 'playing') g.finish(st);
+  for (const c of st.players) {
+    const held = st.collected[c].reduce((n, p) => n + p.v, 0);
+    const stranded = g.remainingOnBoard(st, c).pts;
+    assert.strictEqual(st.scores[c], held, `${c}: running score is the captured tip values`);
+    assert.strictEqual(st.finalScores[c], held - stranded, `${c}: finals deduct your own pyramids left on the board`);
+    assert.ok(stranded > 0, 'this game really does leave pyramids on the board');
+  }
+});
+
+test('a tied game is settled by a random draw, not by seat order', () => {
+  // Nobody scores, so red and blue always tie on zero. Seat order would hand
+  // every one of these to red; the draw must not.
+  const wins = { red: 0, blue: 0 };
+  for (let seed = 1; seed <= 200; seed++) {
+    const st = g.createGame(['red', 'blue'], seeded(seed));
+    const rng = seeded(1000 + seed);
+    for (let n = 0; n < 4; n++) g.passTurn(st, st.players[st.turn], rng);
+    assert.strictEqual(st.phase, 'over');
+    assert.strictEqual(st.finalScores.red, st.finalScores.blue, 'the game really is tied');
+    assert.ok(st.tieBreak, 'the draw is recorded on the state');
+    assert.deepStrictEqual(st.tieBreak.among.slice().sort(), ['blue', 'red']);
+    assert.ok(st.tieBreak.resolved, 'the draw produced a single winner');
+    const { drew } = st.tieBreak;
+    assert.strictEqual(st.winner, drew.red > drew.blue ? 'red' : 'blue', 'highest pyramid drawn wins');
+    wins[st.winner]++;
+  }
+  // The point of the change: the first seat does not win every tie.
+  assert.ok(wins.red > 20, `red won ${wins.red}/200 ties`);
+  assert.ok(wins.blue > 20, `blue won ${wins.blue}/200 ties`);
 });
 
 test('game ends when a seated color is exhausted', () => {

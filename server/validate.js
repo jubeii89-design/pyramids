@@ -1,0 +1,125 @@
+'use strict';
+// Shape-checks every client message once, so handlers only ever see typed,
+// bounded fields. Returns { msg } (normalised) or { error }.
+const TYPES = new Set(['host_create', 'join', 'start', 'play', 'preview', 'lift', 'draft', 'pass', 'again', 'feedback']);
+
+function cleanName(value) {
+  const name = String(value == null ? '' : value)
+    .normalize('NFKC')
+    .replace(/\s+/g, ' ')
+    .replace(/[\p{Cc}\p{Cf}<>]/gu, '')
+    .trim()
+    .slice(0, 16)
+    .trim();
+  return name || 'Player';
+}
+
+const str = (v, max) => (typeof v === 'string' && v.length <= max ? v : null);
+const int = (v, lo, hi) => (Number.isInteger(v) && v >= lo && v <= hi ? v : null);
+
+function message(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { error: 'Bad message.' };
+  if (!TYPES.has(raw.type)) return { error: 'Unknown message type.' };
+  const msg = { type: raw.type };
+  if (raw.token !== undefined) {
+    msg.token = str(raw.token, 100);
+    if (msg.token === null) return { error: 'Bad credential.' };
+  }
+  switch (raw.type) {
+    case 'host_create': {
+      const resume = raw.resume === undefined || raw.resume === '' ? '' : str(raw.resume, 4);
+      if (resume === null || (resume && !/^[A-Za-z]{4}$/.test(resume))) return { error: 'Bad room code.' };
+      msg.resume = resume.toUpperCase();
+      break;
+    }
+    case 'join': {
+      const code = str(raw.code, 8) && raw.code.trim().toUpperCase();
+      if (!code || !/^[A-Z]{4}$/.test(code)) return { error: 'Enter the 4-letter room code.' };
+      msg.code = code;
+      msg.name = cleanName(raw.name);
+      break;
+    }
+    case 'feedback': {
+      const text = typeof raw.text === 'string' ? raw.text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim() : '';
+      if (text.length < 1 || text.length > 500) return { error: 'Feedback must be 1-500 characters.' };
+      msg.text = text;
+      break;
+    }
+    case 'play':
+    case 'preview': {
+      const r = int(raw.r, 0, 9), c = int(raw.c, 0, 9);
+      if (r === null || c === null) return { error: 'Choose a board square.' };
+      if (raw.dir !== 'H' && raw.dir !== 'V') return { error: 'Direction must be H or V.' };
+      if (typeof raw.word !== 'string' || !/^[A-Za-z]{3,10}$/.test(raw.word.trim())) {
+        return { error: 'Words must be 3-10 letters (A-Z only).' };
+      }
+      msg.r = r; msg.c = c; msg.dir = raw.dir; msg.word = raw.word.trim();
+      if (raw.gameId !== undefined) {
+        msg.gameId = str(raw.gameId, 64);
+        if (msg.gameId === null) return { error: 'Bad game id.' };
+      }
+      if (raw.revision !== undefined) {
+        msg.revision = int(raw.revision, 0, 1e9);
+        if (msg.revision === null) return { error: 'Bad revision.' };
+      }
+      if (raw.sources !== undefined && raw.sources !== null) {
+        // one board square per letter, or null for "engine picks"
+        if (!Array.isArray(raw.sources) || raw.sources.length !== msg.word.length) return { error: 'Pick one piece per letter.' };
+        msg.sources = [];
+        for (const s of raw.sources) {
+          if (s === null) { msg.sources.push(null); continue; }
+          const sr = s && typeof s === 'object' ? int(s.r, 0, 9) : null, sc = s && typeof s === 'object' ? int(s.c, 0, 9) : null;
+          if (sr === null || sc === null) return { error: 'Bad piece choice.' };
+          msg.sources.push({ r: sr, c: sc });
+        }
+      }
+      if (raw.requestId !== undefined) {
+        if (Number.isSafeInteger(raw.requestId) && raw.requestId >= 0) msg.requestId = raw.requestId;
+        else if (typeof raw.requestId === 'string' && raw.requestId.length <= 40) msg.requestId = raw.requestId;
+        else return { error: 'Bad request id.' };
+      }
+      break;
+    }
+    case 'lift': {
+      // Which stacks the current player has picked up while building a word (their tops, in order).
+      if (!Array.isArray(raw.cells) || raw.cells.length > 10) return { error: 'Bad pieces.' };
+      msg.cells = [];
+      for (const cell of raw.cells) {
+        const r = cell && typeof cell === 'object' ? int(cell.r, 0, 9) : null, c = cell && typeof cell === 'object' ? int(cell.c, 0, 9) : null;
+        if (r === null || c === null) return { error: 'Bad piece.' };
+        msg.cells.push({ r, c });
+      }
+      msg.gameId = str(raw.gameId, 64);
+      msg.revision = int(raw.revision, 0, 1e9);
+      if (msg.gameId === null || msg.revision === null) return { error: 'Bad game id.' };
+      if (raw.requestId !== undefined) {
+        if (Number.isSafeInteger(raw.requestId) && raw.requestId >= 0) msg.requestId = raw.requestId;
+        else return { error: 'Bad request id.' };
+      }
+      break;
+    }
+    case 'draft': {
+      // The word the player on turn is spelling: squares only, in order. The server derives the rest.
+      if (raw.dir !== 'H' && raw.dir !== 'V') return { error: 'Direction must be H or V.' };
+      if (!Array.isArray(raw.items) || raw.items.length > 10) return { error: 'Bad pieces.' };
+      msg.dir = raw.dir;
+      msg.items = [];
+      const seen = new Set();
+      for (const cell of raw.items) {
+        const r = cell && typeof cell === 'object' ? int(cell.r, 0, 9) : null, c = cell && typeof cell === 'object' ? int(cell.c, 0, 9) : null;
+        if (r === null || c === null) return { error: 'Bad piece.' };
+        if (seen.has(r * 10 + c)) return { error: 'Bad pieces.' };
+        seen.add(r * 10 + c);
+        msg.items.push({ r, c });
+      }
+      msg.gameId = str(raw.gameId, 64);
+      msg.revision = int(raw.revision, 0, 1e9);
+      if (msg.gameId === null || msg.revision === null) return { error: 'Bad game id.' };
+      break;
+    }
+    default: break; // start, pass, again carry no fields
+  }
+  return { msg };
+}
+
+module.exports = { message, cleanName };

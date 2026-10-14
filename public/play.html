@@ -11,10 +11,19 @@
   .topbar .me { font-size: 1.1rem; }
   .turnbanner { text-align: center; padding: 10px; border-radius: 10px; margin-bottom: 10px; font-size: 1.1rem; background: #241d14; }
   .turnbanner.mine { background: #3a5a2c; color: #eaffdc; font-weight: bold; }
+  .wordline { display: flex; gap: 6px; flex-wrap: wrap; min-height: 52px; align-items: center; padding: 8px; background: #241d14; border-radius: 10px; margin-bottom: 10px; }
+  .wordline .ph { color: #8f8363; font-size: .9rem; }
+  .wchip { width: 42px; height: 46px; border-radius: 8px; border: 2px solid #8d8470; background: linear-gradient(180deg, var(--pyr-lite), var(--pyr-mid)); color: #000; font: bold 1.3rem Georgia, serif; position: relative; padding: 0; }
+  .wchip.black { background: linear-gradient(180deg, #3b3842, #232128); border-color: #000; color: #e8d5a3; }
+  .wchip small { position: absolute; top: 2px; left: 4px; font: bold .6rem Verdana, sans-serif; }
+  .wchip.o-red { border-color: var(--red); } .wchip.o-blue { border-color: var(--blue); }
+  .wchip.o-green { border-color: var(--green); } .wchip.o-yellow { border-color: var(--yellow); }
+  .wp-row { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px solid #3d2f56; font-size: .92rem; }
+  .wp-row.wp-turn .wp-who { color: var(--gold); }
+  .wp-who { flex: 0 0 38%; }
+  .wp-words b { margin-right: 8px; letter-spacing: .04em; } .wp-words i { color: #8f8363; }
   .controls { margin-top: 12px; }
   .controls .row { display: flex; gap: 8px; margin-bottom: 10px; }
-  .dirbtn { flex: 0 0 auto; padding: 12px 16px; background: #33291a; color: var(--sand); border: 2px solid #4a3d28; }
-  .dirbtn.active { background: var(--gold); color: #241a05; font-weight: bold; }
   .hint { color: #b9a87c; font-size: .9rem; margin-top: 6px; line-height: 1.4; }
   .scoresmini { display: flex; gap: 12px; flex-wrap: wrap; font-size: .95rem; margin-top: 10px; }
   .hidden { display: none !important; }
@@ -40,12 +49,12 @@
     <h2 class="gold">You're in!</h2>
     <p id="mycolor" style="font-size:1.3rem; margin:14px 0"></p>
     <p style="color:var(--sand)">Waiting for the host to start the game&hellip;</p>
+    <p><button class="btn secondary" id="inviteBtn">Invite a friend</button> <button class="btn secondary" id="howtoWaitBtn" data-howto>How to play</button></p>
     <div class="rules-mini panel" style="margin-top:20px; text-align:left">
-      <b class="gold">How to play:</b> On your turn, <b>tap</b> the square where your word
-      starts, then <b>swipe</b> across or down to aim it — the squares light up and show
-      your letters filling in. Type the word and hit Play. Every word needs one of
-      <b>your</b> pyramids and one <b>black</b> letter; the game grabs and moves the
-      exposed pyramids for you. Focus on spelling — points are tallied at the end!
+      <b class="gold">How to play:</b> On your turn, <b>tap letters</b> on the board in the
+      order you want to spell them, and press Submit.
+      Every word needs one of <b>your</b> pyramids and one <b>black</b> letter.
+      Tap a letter in your word to take it back out. Points are tallied at the end!
     </div>
   </div>
 
@@ -53,23 +62,25 @@
   <div id="gameview" class="hidden">
     <div class="topbar">
       <span class="me" id="me"></span>
-      <span id="roomcode" style="letter-spacing:.2em; color:var(--gold)"></span>
+      <span><button class="btn secondary" id="howtoBtn" data-howto aria-label="How to play" style="padding:4px 10px; margin-right:8px">?</button><span id="roomcode" style="letter-spacing:.2em; color:var(--gold)"></span></span>
     </div>
     <div class="turnbanner" id="turnbanner"></div>
-    <div class="board3d"><div class="board" id="board"></div></div>
+    <div class="boardwrap"><div class="board" id="board"></div></div>
     <div class="controls" id="controls">
+      <div class="wordline" id="wordline" aria-live="polite"></div>
+      <div id="whybox" class="whybox hidden" role="alert"><b></b><span></span></div>
       <div class="row">
-        <button class="dirbtn active" id="dirH">Across &#8594;</button>
-        <button class="dirbtn" id="dirV">Down &#8595;</button>
+        <button class="btn secondary" id="clearBtn" style="flex:1" disabled>Clear</button>
       </div>
       <div class="row">
-        <input type="text" id="wordin" placeholder="WORD" autocomplete="off" autocapitalize="characters">
-      </div>
-      <div class="row">
-        <button class="btn" id="playBtn" style="flex:1">Play Word</button>
+        <button class="btn" id="playBtn" style="flex:1" disabled>Submit Word</button>
         <button class="btn secondary" id="passBtn">Pass</button>
       </div>
-      <div class="hint" id="selhint">Tap the square where your word starts.</div>
+      <div class="hint" id="selhint">Tap letters on the board to spell your word.</div>
+    </div>
+    <div class="panel wordspanel" style="margin-top:12px; padding:12px">
+      <b class="gold" style="font-size:.9rem">WORDS PLAYED</b>
+      <div id="wordspanel"></div>
     </div>
     <div class="scoresmini" id="scoresmini"></div>
     <div class="panel" style="margin-top:12px; padding:12px">
@@ -93,8 +104,130 @@
 <script src="/board.js"></script>
 <script>
 const params = new URLSearchParams(location.search);
-let myColor = null, myName = null, state = null, names = {}, turnDeadline = null;
-let sel = null, dir = 'H';
+let myColor = null, myName = null, state = null, names = {};
+let dir = 'H';             // effective direction ('H' across, 'V' down); recomputed every render
+let dirChosen = false;     // true once the player tapped beside the black letter
+let pick = null;           // { sq, prevDir, prevChosen } while a direction tap can still become a letter tap
+let spectDraft = null;     // another player's in-progress word, shown read-only
+// The word being built: letters in spelling order. Each item is a board square
+// the player tapped. Nothing is sent to the server until Submit, so clearing
+// is just forgetting this list - every stack goes back exactly as it was.
+let build = [];           // [{ r, c, l, v, o, black }]
+let lifted = new Map();   // "r,c" -> what is under the lifted top ({l,v,o} or null)
+let liftRequest = 0;
+const boardElement = document.getElementById('board');
+const key = (r, c) => r + ',' + c;
+
+// Why a word was refused: the reason, then what to try. Stays until the word changes.
+function showWhy(msg) {
+  const box = document.getElementById('whybox');
+  box.querySelector('b').textContent = msg.error || 'That move was not accepted.';
+  box.querySelector('span').textContent = msg.hint || '';
+  box.classList.remove('hidden');
+}
+function clearWhy() { document.getElementById('whybox').classList.add('hidden'); }
+
+function resetBuild() { build = []; lifted = new Map(); liftRequest++; dirChosen = false; pick = null; }
+
+// Across unless that runs off the board and Down fits; a chosen direction always wins.
+function effectiveDir() {
+  if (dirChosen) return dir;
+  const idx = build.findIndex((x) => x.black);
+  if (idx < 0 || !state) return 'H';
+  const a = build[idx], n = build.length, size = state.size;
+  const hFits = a.c - idx >= 0 && a.c - idx + n - 1 < size;
+  const vFits = a.r - idx >= 0 && a.r - idx + n - 1 < size;
+  return !hFits && vFits ? 'V' : 'H';
+}
+function recomputeDir() { dir = effectiveDir(); }
+function anchorItem() { return build.find((x) => x.black) || null; }
+// Which side of the anchor (r,c) is on: { axis, glyph } or null.
+function neighbourOf(r, c) {
+  const a = anchorItem(); if (!a) return null;
+  if (r === a.r && c === a.c + 1) return { axis: 'H', glyph: '\u2192' };
+  if (r === a.r && c === a.c - 1) return { axis: 'H', glyph: '\u2190' };
+  if (c === a.c && r === a.r + 1) return { axis: 'V', glyph: '\u2193' };
+  if (c === a.c && r === a.r - 1) return { axis: 'V', glyph: '\u2191' };
+  return null;
+}
+
+// A black letter is a house pyramid on top of a stack, or a printed square nothing covers.
+function blackAt(cell) { return (cell.t && cell.t.o === 'house') || (!cell.t && !!cell.p); }
+function letterAt(cell) { return cell.t ? cell.t.l : cell.p; }
+
+// Where the word sits: its first black letter stays put, so it fixes the start square.
+function placement() {
+  const idx = build.findIndex((x) => x.black);
+  if (idx < 0 || build.length < 3) return null;
+  const a = build[idx];
+  const r = dir === 'V' ? a.r - idx : a.r, c = dir === 'H' ? a.c - idx : a.c;
+  const endR = dir === 'V' ? r + build.length - 1 : r, endC = dir === 'H' ? c + build.length - 1 : c;
+  if (r < 0 || c < 0 || endR >= state.size || endC >= state.size) return { r, c, off: true };
+  return { r, c };
+}
+function pathCells() {
+  const p = placement(); if (!p || p.off) return [];
+  return build.map((_, i) => [dir === 'V' ? p.r + i : p.r, dir === 'H' ? p.c + i : p.c]);
+}
+
+// The board as this player sees it mid-build: lifted tops show what is underneath.
+function viewState() {
+  if (!lifted.size) return state;
+  const cells = state.cells.map((row, r) => row.map((cell, c) => {
+    const k = key(r, c);
+    if (!lifted.has(k) || cell.t === null) return cell;
+    const under = lifted.get(k);
+    return { ...cell, n: cell.n - 1, t: under ? { id: 'u' + k, ...under } : null };
+  }));
+  return { ...state, cells };
+}
+
+function onCell(r, c) {
+  if (!myTurn()) return;
+  const k = key(r, c);
+  const nb = neighbourOf(r, c);
+  if (nb && pick && pick.sq.r === r && pick.sq.c === c) {
+    // Second tap on the square that just set the direction: now it is a letter.
+    if (pick.prevChosen) dir = pick.prevDir; // else the new direction stays
+    dirChosen = true; pick = null;
+  } else if (nb && (!dirChosen || nb.axis !== dir)) {
+    pick = { sq: { r, c }, prevDir: dir, prevChosen: dirChosen };
+    dir = nb.axis; dirChosen = true;
+    clearWhy(); renderGame(); return;
+  } else {
+    pick = null;
+  }
+  if (build.some((x) => x.r === r && x.c === c)) return;          // already in the word: take it out from the word line
+  if (lifted.has(k)) return;                                       // uncovered this turn: not usable
+  const cell = state.cells[r][c];
+  if (!cell.t && !cell.p) return toast('That square is empty.');
+  if (build.length >= 10) return toast('Words are 3 to 10 letters.');
+  const black = blackAt(cell);
+  const top = cell.t;
+  build.push({ r, c, l: letterAt(cell), v: top ? top.v : 0, o: top ? top.o : 'house', black });
+  if (!black) { // take the top off: ask the server what is underneath, for this player only
+    lifted.set(k, null);
+    sendWS(ws, { type: 'lift', requestId: ++liftRequest, gameId: state.gameId, revision: state.revision, cells: [{ r, c }] });
+  }
+  clearWhy(); renderGame();
+}
+
+function removeItem(i) {
+  const it = build[i]; if (!it) return;
+  pick = null;
+  if (it === anchorItem()) dirChosen = false;
+  lifted.delete(key(it.r, it.c));
+  build.splice(i, 1);
+  clearWhy(); renderGame();
+}
+
+function currentWord() { return build.map((x) => x.l).join(''); }
+function sourcesFor(p) {
+  return build.map((it, i) => {
+    const pr = dir === 'V' ? p.r + i : p.r, pc = dir === 'H' ? p.c + i : p.c;
+    return it.r === pr && it.c === pc ? null : { r: it.r, c: it.c };
+  });
+}
 
 const codein = document.getElementById('codein');
 if (params.get('room')) {
@@ -102,21 +235,37 @@ if (params.get('room')) {
   document.getElementById('roomlabel').textContent = 'Room ' + codein.value;
   codein.classList.add('hidden');
 }
+// The host's own seat arrives as a link with the seat credential in the fragment,
+// so it never reaches server logs. Keep it for this tab and remove it from the address bar.
+(function () {
+  const m = /(?:^|[#&])seat=([A-Za-z0-9_-]{8,100})/.exec(location.hash);
+  const code = (params.get('room') || '').toUpperCase();
+  if (m && code) {
+    try { sessionStorage.setItem('cp_seat_' + code, JSON.stringify({ name: 'Host', token: m[1] })); } catch {}
+    document.getElementById('namein').value = 'Host';
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+})();
 
+keepAwake();
 let ws = null, joinedCode = null;
+let seatToken = '';
+function savedSeat(code) { try { return JSON.parse(sessionStorage.getItem('cp_seat_' + code) || 'null'); } catch { return null; } }
 function ensureWS(cb) {
   if (ws && ws.readyState === 1) return cb();
   ws = connectWS(onMsg, cb);
   ws.onclose = scheduleRejoin;
 }
 
+let rejoinTries = 0;
 function scheduleRejoin() {
   if (!joinedCode || !myName) return;
+  const delay = Math.min(1500 * 2 ** rejoinTries++, 15000); // back off, never hammer the server
   setTimeout(() => {
-    if (ws && ws.readyState === 1) return;
-    ws = connectWS(onMsg, () => sendWS(ws, { type: 'join', code: joinedCode, name: myName }));
+    if (!joinedCode || (ws && ws.readyState === 1)) return;
+    ws = connectWS(onMsg, () => sendWS(ws, { type: 'join', code: joinedCode, name: myName, token: seatToken }));
     ws.onclose = scheduleRejoin;
-  }, 1500);
+  }, delay);
 }
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && joinedCode && (!ws || ws.readyState !== 1)) scheduleRejoin();
@@ -128,13 +277,24 @@ document.getElementById('joinBtn').addEventListener('click', () => {
   if (code.length !== 4) return toast('Enter the 4-letter room code.');
   myName = name;
   joinedCode = code;
-  ensureWS(() => sendWS(ws, { type: 'join', code, name }));
+  seatToken = savedSeat(code)?.token || '';
+  ensureWS(() => sendWS(ws, { type: 'join', code, name, token: seatToken }));
 });
 
 function onMsg(msg) {
-  if (msg.type === 'joined') {
+  if (msg.type === 'lift') {
+    if (!state || msg.requestId !== liftRequest || msg.gameId !== state.gameId || msg.revision !== state.revision) return;
+    if (!msg.ok) { resetBuild(); toast(msg.error); return renderGame(); }
+    for (const u of msg.under) if (lifted.has(key(u.r, u.c))) lifted.set(key(u.r, u.c), u.under);
+    renderGame();
+  } else if (msg.type === 'joined') {
+    rejoinTries = 0;
     myColor = msg.color;
+    myName = msg.name;
+    if (msg.token) seatToken = msg.token;
+    try { sessionStorage.setItem('cp_seat_' + msg.code, JSON.stringify({ name: myName, token: seatToken })); } catch {}
     document.getElementById('roomcode').textContent = msg.code;
+    if (build.length) { draftLast = ''; pushDraft(); }
     document.getElementById('mycolor').innerHTML = `You are <span class="chip ${myColor}"></span><b>${COLOR_NAMES[myColor]}</b>`;
     show('waitview'); hide('joinview');
   } else if (msg.type === 'room') {
@@ -146,31 +306,44 @@ function onMsg(msg) {
     // board): drop the finished game and put everyone — including anyone
     // still on the results screen — back on the waiting screen.
     if (msg.phase === 'lobby') {
-      state = null;
+      state = null; resetBuild(); spectDraft = null;
       if (myColor) { show('waitview'); hide('gameview'); hide('overview'); }
     }
   } else if (msg.type === 'state') {
     const prev = state;
     state = msg.state;
-    turnDeadline = msg.turnDeadline || null;
+    // Any change to the board (a turn passing, someone's word) voids a half-built word.
+    const changed = !prev || prev.gameId !== state.gameId || prev.revision !== state.revision;
+    if (changed) { if (build.length) toast('The board changed - your word was cleared.'); resetBuild(); draftLast = ''; draftSentNonEmpty = false; }
+    if (changed || prev.current !== state.current) spectDraft = null;
     hide('waitview'); hide('joinview');
     if (state.phase === 'over') { renderOver(); return; }
-    // A fresh board (the host hit Play Again): clear the last game's typing
-    // and jump straight back in, as long as we still hold a seat in it.
-    if (!prev || prev.phase === 'over') { sel = null; document.getElementById('wordin').value = ''; }
     if (!state.players.includes(myColor)) { hide('gameview'); hide('overview'); show('waitview'); return; }
     show('gameview'); hide('overview'); renderGame();
   } else if (msg.type === 'reject') {
-    toast(msg.error);
+    resetBuild(); showWhy(msg); toast(msg.error); if (state) renderGame();
+  } else if (msg.type === 'draft') {
+    if (msg.color === myColor || !state) return;
+    if (msg.gameId !== state.gameId || msg.revision !== state.revision || msg.color !== state.current) return;
+    spectDraft = msg.items && msg.items.length ? msg : null;
+    if (!myTurn() && state.phase === 'playing' && state.players.includes(myColor)) renderGame();
   } else if (msg.type === 'played') {
-    if (msg.color === myColor) {
-      document.getElementById('wordin').value = '';
-      sel = null;
-      toast(`You spelled ${msg.word.toUpperCase()}!`, true);
-    } else toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}`, true);
+    spectDraft = null;
+    if (msg.color === myColor) toast(`You spelled ${msg.word.toUpperCase()}!`, true);
+    else toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}`, true);
   } else if (msg.type === 'skipped') {
-    if (msg.color === myColor) { sel = null; document.getElementById('wordin').value = ''; toast('Time up — your turn was skipped.'); }
+    spectDraft = null;
+    if (msg.color === myColor) { resetBuild(); toast('You dropped off — your turn was skipped.'); }
+  } else if (msg.type === 'feedback_ok') {
+    toast('Thanks - feedback sent.', true);
   } else if (msg.type === 'error') {
+    if (msg.code === 'ROOM_GONE' || msg.code === 'SEAT_GONE') {
+      // The room or our seat no longer exists: stop retrying and forget the stale seat.
+      try { sessionStorage.removeItem('cp_seat_' + joinedCode); } catch {}
+      joinedCode = null; myColor = null; seatToken = ''; state = null;
+      if (ws) { ws.onclose = null; ws.close(); }
+      hide('waitview'); hide('gameview'); hide('overview'); show('joinview');
+    }
     toast(msg.error);
   }
 }
@@ -180,65 +353,124 @@ function hide(id) { document.getElementById(id).classList.add('hidden'); }
 
 function myTurn() { return state && state.phase === 'playing' && state.current === myColor; }
 
-// Cells covered by the word being spelled, from the start square in the
-// chosen direction (used for the glowing preview).
-function spellPath() {
-  if (!sel) return [];
-  const word = document.getElementById('wordin').value.trim();
-  const len = Math.max(word.length, 2);
-  const out = [];
-  for (let i = 0; i < len; i++) {
-    const r = dir === 'V' ? sel.r + i : sel.r;
-    const c = dir === 'H' ? sel.c + i : sel.c;
-    if (r < state.size && c < state.size) out.push([r, c]);
-  }
-  return out;
-}
-
 function renderGame() {
-  document.getElementById('me').innerHTML = `<span class="chip ${myColor}"></span>${myName} (${COLOR_NAMES[myColor]})`;
+  recomputeDir();
+  document.getElementById('me').innerHTML = `<span class="chip ${myColor}"></span>${escapeHTML(myName)} (${COLOR_NAMES[myColor]})`;
   const tb = document.getElementById('turnbanner');
-  if (myTurn()) { tb.classList.add('mine'); }
-  else { tb.innerHTML = `Waiting for ${names[state.current] || COLOR_NAMES[state.current]}&hellip;`; tb.classList.remove('mine'); }
-  const word = document.getElementById('wordin').value.trim();
-  renderBoard(document.getElementById('board'), state, {
-    selected: sel,
-    spelling: myTurn() && sel ? { path: spellPath(), word } : null,
-    onCell: (r, c) => { if (myTurn()) { sel = { r, c }; renderGame(); } },
-  });
+  if (myTurn()) { tb.textContent = '▲ Your turn — take your time. Play a word, or Pass.'; tb.classList.add('mine'); }
+  else { tb.textContent = `Waiting for ${names[state.current] || COLOR_NAMES[state.current]}…`; tb.classList.remove('mine'); }
+  const word = currentWord();
+  const p = placement();
+  const path = pathCells();
+  const anchor = anchorItem();
+  const line = document.getElementById('wordline');
+  const spect = !myTurn() && spectDraft && typeof draftOpts === 'function' ? draftOpts(state, spectDraft) : null;
+  if (spect) {
+    renderBoard(boardElement, spect.state, { selected: spect.selected, spelling: spect.spelling, hintCells: spect.hintCells, onCell: null });
+    line.replaceChildren();
+    if (typeof renderDraftLine === 'function') renderDraftLine(line, spectDraft, names[spectDraft.color] || COLOR_NAMES[spectDraft.color]);
+  } else {
+    const arrows = [];
+    if (myTurn() && anchor) {
+      for (const [dr, dc] of [[0, 1], [1, 0], [0, -1], [-1, 0]]) {
+        const rr = anchor.r + dr, cc = anchor.c + dc;
+        if (rr < 0 || cc < 0 || rr >= state.size || cc >= state.size) continue;
+        const nb = neighbourOf(rr, cc);
+        if (dirChosen && nb.axis !== dir) continue;
+        arrows.push({ r: rr, c: cc, glyph: nb.glyph });
+      }
+    }
+    let hintCells = [];
+    if (myTurn() && anchor && dirChosen) {
+      const idx = build.indexOf(anchor);
+      const sr = dir === 'V' ? anchor.r - idx : anchor.r, sc = dir === 'H' ? anchor.c - idx : anchor.c;
+      const nr = dir === 'V' ? sr + build.length : sr, nc = dir === 'H' ? sc + build.length : sc;
+      if (sr >= 0 && sc >= 0 && nr < state.size && nc < state.size && build.length < 10) hintCells = [[nr, nc]];
+    }
+    renderBoard(boardElement, viewState(), {
+      selected: anchor ? { r: anchor.r, c: anchor.c } : null,
+      spelling: myTurn() && path.length ? { path, word } : null,
+      arrows, hintCells,
+      onCell: myTurn() ? onCell : null,
+    });
+    renderWordLine(line);
+  }
+  const hasBlack = build.some((x) => x.black);
+  const ok = myTurn() && build.length >= 3 && hasBlack && p && !p.off;
+  document.getElementById('playBtn').disabled = !ok;
+  document.getElementById('clearBtn').disabled = !build.length;
   document.getElementById('controls').style.opacity = myTurn() ? 1 : 0.45;
-  document.getElementById('selhint').innerHTML = !myTurn()
-    ? 'Waiting for your turn&hellip;'
-    : sel
-      ? `Start: row ${sel.r + 1}, col ${sel.c + 1} — <b>${dir === 'H' ? 'Across →' : 'Down ↓'}</b>. Swipe on the board to change direction.`
-      : 'Tap the square where your word starts, then swipe the direction.';
+  document.getElementById('selhint').textContent = !myTurn() ? 'Waiting for your turn\u2026'
+    : !build.length ? 'Tap letters on the board in the order you want to spell them.'
+    : anchor && !dirChosen && build.length === 1 ? 'Tap a square beside the black letter to choose the direction.'
+    : build.length < 3 ? 'Words are at least 3 letters.'
+    : !hasBlack ? 'Add a black letter (a black pyramid or a printed square) - every word needs one.'
+    : p && p.off ? 'That would run off the board - try the other direction or fewer letters.'
+    : `Ready: ${word.toUpperCase()} ${dir === 'H' ? 'across' : 'down'}. Submit, or tap a letter to take it out.` + (dirChosen ? '' : ` ${dir === 'H' ? 'Across' : 'Down'} - tap the square ${dir === 'H' ? 'below' : 'beside'} the black letter for ${dir === 'H' ? 'Down' : 'Across'}.`);
   // Scores stay hidden until the end — this row just shows who is connected.
   document.getElementById('scoresmini').innerHTML = state.players.map(c => {
-    const p = names[c] || COLOR_NAMES[c];
+    const nm = names[c] || COLOR_NAMES[c];
     const turn = state.current === c ? ' ▲' : '';
-    return `<span><span class="chip ${c}"></span>${p}${turn}</span>`;
+    return `<span><span class="chip ${c}"></span>${escapeHTML(nm)}${turn}</span>`;
   }).join('');
+  renderWords(document.getElementById('wordspanel'), state, names);
   renderTracker(document.getElementById('tracker'), state, names);
-  updateClock();
+  pushDraft();
 }
 
-function updateClock() {
-  const tb = document.getElementById('turnbanner');
-  if (!myTurn()) return;
-  if (!turnDeadline) { tb.textContent = '▲ Your turn! Spell a word.'; return; }
-  const left = Math.max(0, Math.ceil((turnDeadline - Date.now()) / 1000));
-  tb.textContent = `▲ Your turn! ${left}s to spell`;
-  tb.style.background = left <= 10 ? '#5a2c2c' : '';
+// Mirror the word being built to the big screen (and other phones), throttled.
+let draftLast = '', draftSentNonEmpty = false, draftTimer = null, draftAt = 0;
+function draftMsg() {
+  return { type: 'draft', gameId: state.gameId, revision: state.revision, dir, items: build.map(({ r, c }) => ({ r, c })) };
 }
-setInterval(() => { if (state && state.phase === 'playing') updateClock(); }, 1000);
+function draftFlush() {
+  draftTimer = null;
+  if (!myTurn() || !ws || ws.readyState !== 1) return;
+  const m = draftMsg();
+  if (!m.items.length && !draftSentNonEmpty) return;
+  const j = JSON.stringify(m);
+  if (j === draftLast) return;
+  draftLast = j; draftAt = Date.now(); draftSentNonEmpty = m.items.length > 0;
+  sendWS(ws, m);
+}
+function pushDraft() {
+  if (!myTurn()) return;
+  const m = draftMsg();
+  if (!m.items.length && !draftSentNonEmpty) return;
+  if (JSON.stringify(m) === draftLast) return;
+  const wait = 120 - (Date.now() - draftAt);
+  if (wait <= 0) draftFlush();
+  else if (!draftTimer) draftTimer = setTimeout(draftFlush, wait);
+}
+
+function renderWordLine(line) {
+  // The word line: every letter is a button that takes that letter back out.
+  line.replaceChildren();
+  if (!build.length) {
+    const ph = document.createElement('span'); ph.className = 'ph';
+    ph.textContent = myTurn() ? 'Tap letters on the board to spell your word.' : 'Your word will appear here on your turn.';
+    line.append(ph);
+  }
+  build.forEach((it, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'wchip ' + (it.black ? 'black' : 'o-' + it.o);
+    b.textContent = it.l.toUpperCase();
+    if (it.v) { const s = document.createElement('small'); s.textContent = it.v; b.append(s); }
+    b.setAttribute('aria-label', `Letter ${i + 1}: ${it.l.toUpperCase()}. Tap to remove.`);
+    b.onclick = () => removeItem(i);
+    line.append(b);
+  });
+}
 
 function renderOver() {
   show('overview'); hide('gameview');
   const f = state.finalScores;
-  const ranked = state.players.slice().sort((a, b) => f[b] - f[a]);
+  const nameOf = (c) => names[c] || COLOR_NAMES[c];
   document.getElementById('finals').innerHTML =
-    `<p style="margin-bottom:10px">&#127942; <b>${names[state.winner] || COLOR_NAMES[state.winner]}</b> wins!</p>` +
-    ranked.map(c => `<div><span class="chip ${c}"></span>${names[c] || COLOR_NAMES[c]}: <b>${f[c]}</b></div>`).join('');
+    `<p style="margin-bottom:10px">&#127942; <b>${escapeHTML(nameOf(state.winner))}</b> wins!</p>` +
+    tieBreakLine(state, nameOf) +
+    rankFinal(state).map(c => `<div><span class="chip ${c}"></span>${escapeHTML(nameOf(c))}: <b>${f[c]}</b></div>`).join('') +
+    gameRecapHTML(state, nameOf);
 }
 
 // Game-over options: sit tight for the host's next round, or bail out to the
@@ -250,45 +482,26 @@ document.getElementById('againBtn').addEventListener('click', () => {
     `You are <span class="chip ${myColor}"></span><b>${COLOR_NAMES[myColor]}</b>`;
 });
 document.getElementById('menuBtn').addEventListener('click', () => { location.href = '/'; });
+installFeedback((m) => { if (ws && ws.readyState === 1) sendWS(ws, m); else toast('Not connected right now.'); });
+installHowTo();
+document.getElementById('inviteBtn').addEventListener('click', async () => {
+  const url = `${location.origin}/play.html?room=${joinedCode || ''}`;
+  if (navigator.share) { try { await navigator.share({ title: 'Crossword Pyramids', text: 'Join my game', url }); return; } catch { return; } }
+  try { await navigator.clipboard.writeText(url); toast('Invite link copied.', true); } catch { prompt('Copy this invite link:', url); }
+});
 
-document.getElementById('dirH').addEventListener('click', () => { dir = 'H'; setDir(); });
-document.getElementById('dirV').addEventListener('click', () => { dir = 'V'; setDir(); });
-function setDir() {
-  document.getElementById('dirH').classList.toggle('active', dir === 'H');
-  document.getElementById('dirV').classList.toggle('active', dir === 'V');
-  if (state) renderGame();
-}
-document.getElementById('wordin').addEventListener('input', () => { if (state && myTurn()) renderGame(); });
-
-// Finger-swipe on the board sets the spelling direction (and start square).
-(function () {
-  const board = document.getElementById('board');
-  let sx = 0, sy = 0;
-  board.addEventListener('touchstart', (e) => {
-    const t = e.changedTouches[0]; sx = t.clientX; sy = t.clientY;
-  }, { passive: true });
-  board.addEventListener('touchend', (e) => {
-    if (!myTurn()) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - sx, dy = t.clientY - sy;
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) return; // a tap, not a swipe
-    dir = Math.abs(dx) >= Math.abs(dy) ? 'H' : 'V';
-    setDir();
-  }, { passive: true });
-})();
+document.getElementById('clearBtn').addEventListener('click', () => { resetBuild(); clearWhy(); if (state) renderGame(); });
 
 document.getElementById('playBtn').addEventListener('click', () => {
   if (!myTurn()) return toast('Not your turn yet.');
-  if (!sel) return toast('Tap the square where your word starts.');
-  const word = document.getElementById('wordin').value.trim();
-  if (word.length < 3) return toast('Words must be at least 3 letters.');
-  sendWS(ws, { type: 'play', r: sel.r, c: sel.c, dir, word });
+  const p = placement();
+  if (!p || p.off) return toast('Add letters, including a black one.');
+  sendWS(ws, { type: 'play', r: p.r, c: p.c, dir, word: currentWord(), sources: sourcesFor(p), gameId: state.gameId, revision: state.revision });
 });
 document.getElementById('passBtn').addEventListener('click', () => {
   if (!myTurn()) return toast('Not your turn yet.');
-  if (confirm('Pass your turn?')) sendWS(ws, { type: 'pass' });
+  if (confirm('Pass your turn?')) { resetBuild(); sendWS(ws, { type: 'pass' }); }
 });
-document.getElementById('wordin').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('playBtn').click(); });
 </script>
 </body>
 </html>

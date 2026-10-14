@@ -25,6 +25,9 @@
   .overlay .panel { text-align: center; max-width: 480px; }
   .hidden { display: none !important; }
   .joinurl { color: #b9a87c; word-break: break-all; margin-top: 10px; font-size: .9rem; }
+  .wp-row { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid #3d2f56; }
+  .wp-row.wp-turn .wp-who { color: var(--gold); }
+  .wp-who { flex: 0 0 34%; } .wp-words b { margin-right: 10px; letter-spacing: .05em; } .wp-words i { color: #8f8363; }
 </style>
 </head>
 <body>
@@ -41,6 +44,16 @@
       <p style="margin: 10px 0; color: var(--sand)">Point your phone camera at the code</p>
       <div class="qr"><img id="qr" alt="Join QR code"></div>
       <div class="joinurl" id="joinurl"></div>
+      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:12px">
+        <button class="btn secondary" id="copyLink">Copy invite link</button>
+        <button class="btn secondary hidden" id="shareLink">Share&hellip;</button>
+      </div>
+    </div>
+    <div class="panel" id="playtoo" style="text-align:center">
+      <h2 class="gold">Playing too?</h2>
+      <p style="margin: 10px 0; color: var(--sand)">Your seat is saved. Scan this with <b>your own phone</b> to sit down.</p>
+      <div class="qr"><img id="playqr" alt="QR code for the host's own seat" style="width:180px;height:180px"></div>
+      <div style="margin-top:12px"><button class="btn secondary" id="copyPlay">Copy my link</button></div>
     </div>
     <div class="panel">
       <h2 class="gold">Players</h2>
@@ -48,14 +61,14 @@
       <p id="waitmsg" style="color: var(--sand); margin: 10px 0">Waiting for players (2&ndash;4)&hellip;</p>
       <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:14px">
         <button class="btn" id="startBtn" disabled>Start Game</button>
-        <button class="btn secondary" id="botBtn">+ Add AI Player</button>
+        <button class="btn secondary" id="howtoHostBtn" data-howto>How to play</button>
       </div>
     </div>
   </div>
 
   <!-- GAME -->
   <div id="gamearea" class="gamegrid hidden">
-    <div class="board3d"><div class="board" id="board"></div></div>
+    <div class="boardwrap"><div id="draftline" class="draftline"></div><div class="board" id="board"></div></div>
     <div>
       <div class="panel" style="margin-bottom: 14px">
         <h3 class="gold" style="margin-bottom:8px">Scores</h3>
@@ -67,7 +80,7 @@
       </div>
       <div class="panel">
         <h3 class="gold" style="margin-bottom:8px">Words Played</h3>
-        <div class="loglist" id="log"></div>
+        <div id="log"></div>
       </div>
     </div>
   </div>
@@ -87,34 +100,87 @@
 
 <script src="/board.js"></script>
 <script>
-let room = null, state = null, names = {}, turnDeadline = null;
+let room = null, state = null, names = {}, draft = null;
 
-const ws = connectWS(onMsg, (ws) => {
-  sendWS(ws, { type: 'host_create', origin: location.origin });
+keepAwake();
+
+// The host screen reconnects on its own and asks for its old room back, so a
+// slept laptop or a dropped wifi link doesn't end the party. The room code is
+// remembered across a full browser restart; the server only hands the room
+// back if nobody else is hosting it, and otherwise opens a fresh one.
+const ROOM_KEY = 'cp_host_room';
+function rememberedRoom() {
+  try { return localStorage.getItem(ROOM_KEY) || ''; } catch { return ''; }
+}
+function rememberRoom(code) {
+  try { localStorage.setItem(ROOM_KEY, code); } catch { /* private mode */ }
+}
+function hostToken() { try { return localStorage.getItem('cp_host_token') || ''; } catch { return ''; } }
+
+let ws = null;
+function openHostWS() {
+  ws = connectWS(onMsg, (sock) => {
+    sendWS(sock, { type: 'host_create', resume: rememberedRoom(), token: hostToken() });
+  });
+  ws.onclose = () => setTimeout(() => { if (!ws || ws.readyState !== 1) openHostWS(); }, 1500);
+}
+openHostWS();
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && (!ws || ws.readyState !== 1)) openHostWS();
 });
 
 function onMsg(msg) {
   if (msg.type === 'hosted') {
+    rememberRoom(msg.code);
+    try { localStorage.setItem('cp_host_token', msg.token); } catch {}
     document.getElementById('code').textContent = msg.code;
     document.getElementById('qr').src = msg.qr;
     document.getElementById('joinurl').textContent = msg.joinUrl;
+    inviteUrl = msg.joinUrl;
+    if (msg.playUrl) { // only a brand-new room hands out the host's seat link; keep it for a page reload
+      try { localStorage.setItem('cp_host_play', JSON.stringify({ code: msg.code, url: msg.playUrl, qr: msg.playQr })); } catch {}
+    }
+    showPlayToo();
   } else if (msg.type === 'room') {
     room = msg;
     names = {};
     for (const p of msg.players) names[p.color] = p.name;
     renderLobby();
-    if (msg.phase === 'lobby') { show('lobby'); hide('gamearea'); hide('over'); state = null; }
+    if (msg.phase === 'lobby') { show('lobby'); hide('gamearea'); hide('over'); state = null; draft = null; }
   } else if (msg.type === 'state') {
+    const prev = state;
     state = msg.state;
-    turnDeadline = msg.turnDeadline || null;
+    if (draft && (!prev || prev.gameId !== state.gameId || prev.revision !== state.revision || prev.current !== state.current)) draft = null;
     hide('lobby'); show('gamearea');
     if (state.phase !== 'over') hide('over'); // a fresh board after Play Again
     renderGame();
+  } else if (msg.type === 'draft') {
+    if (state && msg.gameId === state.gameId && msg.revision === state.revision && msg.color === state.current) {
+      draft = msg.items && msg.items.length ? msg : null;
+    } else draft = null;
+    if (state) renderGame();
   } else if (msg.type === 'played') {
+    draft = null;
     toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}!`, true);
   } else if (msg.type === 'skipped') {
-    toast(`${names[msg.color] || COLOR_NAMES[msg.color]} ran out of time — skipped.`);
+    draft = null;
+    toast(`${names[msg.color] || COLOR_NAMES[msg.color]} dropped off — turn skipped.`);
+  } else if (msg.type === 'feedback_ok') {
+    toast('Thanks - feedback sent.', true);
   } else if (msg.type === 'error') {
+    if (msg.code === 'HOST_AUTH') {
+      // Stale remembered room or credential: forget it and open a fresh room.
+      try { localStorage.removeItem(ROOM_KEY); localStorage.removeItem('cp_host_token'); } catch {}
+      if (ws) { ws.onclose = null; ws.close(); }
+      openHostWS();
+      return;
+    }
+    if (msg.code === 'HOST_BUSY') {
+      // Another host tab already runs this room: don't fight it for the socket.
+      if (ws) { ws.onclose = null; ws.close(); }
+      toast('This room is already open in another tab.');
+      return;
+    }
     toast(msg.error);
   }
 }
@@ -122,13 +188,28 @@ function onMsg(msg) {
 function show(id) { document.getElementById(id).classList.remove('hidden'); }
 function hide(id) { document.getElementById(id).classList.add('hidden'); }
 
+// The host's own seat counts as a player only once they have sat down with their phone.
+const seated = (list) => list.filter((p) => !p.hostSeat || p.claimed);
+function showPlayToo() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem('cp_host_play') || 'null'); } catch {}
+  const code = document.getElementById('code').textContent;
+  const mine = room && room.players.find((p) => p.hostSeat);
+  const ok = saved && saved.code === code && mine && !mine.claimed;
+  document.getElementById('playtoo').classList.toggle('hidden', !ok);
+  if (ok) { document.getElementById('playqr').src = saved.qr; hostPlayUrl = saved.url; }
+}
+let hostPlayUrl = '';
 function renderLobby() {
   const ul = document.getElementById('players');
-  ul.innerHTML = room.players.map(p =>
-    `<li><span class="chip ${p.color}"></span>${p.name}${p.connected ? '' : ' (disconnected)'}</li>`).join('');
-  document.getElementById('startBtn').disabled = room.players.length < 2;
-  document.getElementById('botBtn').disabled = room.players.length >= 4;
-  document.getElementById('waitmsg').style.display = room.players.length >= 2 ? 'none' : '';
+  ul.innerHTML = room.players.map(p => {
+    const waiting = p.hostSeat && !p.claimed;
+    return `<li><span class="chip ${p.color}"></span>${escapeHTML(p.name)}${waiting ? ' (seat saved for the host)' : p.connected ? '' : ' (disconnected)'}</li>`;
+  }).join('');
+  const n = seated(room.players).length;
+  document.getElementById('startBtn').disabled = n < 2;
+  document.getElementById('waitmsg').style.display = n >= 2 ? 'none' : '';
+  showPlayToo();
 }
 
 function pname(c) { return names[c] || COLOR_NAMES[c] || c; }
@@ -139,7 +220,9 @@ function connOf(c) {
 }
 
 function renderGame() {
-  renderBoard(document.getElementById('board'), state);
+  const d = draft ? draftOpts(state, draft) : null;
+  renderBoard(document.getElementById('board'), d ? d.state : state, d ? d : {});
+  renderDraftLine(document.getElementById('draftline'), draft, draft ? pname(draft.color) : '');
   renderTracker(document.getElementById('tracker'), state, names);
   // Scores stay hidden until the end — spelling is the focus. During play this
   // panel shows turn order, whose turn it is, and who is reconnecting.
@@ -147,34 +230,40 @@ function renderGame() {
     const isTurn = state.phase === 'playing' && state.current === c;
     const off = !connOf(c) ? ' <small style="color:#e0a">(reconnecting…)</small>' : '';
     return `<div class="score ${isTurn ? 'current' : ''}">
-      <span><span class="chip ${c}"></span>${pname(c)}${off}</span>
-      <b>${isTurn ? '<span id="turnclock">▲</span>' : ''}</b></div>`;
+      <span><span class="chip ${c}"></span>${escapeHTML(pname(c))}${off}</span>
+      <b>${isTurn ? '▲' : ''}</b></div>`;
   }).join('');
-  document.getElementById('log').innerHTML = state.log.slice().reverse().map(e =>
-    e.pass
-      ? `<div><span class="chip ${e.color}"></span>${pname(e.color)} passed</div>`
-      : `<div><span class="chip ${e.color}"></span><b>${e.word.toUpperCase()}</b></div>`).join('');
+  renderWords(document.getElementById('log'), state, names);
   if (state.phase === 'over') {
     show('over');
     const f = state.finalScores;
-    const ranked = state.players.slice().sort((a, b) => f[b] - f[a]);
     document.getElementById('finals').innerHTML =
-      `<p style="margin-bottom:12px">&#127942; <b>${pname(state.winner)}</b> wins!</p>` +
-      ranked.map(c => `<div class="score"><span><span class="chip ${c}"></span>${pname(c)}</span><b>${f[c]}</b></div>`).join('');
+      `<p style="margin-bottom:12px">&#127942; <b>${escapeHTML(pname(state.winner))}</b> wins!</p>` +
+      tieBreakLine(state, pname) +
+      rankFinal(state).map(c => `<div class="score"><span><span class="chip ${c}"></span>${escapeHTML(pname(c))}</span><b>${f[c]}</b></div>`).join('') +
+      gameRecapHTML(state, pname);
   }
 }
 
-// Turn countdown ticker — updates the ▲ next to the active player each second
-setInterval(() => {
-  const el = document.getElementById('turnclock');
-  if (!el || !turnDeadline) return;
-  const left = Math.max(0, Math.ceil((turnDeadline - Date.now()) / 1000));
-  el.textContent = left <= 20 ? `${left}s` : '▲';
-  el.style.color = left <= 10 ? '#e0413c' : '';
-}, 1000);
-
+let inviteUrl = '';
+document.getElementById('copyPlay').addEventListener('click', async () => {
+  if (!hostPlayUrl) return;
+  try { await navigator.clipboard.writeText(hostPlayUrl); toast('Your seat link is copied. Open it on your phone.', true); }
+  catch { prompt('Open this on your own phone:', hostPlayUrl); }
+});
+document.getElementById('copyLink').addEventListener('click', async () => {
+  if (!inviteUrl) return;
+  try { await navigator.clipboard.writeText(inviteUrl); toast('Invite link copied.', true); }
+  catch { prompt('Copy this invite link:', inviteUrl); }
+});
+if (navigator.share) {
+  const shareBtn = document.getElementById('shareLink');
+  shareBtn.classList.remove('hidden');
+  shareBtn.addEventListener('click', () => { if (inviteUrl) navigator.share({ title: 'Crossword Pyramids', text: 'Join my game', url: inviteUrl }).catch(() => {}); });
+}
+installFeedback((m) => sendWS(ws, m));
+installHowTo();
 document.getElementById('startBtn').addEventListener('click', () => sendWS(ws, { type: 'start' }));
-document.getElementById('botBtn').addEventListener('click', () => sendWS(ws, { type: 'add_bot' }));
 document.getElementById('againBtn').addEventListener('click', () => { hide('over'); sendWS(ws, { type: 'again' }); });
 document.getElementById('menuBtn').addEventListener('click', () => { location.href = '/'; });
 </script>
