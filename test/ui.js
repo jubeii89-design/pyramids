@@ -198,9 +198,9 @@ async function main() {
       await ph.waitForSelector('#whybox:not(.hidden)', { timeout: 10000 });
       const why = await ph.locator('#whybox').textContent();
       check(why.trim().length > 10, `refused word explains why (${why.trim().slice(0, 70)}…)`);
-      check((await ph.locator('#wordline .wchip').count()) === 0, 'refused word is cleared from the word line');
+      check((await ph.locator('#wordline .wchip').count()) === 3, 'refused word stays in the word line to fix');
       check((await ph.evaluate(() => JSON.stringify(state.cells))) === boardBefore, 'the board is unchanged');
-      check((await host3.locator('#board .cell.glow').count()) === 0, 'host glow is gone once the word is refused');
+      check((await host3.locator('#board .cell.glow').count()) === phoneGlow, 'host still mirrors the word after a refusal');
     } else {
       check(true, 'letters need a black square on the right path before Submit (button stayed off)');
     }

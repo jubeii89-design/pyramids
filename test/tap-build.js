@@ -186,8 +186,11 @@ async function main() {
       await ph.waitForSelector('#whybox:not(.hidden)', { timeout: 10000 });
       const why = await ph.locator('#whybox').textContent();
       check(why.trim().length > 10, `refused word gives a reason (${why.trim().slice(0, 60)}…)`);
-      check((await ph.locator('#wordline .wchip').count()) === 0, 'letters were sent back after the refusal');
-      check((await snap()) === before, 'board is exactly as before the refused word');
+      // A refusal keeps the word on the line so the player can fix it; Clear
+      // (or any board change) sends every letter back.
+      check((await ph.locator('#wordline .wchip').count()) === word2.length, 'refused word stays on the line to fix');
+      await ph.click('#clearBtn');
+      check((await snap()) === before, 'board is exactly as before once cleared');
     } else {
       await ph.click('#clearBtn');
     }

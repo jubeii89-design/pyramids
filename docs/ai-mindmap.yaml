@@ -112,7 +112,7 @@ architecture:
       hosted: "{ code, token, joinUrl, qr, playUrl?, playQr? } — playUrl/playQr (host's own seat link) only on a brand-new room"
       room: lobby/seat snapshot (names, colours, connected, hostSeat+claimed)
       joined: "{ code, color, name, token }"
-      state: "{ state: serialize() + gameId + revision } — scores null until over; log has points only when over"
+      state: "{ state: serialize() + gameId + revision } — scores null until over; log has points only when over; passes = consecutive-pass counter"
       played: "{ color, word, gameId, revision, actionId, presentation } — presentation.steps lists every piece move/capture; NO client renders it yet (see KI-01)"
       draft: relayed public view { color, items:[{r,c,l,b}], start, lifted }
       preview / lift: replies with requestId
@@ -172,24 +172,30 @@ known_issues:  # each verified against the code on generated_on; status open unl
     summary: presentation.steps is computed and broadcast for every word (game.js:307-315, index.js:390) but no client uses it - the biggest built-but-unused asset
   - id: KI-02
     severity: high
+    status: fixed in M1 (wake lock + your-turn vibration/title flash in play.html)
     summary: no Screen Wake Lock - keepAwake (board.js:140) only pings the server; phones sleep, sockets drop, turns get skipped after 30s
   - id: KI-03
     severity: high
+    status: fixed in M1 (pendingSubmit flag suppresses the toast for your own accepted word)
     summary: celebration undercut - Submit (play.html:495-500) does not clear the local build, so the next state broadcast toasts "The board changed - your word was cleared." (play.html:317) over "You spelled X!"
   - id: KI-04
     severity: medium
+    status: fixed in M1 (hints rewritten for tap-to-build; a refused word now stays on the line to fix)
     summary: refusal hints name controls that no longer exist - "Press Auto", "highlighted pieces" (game.js:193,226,232,286) predate the tap-to-build client
   - id: KI-05
     severity: medium
+    status: fixed in M1 (seat QR hidden behind a "Show my seat code" button with a warning)
     summary: host's private seat QR renders on the shared TV (host.html:54-55) - anyone in the room can scan it and take the host's seat
   - id: KI-06
     severity: medium
     summary: TV tile values/counts bottom out at 7px (style.css:167-173,214-221) - unreadable from a couch
   - id: KI-07
     severity: medium
+    status: fixed in M1 (home dialog and README rewritten to the tap-to-build flow)
     summary: stale rules text - home dialog (index.html:146-151) and README "How it plays" (README.md:42-48) still describe the old type-a-word flow; HOWTO_STEPS (board.js:77-84) is current
   - id: KI-08
     severity: medium
+    status: fixed in M1 (LOG_MAX=500; cap tested at the boundary)
     summary: words log capped at 60 entries (game.js:352,368) while the serializer comment promises "the whole word log" - long games silently lose early words from the recap
   - id: KI-09
     severity: low
@@ -207,39 +213,47 @@ known_issues:  # each verified against the code on generated_on; status open unl
 improvement_tree:  # the plan in IMPROVEMENT-PLAN.md as addressable nodes. "do M1-01" = implement exactly this.
   M1:  # Game-night safe (P0) - gate: one real game night
     - id: M1-01
+      status: done
       title: Screen Wake Lock + your-turn alert (vibration, title flash)
       fixes: KI-02
       size: S
       acceptance: a phone left face-up through two other players' turns is still connected and alerts on its turn
     - id: M1-02
+      status: done
       title: clear the local build on Submit; suppress the board-changed toast for your own play
       fixes: KI-03
       size: S
       acceptance: after a successful word the only toast is "You spelled X!"
     - id: M1-03
+      status: done
       title: rewrite refusal hints for the tap-to-build client; keep the word on refusal instead of wiping it
       fixes: KI-04
       size: S
       acceptance: no hint names a control that does not exist; a refused word stays editable
     - id: M1-04
+      status: done
       title: join flow dead-ends - show the code field after ROOM_GONE/SEAT_GONE; handle duplicate/empty names inline
       size: S
       acceptance: every join failure leaves a visible path to retry
     - id: M1-05
+      status: done
       title: move the host seat QR off the shared TV (behind a "my seat" tap or host-only view)
       fixes: KI-05
       size: S
       acceptance: the seat link is never displayed full-screen to the room
     - id: M1-06
+      status: done
       title: visible "Reconnecting..." state on the phone; make passes visible to everyone and warn one round before stalemate
       size: S
       acceptance: a dropped phone shows reconnect progress; the TV shows "2 more passes end the game"
     - id: M1-07
+      status: done
       title: retire stale rules text (index.html dialog, README) in favour of HOWTO_STEPS
       fixes: KI-07
       size: S
       acceptance: one rules voice everywhere; no mention of typing words or Across/Down pickers
     - id: M1-08
+      status: done
       title: raise or remove the 60-entry words-log cap so the recap is complete
       fixes: KI-08
       size: S

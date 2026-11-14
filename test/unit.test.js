@@ -270,3 +270,43 @@ test('moved pyramids come only from pre-turn tops (uncovered rule)', () => {
     assert.ok(delta <= 1, `cell ${r},${c} lost ${delta} pyramids in one turn`);
   }
 });
+
+test('serialize exposes the consecutive-pass counter', () => {
+  const st = g.createGame(['red', 'blue'], seeded(21));
+  assert.strictEqual(g.serialize(st).passes, 0);
+  const first = st.players[st.turn];
+  assert.ok(g.passTurn(st, first).ok);
+  assert.strictEqual(g.serialize(st).passes, 1);
+  assert.ok(g.passTurn(st, st.players[st.turn]).ok);
+  assert.strictEqual(g.serialize(st).passes, 2);
+  // a played word resets the counter
+  const cur = st.players[st.turn];
+  const botWords = [...DICT].filter((w) => w.length >= 3 && w.length <= 6);
+  const mv = g.findMove(st, cur, botWords, seeded(22));
+  assert.ok(mv);
+  assert.ok(g.playWord(st, cur, mv, DICT).ok);
+  assert.strictEqual(g.serialize(st).passes, 0);
+});
+
+test('word log keeps a full game (cap raised from 60)', () => {
+  const st = g.createGame(['red', 'blue'], seeded(23));
+  // Pre-fill to just under the cap, then play a real word: nothing may be
+  // lost below 500 entries, and the cap must still hold at the boundary.
+  for (let i = 0; i < 499; i++) st.log.push({ color: 'red', word: 'old' + i, points: 1, pyramids: 1 });
+  const cur = st.players[st.turn];
+  const botWords = [...DICT].filter((w) => w.length >= 3 && w.length <= 6);
+  const mv = g.findMove(st, cur, botWords, seeded(24));
+  assert.ok(mv);
+  assert.ok(g.playWord(st, cur, mv, DICT).ok);
+  assert.strictEqual(st.log.length, 500, 'at the cap nothing shifted yet');
+  assert.strictEqual(st.log[0].word, 'old0', 'earliest entry survives at the cap');
+  assert.ok(g.passTurn(st, st.players[st.turn]).ok);
+  assert.strictEqual(st.log.length, 500, 'cap holds past the boundary');
+  assert.strictEqual(st.log[0].word, 'old1', 'only then does the oldest entry shift out');
+});
+
+test('refusal hints never reference removed controls', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'server', 'game.js'), 'utf8');
+  assert.ok(!/Press Auto/.test(src), 'no hint says "Press Auto"');
+  assert.ok(!/highlighted pieces/.test(src), 'no hint says "highlighted pieces"');
+});

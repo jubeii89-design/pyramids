@@ -12,5 +12,6 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-exec');
   grunt.registerTask('verify', ['exec:unit', 'exec:network']);
   grunt.registerTask('verify-ui', ['exec:ui', 'exec:tap']);
+  grunt.registerTask('all', ['verify', 'exec:ui', 'exec:tap']); // the whole gate in one command
   grunt.registerTask('default', ['verify']);
 };

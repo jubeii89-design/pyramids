@@ -39,10 +39,10 @@ Change the port with `PORT=8080 npm start` (PowerShell: `$env:PORT=8080; npm sta
 - 10×10 board. The outer ring is the **Word Runway**; the inner 6×6 squares
   carry printed letters covered by 36 black **house pyramids**; each of the four
   colors starts with 30 pyramids in six stacks of five.
-- On your turn: tap the square where your word starts, choose Across/Down, and
-  type a word (3+ letters). The engine automatically uses matching exposed
-  letters in place and moves exposed player pyramids (yours *or* stolen from
-  opponents) to complete the word.
+- On your turn: tap letters on the board in the order you want to spell them —
+  yours *or* stolen from opponents. The first black letter fixes where the word
+  sits; tap the square beside it to choose Across or Down, then press Submit.
+  There is no turn clock — take your time, play a word or press Pass.
 - Every word must be in the dictionary and must use at least **one of your own
   pyramids** and **one black letter** (house pyramid or printed board letter),
   and must move at least one pyramid.
