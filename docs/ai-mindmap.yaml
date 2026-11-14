@@ -262,14 +262,14 @@ improvement_tree:  # the plan in IMPROVEMENT-PLAN.md as addressable nodes. "do M
       acceptance: a 100-word game's recap lists 100 words
   M2:  # The show (P1) - the TV becomes a stage
     - id: M2-01
-      status: done
+      status: done (delivered in PR #8 with M2-02)
       title: keyed-DOM board renderer (stable per-cell nodes, diff updates)
       fixes: KI-09
       size: L
       note: tech enabler - prerequisite for M2-02
       acceptance: a state update touches only changed cells; existing Playwright suites still pass
     - id: M2-02
-      status: done (no capture-count digits in Scores — nothing readable as a score during play, per the locked hidden-scores rule; the Pyramid Tracker alone shows depletion)
+      status: done (delivered in PR #8; no capture-count digits in Scores — nothing readable as a score during play, per the locked hidden-scores rule; the Pyramid Tracker alone shows depletion)
       title: animate presentation.steps on the TV - pieces fly from source to word, steals named, capture piles grow
       fixes: KI-01
       depends_on: [M2-01]
@@ -289,6 +289,11 @@ improvement_tree:  # the plan in IMPROVEMENT-PLAN.md as addressable nodes. "do M
       fixes: KI-12
       size: M
       acceptance: a player can explain their own final number after watching the reveal
+    - id: M2-06
+      status: done
+      title: atmosphere - outer-space background (pure-CSS nebula + two twinkling/drifting starfield layers on body::before/after, prefers-reduced-motion safe); "in the clouds" variant deferred as a possible theme
+      size: S
+      acceptance: board, panels and gold text keep full contrast; no images, no JS, no test movement
   M3:  # Everyone plays (P2) - no bored spectators
     - id: M3-01
       title: waiting-player engagement on the existing draft mirror - emoji reactions floating up the TV; one-tap "will it land?" prediction
@@ -317,6 +322,7 @@ improvement_tree:  # the plan in IMPROVEMENT-PLAN.md as addressable nodes. "do M
     - changing any rule in the rules block above
 
 conventions:
+  - docs/ai-mindmap.yaml is updated in the same change-set as every development (author rule, 2026-11-14)
   - rules are locked (see rules block); the scoring penalty is deliberate
   - humans only, 2-4 players
   - vanilla JS, no build step; Grunt only runs the browser suites
