@@ -190,6 +190,7 @@ known_issues:  # each verified against the code on generated_on; status open unl
   - id: KI-06
     severity: medium
     summary: TV tile values/counts bottom out at 7px (style.css:167-173,214-221) - unreadable from a couch
+    status: fixed in M2-03 - premise corrected (7px floor was phone-only; TV values were capped at 13px by vmin clamps + the 1200px wrap); tile fonts now container-query cqw on .boardwrap (vmin kept as fallback), wrap 1700px, >=1500px host chrome scale-up - 1080p values 13px -> ~20px, letters 34px -> ~44px
   - id: KI-07
     severity: medium
     status: fixed in M1 (home dialog and README rewritten to the tap-to-build flow)
@@ -280,6 +281,7 @@ improvement_tree:  # the plan in IMPROVEMENT-PLAN.md as addressable nodes. "do M
       fixes: KI-06
       size: M
       acceptance: code legible at 3m on a 1080p TV; tile letters >= ~28px rendered
+      status: done - container-type inline-size on .boardwrap with cqw font clamps (vmin fallback lines kept for pre-2023 browsers); host wrap 1200 -> 1700px so the 1080p board is vh-capped (~925px) not width-capped; @media >=1500px scales header/code/scores/tracker/log/draftline; at 1080p letters ~44px + values ~20px (acceptance met); phone floor raised 7 -> 8px, no layout change at 390px
     - id: M2-04
       title: sound - small synthesized/CC0 set (join, your-turn chime, word played, steal, game over) + mute; licences documented like the word list
       size: M

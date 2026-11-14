@@ -6,7 +6,7 @@
 <title>Crossword Pyramids — Host</title>
 <link rel="stylesheet" href="/style.css">
 <style>
-  .wrap { max-width: 1200px; margin: 0 auto; padding: 18px; }
+  .wrap { max-width: 1700px; margin: 0 auto; padding: 18px; }
   header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
   header h1 { color: var(--gold); font-size: 1.6rem; }
   .code-big { font-size: 2rem; letter-spacing: .3em; color: var(--ink); background: #0d0a06; padding: 4px 16px; border-radius: 10px; border: 2px solid var(--gold); }
@@ -28,6 +28,19 @@
   .wp-row { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid #3d2f56; }
   .wp-row.wp-turn .wp-who { color: var(--gold); }
   .wp-who { flex: 0 0 34%; } .wp-words b { margin-right: 10px; letter-spacing: .05em; } .wp-words i { color: #8f8363; }
+  /* TV sizes: the board already grows with the wider wrap (container-query
+     tile fonts in style.css follow it); scale the host chrome to match. */
+  @media (min-width: 1500px) {
+    header h1 { font-size: 2rem; }
+    .code-big { font-size: 2.8rem; }
+    .gamegrid { grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; }
+    .gamegrid .score { font-size: 1.5rem; }
+    .gamegrid .trk { font-size: 1.15rem; }
+    .gamegrid .wp-row { font-size: 1.1rem; }
+    .gamegrid .draftline { font-size: 1.25rem; }
+    .gamegrid .draftline .dchip { font-size: 1.1rem; }
+    .joinurl { font-size: 1.05rem; }
+  }
 </style>
 </head>
 <body>
