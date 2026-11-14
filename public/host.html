@@ -51,9 +51,17 @@
     </div>
     <div class="panel" id="playtoo" style="text-align:center">
       <h2 class="gold">Playing too?</h2>
-      <p style="margin: 10px 0; color: var(--sand)">Your seat is saved. Scan this with <b>your own phone</b> to sit down.</p>
-      <div class="qr"><img id="playqr" alt="QR code for the host's own seat" style="width:180px;height:180px"></div>
-      <div style="margin-top:12px"><button class="btn secondary" id="copyPlay">Copy my link</button></div>
+      <p style="margin: 10px 0; color: var(--sand)">Your seat is saved. Copy your private link to <b>your own phone</b> to sit down.</p>
+      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap">
+        <button class="btn secondary" id="copyPlay">Copy my link</button>
+        <button class="btn secondary" id="showPlayQr">Show my seat code</button>
+      </div>
+      <!-- The seat QR is private: on the shared screen anyone could scan it and
+           take the host's seat, so it stays hidden until the host asks. -->
+      <div id="playqrbox" class="hidden" style="margin-top:12px">
+        <p style="margin:0 0 10px; color:#ffb199">Anyone who scans this takes your seat — show it only to yourself.</p>
+        <div class="qr"><img id="playqr" alt="QR code for the host's own seat" style="width:180px;height:180px"></div>
+      </div>
     </div>
     <div class="panel">
       <h2 class="gold">Players</h2>
@@ -73,6 +81,7 @@
       <div class="panel" style="margin-bottom: 14px">
         <h3 class="gold" style="margin-bottom:8px">Scores</h3>
         <div id="scores"></div>
+        <div id="passwarn" style="color:#ffd76a; margin-top:8px"></div>
       </div>
       <div class="panel" style="margin-bottom: 14px">
         <h3 class="gold" style="margin-bottom:8px">Pyramid Tracker</h3>
@@ -233,6 +242,10 @@ function renderGame() {
       <span><span class="chip ${c}"></span>${escapeHTML(pname(c))}${off}</span>
       <b>${isTurn ? '▲' : ''}</b></div>`;
   }).join('');
+  const toEnd = state.players.length * 2 - state.passes;
+  document.getElementById('passwarn').textContent =
+    state.phase === 'playing' && state.passes >= state.players.length
+      ? `${toEnd} more pass${toEnd === 1 ? '' : 'es'} will end the game.` : '';
   renderWords(document.getElementById('log'), state, names);
   if (state.phase === 'over') {
     show('over');
@@ -246,6 +259,9 @@ function renderGame() {
 }
 
 let inviteUrl = '';
+document.getElementById('showPlayQr').addEventListener('click', () => {
+  document.getElementById('playqrbox').classList.toggle('hidden');
+});
 document.getElementById('copyPlay').addEventListener('click', async () => {
   if (!hostPlayUrl) return;
   try { await navigator.clipboard.writeText(hostPlayUrl); toast('Your seat link is copied. Open it on your phone.', true); }

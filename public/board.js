@@ -78,7 +78,7 @@ const HOWTO_STEPS = [
   ['The goal', 'Spell words on the board. Every pyramid you collect scores the number on its tip, and your own pyramids still on the board when the game ends cost you their tips. Scores stay hidden until the end.'],
   ['Your turn', 'Tap letters on the board in the order you want to spell them. Each tile shows its letter in the middle, its point value in the top-left corner and how many are stacked there (5×, 4× …) in the bottom-right. Tap the square beside the black letter to choose Across or Down (Across if you do not), then press Submit. There is no clock: take as long as you like, or press Pass.'],
   ['Every word needs', 'At least one black letter (a black house pyramid or a printed square), at least one pyramid of your own colour, and at least one pyramid that moves. The black letter stays where it is, so it decides where your word sits on the board.'],
-  ['Undoing', 'Tap a letter in your word to take it out, or press Clear to start again. A refused word sends every letter straight back to the stack it came from.'],
+  ['Undoing', 'Tap a letter in your word to take it out, or press Clear to start again. A refused word stays in your word line with the reason shown — fix it, or press Clear.'],
   ['Captured pyramids', 'Every pyramid used in your word is yours. Lifting one uncovers the letter underneath, which you see at once but cannot use this turn. The count in the corner of each stack drops as you lift.'],
   ['How it ends', 'The game ends when any player has no pyramids of their colour left on the board, or after two full rounds of passes. The highest total wins; a tie is settled by a random draw.'],
 ];
@@ -269,15 +269,18 @@ function renderTracker(el, state, names = {}) {
   el.innerHTML = rows.join('');
 }
 
-// Every word played so far, grouped under the player who spelled it.
+// Every word played so far, grouped under the player who spelled it. Passes
+// show too — they move the game towards its stalemate ending, so hiding them
+// made that ending arrive "out of nowhere".
 function renderWords(el, state, names = {}) {
   const by = {};
-  for (const e of state.log || []) if (e.word) (by[e.color] = by[e.color] || []).push(e.word);
+  for (const e of state.log || []) (by[e.color] = by[e.color] || []).push(e.pass ? null : e.word);
   el.innerHTML = state.players.map((c) => {
-    const words = by[c] || [];
+    const entries = by[c] || [];
+    const chips = entries.map((w) => (w ? `<b>${escapeHTML(w.toUpperCase())}</b>` : '<i>pass</i>')).join(' ');
     return `<div class="wp-row${state.current === c && state.phase === 'playing' ? ' wp-turn' : ''}">
       <span class="wp-who"><span class="chip ${c}"></span>${escapeHTML(names[c] || COLOR_NAMES[c])}</span>
-      <span class="wp-words">${words.length ? words.map((w) => `<b>${escapeHTML(w.toUpperCase())}</b>`).join(' ') : '<i>no words yet</i>'}</span>
+      <span class="wp-words">${entries.length ? chips : '<i>no words yet</i>'}</span>
     </div>`;
   }).join('');
 }

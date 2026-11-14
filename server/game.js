@@ -3,6 +3,11 @@
 
 const SIZE = 10;
 const COLORS = ['red', 'blue', 'green', 'yellow'];
+// Word/pass log cap. A full game is bounded far below this (156 pyramids on
+// the board, every word captures at least one); the cap only guards memory
+// against a pathological room. At 60 it silently cut early words from the
+// end-of-game recap.
+const LOG_MAX = 500;
 
 // Point values engraved on pyramid tips (1-9, per the physical set)
 const VALUES = {
@@ -190,7 +195,7 @@ function playWord(state, color, move, dict, preview = false) {
   // "let the engine pick"). A hint can only narrow the engine's own candidates,
   // so every rule check below still applies and no hint means unchanged behaviour.
   const hints = Array.isArray(move.sources) ? move.sources : null;
-  if (hints && hints.length !== word.length) return refuse('BAD_PICKS', 'Pick one piece per letter, or leave it automatic.', 'Press Auto to clear your choices and try again.');
+  if (hints && hints.length !== word.length) return refuse('BAD_PICKS', 'Pick one piece per letter, or leave it automatic.', 'Press Clear and tap the letters again.');
 
   const cells = state.cells;
   const onPath = new Set(path.map(([r, c]) => r * SIZE + c));
@@ -223,13 +228,13 @@ function playWord(state, color, move, dict, preview = false) {
     const hint = hints && hints[i];
     if (hint) {
       if (!Number.isInteger(hint.r) || !Number.isInteger(hint.c) || hint.r < 0 || hint.r >= SIZE || hint.c < 0 || hint.c >= SIZE) {
-        return refuse('BAD_PICKS', `Letter ${i + 1}: choose a board square.`, 'Tap one of the highlighted pieces, or press Auto.');
+        return refuse('BAD_PICKS', `Letter ${i + 1}: choose a board square.`, 'Tap that letter in your word to take it out, then tap a piece on the board.');
       }
       const idx = hint.r * SIZE + hint.c;
       const narrowed = opts.filter((o) => (o.type === 'inplace' ? idx === r * SIZE + c : o.from === idx));
       if (!narrowed.length) {
         return refuse('BAD_PICKS', `That piece cannot supply "${need.toUpperCase()}" for letter ${i + 1}.`,
-          'Pick one of the highlighted pieces for that letter, or press Auto.', { letter: need, position: i + 1 });
+          'Tap that letter in your word to take it out, then tap a piece that shows the right letter.', { letter: need, position: i + 1 });
       }
       positions.push(narrowed);
     } else positions.push(opts);
@@ -283,7 +288,7 @@ function playWord(state, color, move, dict, preview = false) {
     // Say which rule is the problem. Each check looks at every letter's candidate sources.
     const picked = hints && hints.some(Boolean);
     const lead = picked ? 'Cannot form that word with the pieces you picked: ' : 'Cannot form that word legally: ';
-    const tail = picked ? ' Press Auto to let the game choose.' : '';
+    const tail = picked ? ' Tap a letter in your word to take it out, or press Clear and try again.' : '';
     const some = (test) => positions.some((opts) => opts.some(test));
     const mine = color;
     if (!some((o) => o.type === 'inplace' && (o.ex.kind === 'printed' || o.ex.owner === 'house'))) {
@@ -349,7 +354,7 @@ function playWord(state, color, move, dict, preview = false) {
   state.scores[color] += points;
   state.passes = 0;
   state.log.push({ color, word, points, pyramids: collectedNow.length });
-  if (state.log.length > 60) state.log.shift();
+  if (state.log.length > LOG_MAX) state.log.shift();
 
   endCheck(state);
   if (state.phase === 'playing') advanceTurn(state);
@@ -365,7 +370,7 @@ function passTurn(state, color, rng = Math.random) {
   if (state.players[state.turn] !== color) return refuse('NOT_YOUR_TURN', 'Not your turn.', 'Wait for the banner to say it is your turn.');
   state.passes++;
   state.log.push({ color, word: null, points: 0, pass: true });
-  if (state.log.length > 60) state.log.shift();
+  if (state.log.length > LOG_MAX) state.log.shift();
   // Stalemate: two full rounds of passes ends the game
   if (state.passes >= state.players.length * 2) {
     finish(state, rng);
@@ -513,6 +518,7 @@ function serialize(state) {
     players: state.players,
     turn: state.turn,
     current: state.players[state.turn],
+    passes: state.passes, // consecutive passes; players.length * 2 ends the game
     scores: over ? state.scores : null,
     finalScores: state.finalScores,
     winner: state.winner,

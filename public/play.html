@@ -115,6 +115,7 @@ let spectDraft = null;     // another player's in-progress word, shown read-only
 let build = [];           // [{ r, c, l, v, o, black }]
 let lifted = new Map();   // "r,c" -> what is under the lifted top ({l,v,o} or null)
 let liftRequest = 0;
+let pendingSubmit = false; // a word is at the server; its state broadcast is not "the board changed"
 const boardElement = document.getElementById('board');
 const key = (r, c) => r + ',' + c;
 
@@ -248,6 +249,28 @@ if (params.get('room')) {
 })();
 
 keepAwake();
+// Keep the phone's SCREEN awake during a game: a sleeping screen drops the
+// socket and gets the turn skipped after 30s. Feature-detected (needs https);
+// the lock is released whenever the tab hides, so re-acquire on return.
+async function requestWakeLock() {
+  try { await navigator.wakeLock.request('screen'); } catch { /* unsupported, http, or denied — keepAwake() still pings */ }
+}
+// Your-turn alert: a buzz, and a flashing tab title while the tab is hidden.
+const BASE_TITLE = document.title;
+let titleTimer = null;
+function alertMyTurn() {
+  try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch {}
+  if (titleTimer || !document.hidden) return;
+  let on = false;
+  titleTimer = setInterval(() => { document.title = (on = !on) ? '▲ YOUR TURN!' : BASE_TITLE; }, 900);
+}
+function clearTurnAlert() {
+  if (titleTimer) { clearInterval(titleTimer); titleTimer = null; }
+  document.title = BASE_TITLE;
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) { clearTurnAlert(); if (joinedCode) requestWakeLock(); }
+});
 let ws = null, joinedCode = null;
 let seatToken = '';
 function savedSeat(code) { try { return JSON.parse(sessionStorage.getItem('cp_seat_' + code) || 'null'); } catch { return null; } }
@@ -260,6 +283,12 @@ function ensureWS(cb) {
 let rejoinTries = 0;
 function scheduleRejoin() {
   if (!joinedCode || !myName) return;
+  // Say so on screen: a silent dead socket looks like a frozen game.
+  if (state && state.phase === 'playing') {
+    const tb = document.getElementById('turnbanner');
+    tb.textContent = 'Connection lost — reconnecting…';
+    tb.classList.remove('mine');
+  }
   const delay = Math.min(1500 * 2 ** rejoinTries++, 15000); // back off, never hammer the server
   setTimeout(() => {
     if (!joinedCode || (ws && ws.readyState === 1)) return;
@@ -278,6 +307,7 @@ document.getElementById('joinBtn').addEventListener('click', () => {
   myName = name;
   joinedCode = code;
   seatToken = savedSeat(code)?.token || '';
+  requestWakeLock(); // needs a user gesture on some browsers — the Join tap is one
   ensureWS(() => sendWS(ws, { type: 'join', code, name, token: seatToken }));
 });
 
@@ -312,16 +342,25 @@ function onMsg(msg) {
   } else if (msg.type === 'state') {
     const prev = state;
     state = msg.state;
-    // Any change to the board (a turn passing, someone's word) voids a half-built word.
+    // Any change to the board (a turn passing, someone's word) voids a half-built
+    // word — but our own accepted word is not "the board changed", it is the
+    // "You spelled X!" moment, so no toast steps on it then.
     const changed = !prev || prev.gameId !== state.gameId || prev.revision !== state.revision;
-    if (changed) { if (build.length) toast('The board changed - your word was cleared.'); resetBuild(); draftLast = ''; draftSentNonEmpty = false; }
+    if (changed) {
+      if (build.length && !pendingSubmit) toast('The board changed - your word was cleared.');
+      resetBuild(); draftLast = ''; draftSentNonEmpty = false; pendingSubmit = false;
+    }
     if (changed || prev.current !== state.current) spectDraft = null;
+    if (state.phase === 'playing' && state.current === myColor && (!prev || prev.gameId !== state.gameId || prev.current !== myColor)) alertMyTurn();
+    if (!(state.phase === 'playing' && state.current === myColor)) clearTurnAlert();
     hide('waitview'); hide('joinview');
     if (state.phase === 'over') { renderOver(); return; }
     if (!state.players.includes(myColor)) { hide('gameview'); hide('overview'); show('waitview'); return; }
     show('gameview'); hide('overview'); renderGame();
   } else if (msg.type === 'reject') {
-    resetBuild(); showWhy(msg); toast(msg.error); if (state) renderGame();
+    // The board did not change on a refusal, so the word is still coherent:
+    // keep it on the line for the player to fix instead of wiping their work.
+    pendingSubmit = false; showWhy(msg); toast(msg.error); if (state) renderGame();
   } else if (msg.type === 'draft') {
     if (msg.color === myColor || !state) return;
     if (msg.gameId !== state.gameId || msg.revision !== state.revision || msg.color !== state.current) return;
@@ -343,6 +382,14 @@ function onMsg(msg) {
       joinedCode = null; myColor = null; seatToken = ''; state = null;
       if (ws) { ws.onclose = null; ws.close(); }
       hide('waitview'); hide('gameview'); hide('overview'); show('joinview');
+      // The code field was hidden when a ?room= link filled it in; without it
+      // this screen is a dead end once that room is gone.
+      codein.classList.remove('hidden');
+      document.getElementById('roomlabel').textContent = '';
+    }
+    if (/is taken/.test(msg.error || '')) {
+      const ni = document.getElementById('namein');
+      ni.focus(); ni.select();
     }
     toast(msg.error);
   }
@@ -357,8 +404,12 @@ function renderGame() {
   recomputeDir();
   document.getElementById('me').innerHTML = `<span class="chip ${myColor}"></span>${escapeHTML(myName)} (${COLOR_NAMES[myColor]})`;
   const tb = document.getElementById('turnbanner');
-  if (myTurn()) { tb.textContent = '▲ Your turn — take your time. Play a word, or Pass.'; tb.classList.add('mine'); }
-  else { tb.textContent = `Waiting for ${names[state.current] || COLOR_NAMES[state.current]}…`; tb.classList.remove('mine'); }
+  // One round of passes in: everyone should see the end coming.
+  const toEnd = state.players.length * 2 - state.passes;
+  const passWarn = state.phase === 'playing' && state.passes >= state.players.length
+    ? ` ${toEnd} more pass${toEnd === 1 ? '' : 'es'} will end the game.` : '';
+  if (myTurn()) { tb.textContent = '▲ Your turn — take your time. Play a word, or Pass.' + passWarn; tb.classList.add('mine'); }
+  else { tb.textContent = `Waiting for ${names[state.current] || COLOR_NAMES[state.current]}…` + passWarn; tb.classList.remove('mine'); }
   const word = currentWord();
   const p = placement();
   const path = pathCells();
@@ -496,6 +547,7 @@ document.getElementById('playBtn').addEventListener('click', () => {
   if (!myTurn()) return toast('Not your turn yet.');
   const p = placement();
   if (!p || p.off) return toast('Add letters, including a black one.');
+  pendingSubmit = true;
   sendWS(ws, { type: 'play', r: p.r, c: p.c, dir, word: currentWord(), sources: sourcesFor(p), gameId: state.gameId, revision: state.revision });
 });
 document.getElementById('passBtn').addEventListener('click', () => {
