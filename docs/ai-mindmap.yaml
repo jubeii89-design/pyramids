@@ -295,7 +295,7 @@ improvement_tree:  # the plan in IMPROVEMENT-PLAN.md as addressable nodes. "do M
       status: done - server stores/serializes penalties at over (null during play); shared finalsRevealHTML/tieBreakStageHTML/animateFinalsReveal in board.js; host stages rows (CSS delays + eased count-up, all gated text synchronous in the DOM, one run per gameId); phone static with own row highlighted "(you)"; prefers-reduced-motion skips straight to finals; ui.js now asserts the per-player math rows + staged draw pyramids
     - id: M2-06
       status: done
-      title: atmosphere - outer-space background; a real Milky Way photograph chosen by the author (Jeremy Thomas on Unsplash, provenance in public/assets/ASSETS.md, credit on credits.html) under the pure-CSS twinkling starfield layers (body::before/after, prefers-reduced-motion safe); "in the clouds" variant deferred as a possible theme
+      title: atmosphere - outer-space background; a real Milky Way photograph chosen by the author (Jeremy Thomas on Unsplash, provenance in public/assets/ASSETS.md, credit on credits.html) under the pure-CSS twinkling starfield layers (body::before/after, prefers-reduced-motion safe); "in the clouds" variant deferred as a possible theme; author direction 2026-11: photo must NOT be muted - page wash/vignette and host game-over scrim all at 20% alpha, tune further by eye from screenshots (mid-game dialog backdrops stay dark on purpose, they are focus modals)
       size: S
       acceptance: board, panels and gold text keep full contrast; no images, no JS, no test movement
   M3:  # Everyone plays (P2) - no bored spectators

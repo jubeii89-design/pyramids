@@ -18,14 +18,14 @@
 }
 body {
   font-family: 'Verdana', 'Trebuchet MS', sans-serif;
-  /* Outer space, the real thing: the Milky Way photographed by the Artemis II
-     crew (NASA, public domain — provenance in assets/ASSETS.md), under a
-     purple-tinted darkening wash and a center vignette so the board always
-     sits on the darkest sky. The solid color paints first, so the page is
-     fine before (or without) the photo. */
+  /* The Milky Way photo (provenance in assets/ASSETS.md) under a light 20%
+     darkening: the author wants the photo to show, so the wash and vignette
+     stay at .2 — readability is judged by eye from screenshots, not by
+     darkening the sky. The solid color paints first, so the page is fine
+     before (or without) the photo. */
   background:
-    radial-gradient(1200px 700px at 50% 45%, rgba(0,0,0,.42) 0%, transparent 70%),
-    linear-gradient(180deg, rgba(26,17,38,.55), rgba(10,9,18,.74) 70%),
+    radial-gradient(1200px 700px at 50% 45%, rgba(0,0,0,.2) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(26,17,38,.2), rgba(10,9,18,.2) 70%),
     url('/assets/space-bg.jpg') center / cover no-repeat fixed #0c0a16;
   color: var(--ink);
   min-height: 100vh;
