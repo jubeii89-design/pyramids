@@ -169,6 +169,7 @@ quality:
 known_issues:  # each verified against the code on generated_on; status open unless noted
   - id: KI-01
     severity: high
+    status: fixed in M2 (animatePlay in board.js replays presentation.steps on the TV as a decorative overlay)
     summary: presentation.steps is computed and broadcast for every word (game.js:307-315, index.js:390) but no client uses it - the biggest built-but-unused asset
   - id: KI-02
     severity: high
@@ -199,6 +200,7 @@ known_issues:  # each verified against the code on generated_on; status open unl
     summary: words log capped at 60 entries (game.js:352,368) while the serializer comment promises "the whole word log" - long games silently lose early words from the recap
   - id: KI-09
     severity: low
+    status: fixed in M2 (keyed renderer - stable cell nodes, per-cell signature diffing, delegated clicks)
     summary: board renderer rebuilds all 100 cells with innerHTML on every state (board.js:159) - blocks animation and breaks screen-reader focus; prerequisite for KI-01
   - id: KI-10
     severity: low
@@ -260,12 +262,14 @@ improvement_tree:  # the plan in IMPROVEMENT-PLAN.md as addressable nodes. "do M
       acceptance: a 100-word game's recap lists 100 words
   M2:  # The show (P1) - the TV becomes a stage
     - id: M2-01
+      status: done
       title: keyed-DOM board renderer (stable per-cell nodes, diff updates)
       fixes: KI-09
       size: L
       note: tech enabler - prerequisite for M2-02
       acceptance: a state update touches only changed cells; existing Playwright suites still pass
     - id: M2-02
+      status: done (no capture-count digits in Scores — nothing readable as a score during play, per the locked hidden-scores rule; the Pyramid Tracker alone shows depletion)
       title: animate presentation.steps on the TV - pieces fly from source to word, steals named, capture piles grow
       fixes: KI-01
       depends_on: [M2-01]

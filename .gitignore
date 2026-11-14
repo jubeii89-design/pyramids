@@ -4,3 +4,4 @@ build/
 data/rooms.json
 data/feedback.jsonl
 data/rooms.json.*
+.playwright-shots/

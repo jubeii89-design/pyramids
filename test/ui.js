@@ -102,11 +102,51 @@ async function main() {
     check((await host.locator('#board canvas').count()) === 0, 'no 3D canvas');
     check((await host.locator('#tracker .trk').count()) === 5, 'pyramid tracker shows 4 colors + house');
     check((await host.locator('#tracker').textContent()).includes('Gold'), 'Gold color naming in tracker');
+    // Start-layout contract, on the rendered DOM itself: the four colors'
+    // x5 start stacks around the ring, the 36 house pyramids on the inner
+    // squares, and the printed corner letters that complete PYRAMIDS.
+    const layout = await host.evaluate(() => {
+      const cells = document.querySelectorAll('#board .cell');
+      const at = (r, c) => cells[r * 10 + c];
+      const starts = {
+        red: [...Array(6)].map((_, k) => [1, 2 + k]),
+        yellow: [...Array(6)].map((_, k) => [8, 2 + k]),
+        green: [...Array(6)].map((_, k) => [2 + k, 1]),
+        blue: [...Array(6)].map((_, k) => [2 + k, 8]),
+      };
+      const out = { fiveStacks: 0, colorsOk: true, house: 0, corners: '' };
+      for (const [color, spaces] of Object.entries(starts)) {
+        for (const [r, c] of spaces) {
+          const t = at(r, c).querySelector('.tile');
+          if (!t || t.dataset.owner !== color) { out.colorsOk = false; continue; }
+          const n = t.querySelector('.n');
+          if (n && n.textContent.startsWith('5')) out.fiveStacks++;
+        }
+      }
+      for (let r = 2; r <= 7; r++) for (let c = 2; c <= 7; c++) {
+        const t = at(r, c).querySelector('.tile');
+        if (t && t.dataset.owner === 'house') out.house++;
+      }
+      for (const [r, c] of [[1, 1], [1, 8], [8, 1], [8, 8]]) {
+        const p = at(r, c).querySelector('.printed-letter');
+        out.corners += p ? p.textContent : '?';
+      }
+      return out;
+    });
+    check(layout.colorsOk && layout.fiveStacks === 24, `all 24 start squares show x5 stacks in their color (${layout.fiveStacks})`);
+    check(layout.house === 36, `36 house pyramids cover the inner printed squares (${layout.house})`);
+    check(layout.corners === 'PSSP', `corner printed letters complete PYRAMIDS (${layout.corners})`);
     await host.screenshot({ path: path.join(SHOTS, 'host-game.png') });
+    // Keyed renderer: tag a cell node now; the same node must survive every
+    // state render of the whole game (the old renderer rebuilt all 100 cells).
+    await host.evaluate(() => { document.querySelectorAll('#board .cell')[42].__keyed = true; });
     scripted.forEach((s) => s.release());
     await host.waitForSelector('#over:not(.hidden)', { timeout: 180000 });
     const finals = await host.locator('#finals').textContent();
     check(/wins!/.test(finals), `game over overlay shows winner (${finals.trim().slice(0, 60)}…)`);
+    check(await host.evaluate(() => document.querySelectorAll('#board .cell')[42].__keyed === true), 'cell nodes are reused across renders (keyed board)');
+    const anims = await host.evaluate(() => window.__anims || 0);
+    check(anims > 0, `played words animate on the TV (${anims} plays animated)`);
     await host.screenshot({ path: path.join(SHOTS, 'host-gameover.png') });
 
     // --- D: mid-game rejoin from a phone

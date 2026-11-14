@@ -154,23 +154,60 @@ function tileHTML(top, depth) {
 }
 
 // state.cells[r][c] = { p: printedLetter|null, n: stackDepth, t: {l,v,o}|null }
+// Keyed renderer: the size*size cell nodes are created once per board element
+// and reused for every render. A cell's content is rebuilt only when its
+// pieces actually changed (a per-cell signature); decorations (selection,
+// glow, arrows) are cheap class toggles recomputed every time. Stable nodes
+// are what lets a played word be animated on top of the board.
 function renderBoard(el, state, opts = {}) {
   el.dataset.focus = opts.focus || '';
-  el.innerHTML = '';
   const size = state.size;
+  if (el.childElementCount !== size * size) {
+    el.replaceChildren();
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        const div = document.createElement('div');
+        div.className = 'cell';
+        div.dataset.r = r; div.dataset.c = c;
+        el.appendChild(div);
+      }
+    }
+    // One delegated listener for the whole board; the current handler is
+    // swapped on every render instead of re-binding 100 listeners.
+    const fire = (target) => {
+      const cell = target && target.closest && target.closest('.cell');
+      if (!cell || cell.parentElement !== el || !el._onCell) return;
+      el._onCell(+cell.dataset.r, +cell.dataset.c);
+    };
+    el.addEventListener('click', (e) => fire(e.target));
+    el.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (e.target.classList && e.target.classList.contains('cell')) { e.preventDefault(); fire(e.target); }
+    });
+  }
+  el._onCell = opts.onCell || null;
+  const interactive = !!opts.onCell;
   for (let r = 0; r < size; r++) {
     for (let c = 0; c < size; c++) {
       const cell = state.cells[r][c];
-      const div = document.createElement(opts.onCell ? 'button' : 'div');
-      div.className = 'cell';
-      div.setAttribute('aria-label', `Row ${r+1}, column ${c+1}: ${cell.t ? cell.t.l.toUpperCase()+' value '+cell.t.v+' '+cell.t.o+' stack '+cell.n : cell.p || 'empty'}`);
-      const runway = r === 0 || r === size - 1 || c === 0 || c === size - 1;
-      if (runway && !cell.t && !cell.p) div.classList.add('runway');
-      if (cell.t) {
-        div.innerHTML = tileHTML(cell.t, cell.n);
-      } else if (cell.p) {
-        div.innerHTML = `<span class="printed-letter">${cell.p.toUpperCase()}</span>`;
+      const div = el.children[r * size + c];
+      const sig = `${cell.p || ''}|${cell.n}|${cell.t ? cell.t.id + ':' + cell.t.l + ':' + cell.t.v + ':' + cell.t.o : ''}`;
+      if (div.dataset.sig !== sig) {
+        div.dataset.sig = sig;
+        div.innerHTML = cell.t
+          ? tileHTML(cell.t, cell.n)
+          : cell.p ? `<span class="printed-letter">${cell.p.toUpperCase()}</span>` : '';
+        div.setAttribute('aria-label', `Row ${r+1}, column ${c+1}: ${cell.t ? cell.t.l.toUpperCase()+' value '+cell.t.v+' '+cell.t.o+' stack '+cell.n : cell.p || 'empty'}`);
       }
+      const runway = r === 0 || r === size - 1 || c === 0 || c === size - 1;
+      div.classList.toggle('runway', runway && !cell.t && !cell.p);
+      if (interactive) { div.setAttribute('role', 'button'); div.setAttribute('tabindex', '0'); }
+      else { div.removeAttribute('role'); div.removeAttribute('tabindex'); }
+      // Decorations are recomputed from scratch on every render.
+      div.classList.remove('sel', 'cand', 'path-hint', 'dir-hint', 'glow', 'glow-start', 'glow-match');
+      delete div.dataset.arrow;
+      const oldGhost = div.querySelector('.ghost-letter');
+      if (oldGhost) oldGhost.remove();
       if (opts.selected && opts.selected.r === r && opts.selected.c === c) div.classList.add('sel');
       if (opts.candidates && opts.candidates.some(([cr, cc]) => cr === r && cc === c)) div.classList.add('cand');
       if (opts.hintCells && opts.hintCells.some(([hr, hc]) => hr === r && hc === c)) div.classList.add('path-hint');
@@ -178,8 +215,6 @@ function renderBoard(el, state, opts = {}) {
         const a = opts.arrows.find((x) => x.r === r && x.c === c);
         if (a) { div.classList.add('dir-hint'); div.dataset.arrow = a.glyph; }
       }
-      if (opts.onCell) div.addEventListener('click', () => opts.onCell(r, c));
-      el.appendChild(div);
     }
   }
 
@@ -283,6 +318,70 @@ function renderWords(el, state, names = {}) {
       <span class="wp-words">${entries.length ? chips : '<i>no words yet</i>'}</span>
     </div>`;
   }).join('');
+}
+
+// ---- Play animation (TV): a decorative overlay. The real board has already
+// rendered the new state; this replays the move on top of it, so skipping or
+// missing it can never desync anything.
+//   anim = { steps, fromRects: pieceId -> DOMRect captured BEFORE the new
+//            render, size }   opts = { sweepTo: element the captures fly to }
+// Remove every in-flight tile at once (a new play starts, or the game ends).
+function clearFlyers() {
+  document.querySelectorAll('.fly').forEach((f) => f.remove());
+}
+
+function animatePlay(boardEl, anim, opts = {}) {
+  window.__anims = (window.__anims || 0) + 1; // tests assert the show ran
+  clearFlyers(); // rapid back-to-back plays must not stack their flights
+  const steps = anim.steps || [];
+  const size = anim.size || 10;
+  const reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const cellAt = (r, c) => boardEl.children[r * size + c] || null;
+  const pulse = (r, c, delay) => {
+    const div = cellAt(r, c);
+    if (!div) return;
+    setTimeout(() => { div.classList.add('land'); setTimeout(() => div.classList.remove('land'), 520); }, delay);
+  };
+  let t = 0;
+  const flyers = [];
+  for (const s of steps) {
+    const [tr, tc] = s.to;
+    if (s.kind === 'move' && !reduced) {
+      const from = anim.fromRects && anim.fromRects[s.pieceId];
+      const toDiv = cellAt(tr, tc);
+      const to = toDiv && toDiv.getBoundingClientRect();
+      if (from && to && from.width) {
+        const fl = document.createElement('div');
+        fl.className = 'fly o-' + (s.owner || 'house');
+        fl.textContent = String(s.letter || '').toUpperCase();
+        fl.style.left = from.left + 'px';
+        fl.style.top = from.top + 'px';
+        fl.style.width = from.width + 'px';
+        fl.style.height = from.height + 'px';
+        fl.style.fontSize = Math.max(12, from.height * 0.5) + 'px';
+        document.body.appendChild(fl);
+        flyers.push(fl);
+        const dx = to.left - from.left, dy = to.top - from.top;
+        const delay = 30 + t;
+        setTimeout(() => { fl.style.transform = `translate(${dx}px, ${dy}px)`; }, delay);
+      }
+    }
+    pulse(tr, tc, reduced ? 0 : 430 + t);
+    t += 80;
+  }
+  // Then the captured pieces sweep off toward the capture pile.
+  const target = opts.sweepTo && opts.sweepTo.getBoundingClientRect ? opts.sweepTo.getBoundingClientRect() : null;
+  setTimeout(() => {
+    for (const fl of flyers) {
+      if (target) {
+        const r0 = fl.getBoundingClientRect();
+        fl.style.transition = 'transform .45s ease-in, opacity .45s ease-in';
+        fl.style.transform += ` translate(${target.left - r0.left}px, ${target.top - r0.top}px) scale(.2)`;
+      }
+      fl.style.opacity = '0';
+    }
+    setTimeout(() => { for (const fl of flyers) fl.remove(); }, 520);
+  }, reduced ? 0 : 520 + t);
 }
 
 function toast(text, good) {
