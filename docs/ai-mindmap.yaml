@@ -42,7 +42,6 @@ rules:
       9: [Q, Z]
     per_colour_set: A-Z once each plus an extra A, E, I, O = 30 pyramids, 100 points total, dealt as 6 stacks of 5
     house_pool: 43 black house letters (common-letter heavy); 36 are shuffled onto the inner squares each game, 7 stay out
-    house_pool_code_comment_wrong: the comment at game.js:23 says 42; the string holds 43 — trust the code
   turn_order:
     locked: true
     first: lowest sum of exposed tip values across your six start stacks (game.js createGame)
@@ -209,6 +208,7 @@ known_issues:  # each verified against the code on generated_on; status open unl
   - id: KI-11
     severity: low
     summary: HOUSE_LETTERS comment says 42, string holds 43 (game.js:23-27) - comment-only error, behaviour correct (36 placed)
+    status: fixed - comment now says 43, matching the string
   - id: KI-12
     severity: low
     summary: end-game penalty is applied but never shown being applied - players will ask "why 12?"; tie-break resolves in one sentence instead of a staged draw

@@ -25,7 +25,7 @@ const VALUES = {
 // Each player's 30 letters: every letter once, plus an extra A, E, I, O
 const PLAYER_LETTERS = 'abcdefghijklmnopqrstuvwxyzaeio'.split('');
 
-// 42 black house pyramid letters (common-letter heavy); 36 are placed each game
+// 43 black house pyramid letters (common-letter heavy); 36 are placed each game
 const HOUSE_LETTERS = (
   'eeeee' + 'aaaa' + 'iiii' + 'oooo' + 'ssss' + 'tttt' +
   'nnn' + 'rrr' + 'll' + 'uu' + 'dd' + 'cmhgbw'
@@ -97,7 +97,7 @@ function createGame(playerColors, rng = Math.random) {
     });
   }
 
-  // 36 of 42 house pyramids on the inner squares
+  // 36 of 43 house pyramids on the inner squares
   const house = shuffle(HOUSE_LETTERS, rng).slice(0, 36);
   let hi = 0;
   for (let r = 2; r <= 7; r++)
