@@ -1,0 +1,309 @@
+# Crossword Pyramids — machine-readable knowledge map for AI sessions.
+# Parse this as ground truth about the project before proposing or making changes.
+# Companion to IMPROVEMENT-PLAN.md (the human-readable design plan).
+meta:
+  project: Crossword Pyramids
+  pitch: Jackbox-style party word game — host on a big screen, players join on phones via QR or a 4-letter code
+  repo: jubeii89-design/pyramids
+  branch: claude/session-hsd67f
+  pr: "#6 (draft, open; deploys and render.yaml track main, so nothing here is live until it merges)"
+  generated_from_commit: 55b8e26
+  generated_on: 2026-11-14
+  authority: >
+    server/game.js is the canonical rules source. Where any document (this file
+    included) disagrees with the code, the code wins. Every number in the rules
+    block below was mechanically extracted from the running code on the date
+    above, not copied from prose.
+  stack: Node >=18, Express 5, ws 8, qrcode; vanilla JS clients, no build step; Grunt only drives the Playwright browser suites
+
+rules:
+  # THE GAME RULES ARE LOCKED. The author has settled them; do not change any
+  # node in this block, and do not "fix" the scoring penalty — it is deliberate.
+  locked: true
+  board:
+    locked: true
+    size: 10x10
+    word_runway: outer ring (row/col 0 and 9) is empty, optional space — a word uses it only if the player chooses to
+    inner_printed: 36 printed letters on rows 2-7 x cols 2-7 (game.js PRINTED_INNER)
+    corners_and_ring: corner squares at (1,1)(1,8)(8,1)(8,8) print P/S/S/P; the six start spaces per colour print Y-R-A-M-I-D, completing PYRAMIDS
+    start_spaces: 6 per colour — red row 1, yellow row 8, green col 1, blue col 8 (game.js startSpaces)
+    all_four_colours_always_set_up: true  # even with 2-3 players (createGame loops all COLORS)
+  pieces:
+    locked: true
+    tip_values:  # letter -> points engraved on the tip (game.js VALUES; verified sum below)
+      1: [A, E, I, O, U, N, R, S, T]
+      2: [L, D]
+      3: [B, C, M, H]
+      4: [F, G]
+      5: [P, Y]
+      6: [K]
+      7: [V, W, J]
+      8: [X]
+      9: [Q, Z]
+    per_colour_set: A-Z once each plus an extra A, E, I, O = 30 pyramids, 100 points total, dealt as 6 stacks of 5
+    house_pool: 43 black house letters (common-letter heavy); 36 are shuffled onto the inner squares each game, 7 stay out
+    house_pool_code_comment_wrong: the comment at game.js:23 says 42; the string holds 43 — trust the code
+  turn_order:
+    locked: true
+    first: lowest sum of exposed tip values across your six start stacks (game.js createGame)
+    then: seat order (COLORS order), round-robin; no turn clock — a turn ends only by playing a word or passing
+  word_legality:
+    locked: true
+    length: 3-10 letters, A-Z only (validate.js), must be in the dictionary
+    placement: straight line, H or V, fully on the board
+    sources: a path cell whose exposed letter matches is used in place; otherwise an exposed player pyramid elsewhere moves in; house pyramids and printed letters never move
+    must_include: at least one black letter in place (house pyramid or printed square), at least one of your own pyramids, at least one moved pyramid
+    letters_takeable_from: any of the four colours ("no such thing as free loot" — stealing is the game)
+    pre_turn_tops_only: a pyramid uncovered this turn cannot be used the same turn (resolver uses pre-turn tops; game.js backtracking)
+  capture:
+    locked: true
+    effect: every pyramid used in the word is captured by the player; the layer beneath each lifted top is revealed; printed letters stay and score nothing
+  scoring:
+    locked: true
+    during_play: scores stay hidden; only the word log (no points) and the pyramid tracker are public (game.js serialize)
+    final: sum of captured tip values MINUS the tips of your own colour still on the board (game.js finish). The penalty is deliberate — DO NOT REMOVE (author decision, HANDOFF.md rule 3)
+  endings:
+    locked: true
+    colour_exhausted: game ends when any seated player's colour is fully cleared from the board
+    stalemate: two full rounds of consecutive passes (players.length * 2) ends the game; a skipped disconnected turn counts as a pass
+  tie_break:
+    locked: true
+    method: tied players each draw a random pyramid (without replacement) from what is left on the board (or a plain 1-9 spread if empty); highest tip wins; equal draws redraw, 20-attempt cap then seat order (game.js drawOff)
+  timers:
+    locked: true
+    turn_clock: none — removed by the author; do not reintroduce
+    disconnected_skip_ms: 30000   # GONE_MS; only a disconnected player's turn is auto-passed
+    host_grace_ms: 600000         # room survives its host screen 10 min
+    idle_room_close_hours: 2
+  players:
+    locked: true
+    seats: 2-4, humans only — no AI opponents (author decision; findMove exists for tests only, the server never plays for anyone)
+
+architecture:
+  server:
+    server/index.js: HTTP + WebSocket room lifecycle; static files; /health (build + startedAt); /config.json (tipUrl); restart recovery from the checkpoint
+    server/game.js: pure rules engine, no I/O; playWord/planWord/passTurn/finish/serialize/draftView/peekUnder; findMove+probeMove are test-only helpers
+    server/validate.js: shape-checks every inbound message once; handlers only see typed, bounded fields
+    server/security.js: 32-byte base64url tokens, SHA-256 hashes, timing-safe compare
+    server/limits.js: per-IP sliding-window limits and concurrent-socket counts
+    server/origin.js: PUBLIC_ORIGIN allow-list (required in production), invite-origin derivation, TRUST_PROXY
+    server/room-store.js: atomic room checkpoint with lock file; a failed save never crashes the server (persistRooms try/catch)
+  clients:
+    public/index.html: home page — host or join; contains a STALE rules dialog (see known_issues KI-07)
+    public/host.html: the big screen (TV) — lobby QR, board, tracker, words panel, results
+    public/play.html: phone controller — join, tap-to-build word entry, pass, results
+    public/board.js: shared renderer + helpers; flat tile board (letter centre, value top-left, count bottom-right); HOWTO_STEPS guide; draft line; tracker; keepAwake (server ping only — NOT a screen wake lock)
+  ws_protocol:
+    path: /ws
+    max_payload_bytes: 8192
+    max_messages_per_second: 40
+    inbound:  # all validated in server/validate.js
+      host_create: "{ resume?: 4-letter code, token?: host credential } — creates a room or resumes one with no live host"
+      join: "{ code, name (<=16 chars, cleaned), token?: seat credential } — new seat, or credentialed seat reclaim"
+      start: host only, from lobby; drops an unclaimed host seat; needs >=2 players
+      play: "{ r, c, dir H|V, word 3-10, sources?: one square or null per letter, gameId, revision, requestId? }"
+      preview: same shape as play; dry-run via planWord; per-letter piece choices back  # supported by the server; NO current client sends it
+      lift: "{ cells: <=10 {r,c}, gameId, revision } — private peek at the piece under each lifted top; current player only; rate 120/10s"
+      draft: "{ dir, items: <=10 unique {r,c}, gameId, revision } — live word mirroring; silent on failure; rate 200/10s + 50ms debounce"
+      pass: no fields
+      again: host only, from phase over; still-connected players go straight into a new deal, else back to lobby
+      feedback: "{ text 1-500 chars } — appended to FEEDBACK_PATH jsonl, 5MB cap, 5/min/IP"
+    outbound:
+      hosted: "{ code, token, joinUrl, qr, playUrl?, playQr? } — playUrl/playQr (host's own seat link) only on a brand-new room"
+      room: lobby/seat snapshot (names, colours, connected, hostSeat+claimed)
+      joined: "{ code, color, name, token }"
+      state: "{ state: serialize() + gameId + revision } — scores null until over; log has points only when over"
+      played: "{ color, word, gameId, revision, actionId, presentation } — presentation.steps lists every piece move/capture; NO client renders it yet (see KI-01)"
+      draft: relayed public view { color, items:[{r,c,l,b}], start, lifted }
+      preview / lift: replies with requestId
+      reject: "{ error, code, hint } — stable refusal codes from game.js"
+      skipped: "{ color } — disconnected player's turn auto-passed"
+      error: "{ error, code? } — codes: HOST_AUTH, HOST_BUSY, ROOM_GONE, SEAT_GONE"
+    refusal_codes: [GAME_OVER, NOT_YOUR_TURN, BAD_WORD, NOT_A_WORD, BAD_DIRECTION, NO_START, OFF_BOARD, BAD_PICKS, MISSING_LETTER, NO_BLACK, NO_OWN, NO_MOVE, CONFLICT]
+  persistence:
+    checkpoint: ROOM_STORE_PATH (default data/rooms.json), atomic write + lock file; credentials stored only as SHA-256 hashes
+    restart: rooms under 2h idle and within host grace are rebuilt with all humans marked disconnected; credentials must be re-presented
+    not_a_backup: single instance only; the in-memory map is the source of truth
+  security:
+    origin: PUBLIC_ORIGIN comma list required in production; LAN mode allows same-host only; missing Origin header = non-browser test client
+    limits: { rooms_per_ip_per_min: 5, bad_codes_per_ip_per_min: 10, sockets_per_ip: 20, max_rooms: 200 }
+    room_codes: 4 letters from ABCDEFGHJKLMNPQRSTUVWXYZ (24 chars, no I/O)
+    host_recovery: host token hash; second screen cannot hijack a live host (HOST_BUSY)
+
+features_existing:  # do not re-propose these; they are built and tested
+  - host a room with QR + 4-letter code; invite link share/copy on the phone
+  - credentialed seat reclaim after disconnect (same colour, captures, log)
+  - host screen disconnect survival (10-min grace) and host resume by code+token
+  - reserved host seat claimed from the host's own phone via #seat=TOKEN link
+  - tap-to-build word entry - first black letter anchors the word; direction by tapping beside the anchor; local undo; Clear
+  - private lift - see the letter under a lifted top (current player only, never usable same turn)
+  - live draft mirroring - everyone watches the current player's word form, public letters only
+  - structured refusals with stable codes and hints
+  - pass with confirm; auto-skip only for disconnected players (30s)
+  - play again on the same code - still-connected players straight into a new deal
+  - end screen with final scores, penalty applied, tie-break explained; main-menu buttons
+  - how-to-play dialog (HOWTO_STEPS, board.js:77) on every page
+  - feedback button -> server jsonl
+  - /health build check; room checkpoint restart recovery
+  - word list 125,795 words (ENABLE public domain + house modern words + reviewed neol2016 - 69 excluded slur forms); SHA-pinned, test-enforced (data/WORDLIST.md)
+
+quality:
+  tests:
+    unit.test.js: rules engine - legality, capture, scoring, endings
+    presentation.test.js: presentation.steps contents for played words
+    security.test.js: limits, origin, token handling over real sockets
+    origin.test.js / validate.test.js: allow-list and message-shape units
+    parity.test.js: scripted full games - engine vs serialized views stay consistent
+    disconnect.test.js: seat hold, reclaim, skip timer
+    selection.test.js: manual source picks (sources array)
+    rejections.test.js: every refusal code
+    lift.test.js / draft.test.js: private peek and mirror relay
+    room-store.test.js / recovery.test.js: checkpoint + restart
+    wordlist.test.js: word list integrity vs fresh build + exclusions
+    e2e.js: five full scripted games over real WebSockets
+    ui.js + tap-build.js (Playwright, via "npx grunt verify-ui"): lobby, join, full game, phone tap-to-build
+  ci: .github/workflows/ci.yml - jobs test (npm test with --test-concurrency=1, then e2e) and browser (Playwright); concurrency serialized because parallel child servers hang 2-vCPU runners
+  deploy: deploy/aws.md (Lightsail), deploy/pyramids.service, deploy/Caddyfile, render.yaml (tracks main); temporary domain crosswordpyramids.duckdns.org
+  not_covered: never deployed; zero human playtests; no sound; no tutorial beyond the how-to dialog; no accessibility pass; rights to name/rules text unconfirmed
+
+known_issues:  # each verified against the code on generated_on; status open unless noted
+  - id: KI-01
+    severity: high
+    summary: presentation.steps is computed and broadcast for every word (game.js:307-315, index.js:390) but no client uses it - the biggest built-but-unused asset
+  - id: KI-02
+    severity: high
+    summary: no Screen Wake Lock - keepAwake (board.js:140) only pings the server; phones sleep, sockets drop, turns get skipped after 30s
+  - id: KI-03
+    severity: high
+    summary: celebration undercut - Submit (play.html:495-500) does not clear the local build, so the next state broadcast toasts "The board changed - your word was cleared." (play.html:317) over "You spelled X!"
+  - id: KI-04
+    severity: medium
+    summary: refusal hints name controls that no longer exist - "Press Auto", "highlighted pieces" (game.js:193,226,232,286) predate the tap-to-build client
+  - id: KI-05
+    severity: medium
+    summary: host's private seat QR renders on the shared TV (host.html:54-55) - anyone in the room can scan it and take the host's seat
+  - id: KI-06
+    severity: medium
+    summary: TV tile values/counts bottom out at 7px (style.css:167-173,214-221) - unreadable from a couch
+  - id: KI-07
+    severity: medium
+    summary: stale rules text - home dialog (index.html:146-151) and README "How it plays" (README.md:42-48) still describe the old type-a-word flow; HOWTO_STEPS (board.js:77-84) is current
+  - id: KI-08
+    severity: medium
+    summary: words log capped at 60 entries (game.js:352,368) while the serializer comment promises "the whole word log" - long games silently lose early words from the recap
+  - id: KI-09
+    severity: low
+    summary: board renderer rebuilds all 100 cells with innerHTML on every state (board.js:159) - blocks animation and breaks screen-reader focus; prerequisite for KI-01
+  - id: KI-10
+    severity: low
+    summary: phone tap targets ~30px and maximum-scale=1 (play.html:5) - below the 44px guideline and pinch-zoom disabled
+  - id: KI-11
+    severity: low
+    summary: HOUSE_LETTERS comment says 42, string holds 43 (game.js:23-27) - comment-only error, behaviour correct (36 placed)
+  - id: KI-12
+    severity: low
+    summary: end-game penalty is applied but never shown being applied - players will ask "why 12?"; tie-break resolves in one sentence instead of a staged draw
+
+improvement_tree:  # the plan in IMPROVEMENT-PLAN.md as addressable nodes. "do M1-01" = implement exactly this.
+  M1:  # Game-night safe (P0) - gate: one real game night
+    - id: M1-01
+      title: Screen Wake Lock + your-turn alert (vibration, title flash)
+      fixes: KI-02
+      size: S
+      acceptance: a phone left face-up through two other players' turns is still connected and alerts on its turn
+    - id: M1-02
+      title: clear the local build on Submit; suppress the board-changed toast for your own play
+      fixes: KI-03
+      size: S
+      acceptance: after a successful word the only toast is "You spelled X!"
+    - id: M1-03
+      title: rewrite refusal hints for the tap-to-build client; keep the word on refusal instead of wiping it
+      fixes: KI-04
+      size: S
+      acceptance: no hint names a control that does not exist; a refused word stays editable
+    - id: M1-04
+      title: join flow dead-ends - show the code field after ROOM_GONE/SEAT_GONE; handle duplicate/empty names inline
+      size: S
+      acceptance: every join failure leaves a visible path to retry
+    - id: M1-05
+      title: move the host seat QR off the shared TV (behind a "my seat" tap or host-only view)
+      fixes: KI-05
+      size: S
+      acceptance: the seat link is never displayed full-screen to the room
+    - id: M1-06
+      title: visible "Reconnecting..." state on the phone; make passes visible to everyone and warn one round before stalemate
+      size: S
+      acceptance: a dropped phone shows reconnect progress; the TV shows "2 more passes end the game"
+    - id: M1-07
+      title: retire stale rules text (index.html dialog, README) in favour of HOWTO_STEPS
+      fixes: KI-07
+      size: S
+      acceptance: one rules voice everywhere; no mention of typing words or Across/Down pickers
+    - id: M1-08
+      title: raise or remove the 60-entry words-log cap so the recap is complete
+      fixes: KI-08
+      size: S
+      acceptance: a 100-word game's recap lists 100 words
+  M2:  # The show (P1) - the TV becomes a stage
+    - id: M2-01
+      title: keyed-DOM board renderer (stable per-cell nodes, diff updates)
+      fixes: KI-09
+      size: L
+      note: tech enabler - prerequisite for M2-02
+      acceptance: a state update touches only changed cells; existing Playwright suites still pass
+    - id: M2-02
+      title: animate presentation.steps on the TV - pieces fly from source to word, steals named, capture piles grow
+      fixes: KI-01
+      depends_on: [M2-01]
+      size: L
+      acceptance: every played word is watchable as a sequence, skippable, and ends in the exact serialized state
+    - id: M2-03
+      title: TV layout pass - full-bleed board, giant lobby code/URL, full-width turn banner, tiles readable at 3m
+      fixes: KI-06
+      size: M
+      acceptance: code legible at 3m on a 1080p TV; tile letters >= ~28px rendered
+    - id: M2-04
+      title: sound - small synthesized/CC0 set (join, your-turn chime, word played, steal, game over) + mute; licences documented like the word list
+      size: M
+      acceptance: every sound's provenance in a SOUNDS.md; mute persists
+    - id: M2-05
+      title: end-game reveal - count up captures per player, visibly subtract the leftover-colour penalty, stage the tie-break as drawn pyramids
+      fixes: KI-12
+      size: M
+      acceptance: a player can explain their own final number after watching the reveal
+  M3:  # Everyone plays (P2) - no bored spectators
+    - id: M3-01
+      title: waiting-player engagement on the existing draft mirror - emoji reactions floating up the TV; one-tap "will it land?" prediction
+      size: M
+      acceptance: a waiting player interacts at least once per opponent turn in playtests
+    - id: M3-02
+      title: lobby identity - pyramid avatars, see other joiners from the phone, VIP start-from-phone via host seat, host kick
+      size: M
+      acceptance: lobby is legible from the phone alone; host can remove a seat
+  M4:  # Reach everyone (P3)
+    - id: M4-01
+      title: ergonomics + accessibility - >=44px taps, remove maximum-scale=1, colour-blind-safe palette + owner glyphs, aria labels with display names, landscape, focus retention
+      fixes: KI-10
+      size: M
+      acceptance: colour is never the only signal; WCAG touch-target pass on the build screen
+    - id: M4-02
+      title: copy/tone pass - in-character string table (announcements like "ANN ROBBED BOB!"), one voice across pages
+      size: S
+      acceptance: all user-facing strings come from one table; no stale hints possible by construction
+  not_doing:  # deliberate scope walls - do not propose these
+    - framework or build-step rewrite (vanilla JS is a decision)
+    - accounts, databases, or multi-instance scaling
+    - audience mode (beyond 4 players) in v1
+    - AI opponents (author decision)
+    - monetization beyond the existing optional TIP_URL link
+    - changing any rule in the rules block above
+
+conventions:
+  - rules are locked (see rules block); the scoring penalty is deliberate
+  - humans only, 2-4 players
+  - vanilla JS, no build step; Grunt only runs the browser suites
+  - one server instance; room checkpoint is recovery, not a backup
+  - licensing bar: nothing ships without documented provenance (see data/WORDLIST.md for the standard)
+  - production requires PUBLIC_ORIGIN; behind a proxy set TRUST_PROXY=1
+  - npm test must stay green and serialized (--test-concurrency=1 - parallel child servers hang small CI runners)
+  - rights to the name/rules/art are unconfirmed - nothing public or paid until written permission exists (HANDOFF.md)

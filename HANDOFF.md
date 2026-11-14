@@ -68,4 +68,6 @@ These override anything older:
 - Rights to the name, rules text and art are unconfirmed; written permission
   is needed before anything public or paid. Nothing paid is built.
 - Sound, tutorial, accessibility pass, graceful shutdown. (The word list is public-domain ENABLE plus our own short modern-words file and reviewed words from Alan Beale's public-domain neol2016, with slurs removed; see `data/WORDLIST.md` and `tools/build-wordlist.js`. A wider modern vocabulary needs a source whose licence you have checked.)
-- See `IMPROVEMENT-PLAN.md` / `PUBLIC-READINESS-REVIEW.md` if present locally.
+- See `IMPROVEMENT-PLAN.md` (design plan, in the repo) and `docs/ai-mindmap.yaml`
+  (its machine-readable companion: locked rules, protocol, known issues, plan
+  items with stable IDs). `PUBLIC-READINESS-REVIEW.md` exists only locally, if at all.
