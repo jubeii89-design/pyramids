@@ -1,0 +1,75 @@
+# Words removed from the playable list (slurs and hateful terms).
+# Applied by tools/build-wordlist.js to every source. Add a word here and run
+# node tools/build-wordlist.js to remove it; delete a line to allow it again.
+# Some entries also have an innocent sense (e.g. fagot/faggot = bundle of sticks);
+# they are excluded because the offensive sense dominates in a public game.
+# Ambiguous common words used as slurs only in some contexts are NOT listed here.
+coolie
+coolies
+dago
+dagoes
+dagos
+darkie
+darkies
+darky
+fag
+fagged
+fagging
+faggot
+faggoted
+faggoting
+faggots
+faggoty
+fagot
+fagoted
+fagoter
+fagoters
+fagoting
+fagots
+fags
+gook
+gooks
+gyp
+gypped
+gypper
+gyppers
+gypping
+gyps
+hebe
+hebes
+honkie
+honkies
+honky
+jigaboo
+jigaboos
+kike
+kikes
+mulatto
+mulattoes
+mulattos
+nigger
+niggers
+pickaninny
+poof
+poofs
+poofter
+poofters
+redskin
+redskins
+sambo
+sambos
+spaz
+spic
+spick
+spicks
+spics
+squaw
+squaws
+wetback
+wetbacks
+wog
+wogs
+wop
+wops
+yid
+yids

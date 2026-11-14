@@ -61,12 +61,11 @@ function startSpaces(color) {
   return out;
 }
 
-let nextId = 1;
-function makePyramid(letter, owner) {
-  return { id: nextId++, l: letter, v: VALUES[letter], o: owner };
-}
-
 function createGame(playerColors, rng = Math.random) {
+  // Piece ids are per game (1..N): a global counter would leak how many
+  // pieces other rooms on this server have dealt.
+  let nextId = 1;
+  const makePyramid = (letter, owner) => ({ id: nextId++, l: letter, v: VALUES[letter], o: owner });
   const cells = [];
   for (let r = 0; r < SIZE; r++) {
     cells.push([]);
@@ -76,10 +75,10 @@ function createGame(playerColors, rng = Math.random) {
   for (let r = 2; r <= 7; r++)
     for (let c = 2; c <= 7; c++) cells[r][c].printed = PRINTED_INNER[r - 2][c - 2];
   // Corner printed letters (S/P of "PYRAMIDS")
-  cells[1][1].printed = 's';
-  cells[1][8].printed = 'p';
-  cells[8][1].printed = 'p';
-  cells[8][8].printed = 's';
+  cells[1][1].printed = 'p';
+  cells[1][8].printed = 's';
+  cells[8][1].printed = 's';
+  cells[8][8].printed = 'p';
 
   // All four colors are set up even with fewer players (per the rules)
   for (const color of COLORS) {
@@ -110,6 +109,7 @@ function createGame(playerColors, rng = Math.random) {
     log: [],                       // {color, word, points} history
     winner: null,
     finalScores: null,
+    tieBreak: null,
   };
   for (const c of playerColors) {
     state.collected[c] = [];
@@ -157,23 +157,47 @@ function pathCells(r, c, dir, len) {
  *  - otherwise an exposed player pyramid elsewhere is moved onto that cell
  * Returns {ok:true, result} and mutates state, or {ok:false, error}.
  */
-function playWord(state, color, move, dict) {
-  if (state.phase !== 'playing') return { ok: false, error: 'Game is not in progress.' };
-  if (state.players[state.turn] !== color) return { ok: false, error: 'Not your turn.' };
+// A refused move: `error` is the short reason, `hint` says what to try next, `code`
+// is stable for clients and tests. Hints only mention what is already public.
+function refuse(code, error, hint, extra = {}) {
+  return { ok: false, code, error, hint, ...extra };
+}
+
+function playWord(state, color, move, dict, preview = false) {
+  if (state.phase !== 'playing') return refuse('GAME_OVER', 'Game is not in progress.', 'This game has ended; wait for the host to start a new one.');
+  if (state.players[state.turn] !== color) return refuse('NOT_YOUR_TURN', 'Not your turn.', 'Wait for the banner to say it is your turn, then try again.');
 
   const word = String(move.word || '').toLowerCase().trim();
-  if (!/^[a-z]{3,}$/.test(word)) return { ok: false, error: 'Words must be at least 3 letters (A-Z only).' };
-  if (!dict.has(word)) return { ok: false, error: `"${word.toUpperCase()}" is not in the dictionary.` };
-  if (move.dir !== 'H' && move.dir !== 'V') return { ok: false, error: 'Direction must be H or V.' };
+  if (!/^[a-z]{3,}$/.test(word)) {
+    return refuse('BAD_WORD', 'Words must be at least 3 letters (A-Z only).', 'Use three or more letters, A to Z only: no spaces, numbers or punctuation.');
+  }
+  if (!dict.has(word)) {
+    return refuse('NOT_A_WORD', `"${word.toUpperCase()}" is not in the dictionary.`,
+      'Check the spelling. The word list leaves out proper names, abbreviations and a lot of slang.', { word });
+  }
+  if (move.dir !== 'H' && move.dir !== 'V') return refuse('BAD_DIRECTION', 'Direction must be H or V.', 'Choose Across or Down.');
+  if (!Number.isInteger(move.r) || !Number.isInteger(move.c)) return refuse('NO_START', 'Choose a board square.', 'Tap the square where the word should start.');
 
   const path = pathCells(move.r | 0, move.c | 0, move.dir, word.length);
-  if (!path) return { ok: false, error: 'Word does not fit on the board there.' };
+  if (!path) {
+    const room = SIZE - (move.dir === 'H' ? (move.c | 0) : (move.r | 0));
+    return refuse('OFF_BOARD', 'Word does not fit on the board there.',
+      `From this square there are only ${Math.max(room, 0)} squares in that direction and the word needs ${word.length}. Start further back, or switch direction.`,
+      { needed: word.length, available: Math.max(room, 0) });
+  }
+
+  // Optional manual choice of source pieces: one square per letter (or null for
+  // "let the engine pick"). A hint can only narrow the engine's own candidates,
+  // so every rule check below still applies and no hint means unchanged behaviour.
+  const hints = Array.isArray(move.sources) ? move.sources : null;
+  if (hints && hints.length !== word.length) return refuse('BAD_PICKS', 'Pick one piece per letter, or leave it automatic.', 'Press Auto to clear your choices and try again.');
 
   const cells = state.cells;
   const onPath = new Set(path.map(([r, c]) => r * SIZE + c));
 
   // Candidate sources for each letter position
   const positions = [];
+  const allPositions = []; // unfiltered, for the preview's piece choices
   for (let i = 0; i < word.length; i++) {
     const [r, c] = path[i];
     const need = word[i];
@@ -190,8 +214,25 @@ function playWord(state, color, move, dict) {
         if (top.o !== 'house' && top.l === need) opts.push({ type: 'move', from: rr * SIZE + cc, owner: top.o });
       }
     }
-    if (!opts.length) return { ok: false, error: `No available letter "${need.toUpperCase()}" for position ${i + 1}.` };
-    positions.push(opts);
+    if (!opts.length) {
+      return refuse('MISSING_LETTER', `No available letter "${need.toUpperCase()}" for position ${i + 1}.`,
+        `Nothing on the path already shows ${need.toUpperCase()}, and no player's pyramid with that letter is showing on top elsewhere (house pyramids never move, and letters under other pyramids can't be used this turn). Try another word or start square.`,
+        { letter: need, position: i + 1 });
+    }
+    allPositions.push(opts.slice());
+    const hint = hints && hints[i];
+    if (hint) {
+      if (!Number.isInteger(hint.r) || !Number.isInteger(hint.c) || hint.r < 0 || hint.r >= SIZE || hint.c < 0 || hint.c >= SIZE) {
+        return refuse('BAD_PICKS', `Letter ${i + 1}: choose a board square.`, 'Tap one of the highlighted pieces, or press Auto.');
+      }
+      const idx = hint.r * SIZE + hint.c;
+      const narrowed = opts.filter((o) => (o.type === 'inplace' ? idx === r * SIZE + c : o.from === idx));
+      if (!narrowed.length) {
+        return refuse('BAD_PICKS', `That piece cannot supply "${need.toUpperCase()}" for letter ${i + 1}.`,
+          'Pick one of the highlighted pieces for that letter, or press Auto.', { letter: need, position: i + 1 });
+      }
+      positions.push(narrowed);
+    } else positions.push(opts);
   }
 
   // Backtracking: pick one source per position; a source cell may only give
@@ -239,10 +280,52 @@ function playWord(state, color, move, dict) {
   search(0);
 
   if (!solution) {
-    return {
-      ok: false,
-      error: 'Cannot form that word legally: it must use at least one of your own pyramids, one black letter (house pyramid or printed letter), and move at least one pyramid.',
-    };
+    // Say which rule is the problem. Each check looks at every letter's candidate sources.
+    const picked = hints && hints.some(Boolean);
+    const lead = picked ? 'Cannot form that word with the pieces you picked: ' : 'Cannot form that word legally: ';
+    const tail = picked ? ' Press Auto to let the game choose.' : '';
+    const some = (test) => positions.some((opts) => opts.some(test));
+    const mine = color;
+    if (!some((o) => o.type === 'inplace' && (o.ex.kind === 'printed' || o.ex.owner === 'house'))) {
+      return refuse('NO_BLACK', lead + 'it needs a black letter already in place.',
+        'One letter has to be showing on a house (black) pyramid or a printed square on the squares the word covers. Start the word on or across one.' + tail);
+    }
+    if (!some((o) => (o.type === 'inplace' && o.ex.kind === 'pyramid' && o.ex.owner === mine) || (o.type === 'move' && o.owner === mine))) {
+      return refuse('NO_OWN', lead + 'it must use one of your own pyramids.',
+        'At least one letter has to come from a pyramid of your colour that is showing on top of its stack. Choose a word with a letter you can reach.' + tail);
+    }
+    if (!some((o) => o.type === 'move')) {
+      return refuse('NO_MOVE', lead + 'at least one pyramid has to move.',
+        'Every letter is already sitting on its square. Start where at least one letter is missing, so a pyramid of yours can move in.' + tail);
+    }
+    return refuse('CONFLICT', lead + 'the pieces it needs overlap.',
+      'The same pyramid would have to be used twice, or the letters that satisfy one rule block another. Try a different start square, direction or word.' + tail);
+  }
+
+  // Describe only pre-turn exposed pieces, using the exact resolved choices.
+  // Drafts and commits share this resolver and cannot change duplicate-letter order.
+  const steps = solution.map((ch, i) => {
+    const to = path[i];
+    const from = ch.type === 'move' ? [Math.floor(ch.from / SIZE), ch.from % SIZE] : to;
+    if (ch.type === 'inplace' && ch.ex.kind === 'printed') return { kind: 'printed', from, to, letter: word[i] };
+    const stack = cells[from[0]][from[1]].stack;
+    const p = stack[stack.length - 1];
+    return { kind: ch.type, pieceId: p.id, from, to, letter: p.l, value: p.v, owner: p.o };
+  });
+  const presentation = { steps, captureIds: steps.filter(s => s.kind !== 'printed').map(s => s.pieceId) };
+  if (preview) {
+    // For each letter: every exposed piece that could supply it (tops and printed
+    // letters only - nothing underneath), the engine's pick first.
+    const choices = allPositions.map((opts, i) => {
+      const chosen = solution[i];
+      const view = (o) => (o.type === 'inplace'
+        ? { from: path[i], kind: o.ex.kind === 'printed' ? 'printed' : 'inplace', owner: o.ex.owner || null }
+        : { from: [Math.floor(o.from / SIZE), o.from % SIZE], kind: 'move', owner: o.owner });
+      const same = (o) => o.type === chosen.type && (o.type === 'inplace' || o.from === chosen.from);
+      const rest = opts.filter((o) => !same(o)).slice(0, 29);
+      return { to: path[i], options: [opts.find(same), ...rest].map(view) };
+    });
+    return { ok: true, word, presentation, choices };
   }
 
   // Apply the move: move pyramids onto the path, then collect everything used
@@ -270,18 +353,22 @@ function playWord(state, color, move, dict) {
 
   endCheck(state);
   if (state.phase === 'playing') advanceTurn(state);
-  return { ok: true, word, points, collected: collectedNow.length };
+  return { ok: true, word, points, collected: collectedNow.length, presentation };
 }
 
-function passTurn(state, color) {
-  if (state.phase !== 'playing') return { ok: false, error: 'Game is not in progress.' };
-  if (state.players[state.turn] !== color) return { ok: false, error: 'Not your turn.' };
+function planWord(state, color, move, dict) {
+  return playWord(state, color, move, dict, true);
+}
+
+function passTurn(state, color, rng = Math.random) {
+  if (state.phase !== 'playing') return refuse('GAME_OVER', 'Game is not in progress.', 'This game has ended; wait for the host to start a new one.');
+  if (state.players[state.turn] !== color) return refuse('NOT_YOUR_TURN', 'Not your turn.', 'Wait for the banner to say it is your turn.');
   state.passes++;
   state.log.push({ color, word: null, points: 0, pass: true });
   if (state.log.length > 60) state.log.shift();
   // Stalemate: two full rounds of passes ends the game
   if (state.passes >= state.players.length * 2) {
-    finish(state);
+    finish(state, rng);
     return { ok: true, ended: true };
   }
   advanceTurn(state);
@@ -289,7 +376,7 @@ function passTurn(state, color) {
 }
 
 function advanceTurn(state) {
-  state.turn = (state.turn + 1) % state.players.length; // clockwise
+  state.turn = (state.turn + 1) % state.players.length; // seat order (COLORS), not table-clockwise
 }
 
 function remainingOnBoard(state, color) {
@@ -308,21 +395,96 @@ function endCheck(state) {
   }
 }
 
-function finish(state) {
+function finish(state, rng = Math.random) {
   state.phase = 'over';
+  // Your score is the tip values of every pyramid you hold, added up, MINUS
+  // the tips of your own pyramids still sitting on the board — leaving your
+  // colour out there is a penalty. `state.scores` is the running capture
+  // total (see playWord); the deduction is applied once, here.
   const finals = {};
   for (const color of state.players) {
     finals[color] = state.scores[color] - remainingOnBoard(state, color).pts;
   }
   state.finalScores = finals;
-  let best = null;
+
+  let top = null;
   for (const color of state.players) {
-    if (best === null || finals[color] > finals[best]) best = color;
+    if (top === null || finals[color] > finals[top]) top = color;
   }
-  state.winner = best;
+  const tied = state.players.filter((c) => finals[c] === finals[top]);
+  state.winner = tied.length === 1 ? top : drawOff(state, tied, rng);
+}
+
+// Tie-break: each tied player takes a pyramid at random from a shuffled stack;
+// highest tip wins, and an equal draw is drawn again. The pool is the pyramids
+// still on the board, or a plain 1-9 spread if the board has been cleared out.
+function drawOff(state, tied, rng) {
+  const pool = [];
+  for (const row of state.cells)
+    for (const cell of row)
+      for (const p of cell.stack) pool.push(p.v);
+  if (!pool.length) for (let v = 1; v <= 9; v++) pool.push(v);
+
+  for (let attempt = 0; attempt < 20; attempt++) {
+    // Each player takes a different pyramid off the stack, so draw without
+    // replacement. Equal tips can still come up — then everyone draws again.
+    const stack = pool.slice();
+    const drew = {};
+    for (const color of tied) {
+      drew[color] = stack.length > 1
+        ? stack.splice(Math.floor(rng() * stack.length), 1)[0]
+        : pool[Math.floor(rng() * pool.length)];
+    }
+    let best = tied[0];
+    for (const color of tied) if (drew[color] > drew[best]) best = color;
+    const stillTied = tied.filter((c) => drew[c] === drew[best]);
+    state.tieBreak = { among: tied.slice(), drew, resolved: stillTied.length === 1 };
+    if (stillTied.length === 1) return best;
+  }
+  // Pathological pool (every pyramid the same value): fall back to seat order
+  // rather than spin forever.
+  return tied[0];
 }
 
 // Public serialization sent to clients
+// The piece sitting under each of the given stack tops (null when the top is the
+// last one), shown only to the player who is building a word. Never mutates state.
+function peekUnder(state, cells) {
+  const out = [];
+  for (const { r, c } of cells) {
+    const stack = state.cells[r] && state.cells[r][c] ? state.cells[r][c].stack : [];
+    const below = stack.length >= 2 ? stack[stack.length - 2] : null;
+    out.push({ r, c, under: below ? { l: below.l, v: below.v, o: below.o } : null });
+  }
+  return out;
+}
+
+// What everyone may see of the word the player on turn is spelling. Public
+// letters only (top or printed): the pieces under a top are never included.
+// Returns null if any item is an empty square. Never mutates state.
+function draftView(state, color, msg) {
+  const items = [];
+  for (const { r, c } of msg.items) {
+    const cell = state.cells[r] && state.cells[r][c];
+    if (!cell) return null;
+    const top = cell.stack.length ? cell.stack[cell.stack.length - 1] : null;
+    if (top) items.push({ r, c, l: top.l, b: top.o === 'house' ? 1 : 0 });
+    else if (cell.printed) items.push({ r, c, l: cell.printed, b: 1 });
+    else return null;
+  }
+  const lifted = [];
+  msg.items.forEach(({ r, c }, i) => { if (!items[i].b && state.cells[r][c].stack.length) lifted.push({ r, c }); });
+  let start = null;
+  const first = items.findIndex((it) => it.b);
+  if (first >= 0 && items.length >= 3) {
+    const dr = msg.dir === 'V' ? 1 : 0, dc = msg.dir === 'H' ? 1 : 0;
+    const sr = items[first].r - dr * first, sc = items[first].c - dc * first;
+    const er = sr + dr * (items.length - 1), ec = sc + dc * (items.length - 1);
+    if (sr >= 0 && sc >= 0 && er < SIZE && ec < SIZE) start = { r: sr, c: sc };
+  }
+  return { type: 'draft', color, gameId: msg.gameId, revision: msg.revision, dir: msg.dir, items, start, lifted };
+}
+
 function serialize(state) {
   // Pyramid tracker: remaining on board + captured, per color (incl. house)
   const remaining = { red: 0, blue: 0, green: 0, yellow: 0, house: 0 };
@@ -338,7 +500,7 @@ function serialize(state) {
   // game is over. During play we expose only the word log (no point values)
   // and the pyramid-remaining tracker.
   const over = state.phase === 'over';
-  const publicLog = state.log.slice(-12).map((e) =>
+  const publicLog = state.log.map((e) => // the whole word log: the words panel and the recap both need every word
     e.pass
       ? { color: e.color, pass: true }
       : { color: e.color, word: e.word, pyramids: e.pyramids, points: over ? e.points : undefined }
@@ -354,13 +516,14 @@ function serialize(state) {
     scores: over ? state.scores : null,
     finalScores: state.finalScores,
     winner: state.winner,
+    tieBreak: state.tieBreak,
     log: publicLog,
     cells: state.cells.map((row) =>
       row.map((cell) => ({
         p: cell.printed,
         n: cell.stack.length,
         t: cell.stack.length
-          ? { l: cell.stack[cell.stack.length - 1].l, v: cell.stack[cell.stack.length - 1].v, o: cell.stack[cell.stack.length - 1].o }
+          ? { id: cell.stack[cell.stack.length - 1].id, l: cell.stack[cell.stack.length - 1].l, v: cell.stack[cell.stack.length - 1].v, o: cell.stack[cell.stack.length - 1].o }
           : null,
       }))
     ),
@@ -371,6 +534,8 @@ function serialize(state) {
 
 // Find a legal move for `color`. Tries dictionary words (shuffled, feasibility
 // filtered) across all placements; returns the best of the first few found.
+// Searches for a legal move. The server never plays for anyone; this exists
+// for tests and analysis (scripted players, parity checks, replays).
 function findMove(state, color, botWords, rng = Math.random, maxFound = 4) {
   // Multiset of every available letter (exposed pyramids + printed)
   const avail = {};
@@ -401,9 +566,12 @@ function findMove(state, color, botWords, rng = Math.random, maxFound = 4) {
 
   const words = shuffle(botWords, rng);
   const found = [];
-  const deadline = Date.now() + 3000;
+  // Node is single-threaded: every millisecond spent here freezes every other
+  // room. A real move is found in tens of ms; this budget only bites on a
+  // hopeless scan, where passing is the right answer anyway.
+  const deadline = Date.now() + 750;
   for (const word of words) {
-    if (Date.now() > deadline && found.length) break;
+    if (Date.now() > deadline) break; // hard stop: a hopeless scan must not block the server
     if (found.length >= maxFound) break;
     if (!fits(word)) continue;
     for (let dir of ['H', 'V']) {
@@ -503,6 +671,6 @@ function probeMove(state, color, move, sourcesByLetter) {
 
 module.exports = {
   SIZE, COLORS, VALUES, PLAYER_LETTERS, HOUSE_LETTERS,
-  createGame, playWord, passTurn, serialize, exposed, findMove, probeMove,
+  createGame, playWord, planWord, peekUnder, draftView, passTurn, finish, serialize, exposed, findMove, probeMove,
   remainingOnBoard, startSpaces,
 };

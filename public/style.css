@@ -43,8 +43,40 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .btn.secondary { background: linear-gradient(180deg, #52407a, #3a2c59); color: var(--ink); box-shadow: 0 6px 0 #241a3a, 0 10px 22px rgba(0,0,0,.45); }
 .btn:disabled { opacity: .45; cursor: default; transform: none; }
 
-/* ================= 3D BOARD ================= */
-.board3d { perspective: 1100px; }
+/* ================= BOARD ================= */
+.boardwrap { min-width: 0; }
+.piece-inspector { min-height: 2.7em; padding: 10px 4px; color: #ead7ac; text-align: center; font-size: .88rem; }
+.draft-controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.draft-controls .btn { padding: 11px 16px; font-size: .85rem; }
+.draft-status { padding: 10px 0; min-height: 2.7em; color: #ffd365; }
+.howto-dialog { border: 2px solid #6b5a33; border-radius: 14px; background: #1d1528; color: #f4e6bd; padding: 18px 20px; max-width: min(92vw, 520px); max-height: 86vh; overflow: auto; }
+.howto-dialog::backdrop { background: rgba(0,0,0,.65); }
+.howto-steps { margin: 12px 0 16px 1.2em; padding: 0; }
+.howto-steps li { margin-bottom: 12px; }
+.howto-steps b { color: #ffd365; }
+.howto-steps p { margin: 3px 0 0; color: #e7dcc0; line-height: 1.45; font-size: .95rem; }
+[data-howto-new]::after { content: ' \2022'; color: #ffc21a; }
+.whybox { margin: 4px 0 10px; padding: 10px 12px; border: 1px solid #a8452f; border-left-width: 4px; border-radius: 8px; background: #2b1714; color: #ffd9cf; font-size: .93rem; line-height: 1.4; }
+.whybox b { display: block; margin-bottom: 3px; color: #ffb4a0; }
+.recap { margin: 14px auto 6px; max-width: 420px; text-align: left; }
+.recap-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px solid #3a2f1c; font-size: .95rem; }
+.recap-row span { color: #b9a87c; }
+.tip { margin-top: 10px; font-size: .9rem; }
+.tip a { color: #ffd365; }
+.fb-btn { position: fixed; right: 12px; bottom: 12px; z-index: 40; padding: 8px 12px; border-radius: 999px; border: 1px solid #6b5a33; background: #241d14; color: #f4e6bd; font-size: .8rem; opacity: .85; }
+.fb-dialog { border: 2px solid #6b5a33; border-radius: 14px; background: #1d1528; color: #f4e6bd; padding: 18px; max-width: min(92vw, 420px); }
+.fb-dialog::backdrop { background: rgba(0,0,0,.6); }
+.fb-dialog p { margin: 8px 0; color: #b9a87c; font-size: .9rem; }
+.fb-dialog textarea { width: 100%; box-sizing: border-box; background: #120d1a; color: #f4e6bd; border: 1px solid #6b5a33; border-radius: 8px; padding: 8px; font: inherit; }
+.fb-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px; }
+.pickrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 8px; }
+.pick-chip { min-width: 44px; min-height: 44px; padding: 6px 10px; border-radius: 10px; border: 2px solid #6b5a33; background: #241d14; color: #f4e6bd; font: 700 1.1rem Georgia, serif; }
+.pick-chip.picked { border-color: #ffc21a; }
+.pick-chip.picked::after { content: ' \2022'; color: #ffc21a; }
+.pick-chip.active { background: #ffc21a; color: #2a1d05; border-color: #fff0b0; }
+.pick-auto { min-height: 44px; padding: 6px 12px; }
+.cell.cand { outline: 3px solid #ffc21a; outline-offset: -3px; }
+@media (min-width: 901px) { .gamegrid .boardwrap { max-width: min(100%, calc(100vh - 155px)); margin-inline: auto; width: 100%; } }
 .board {
   display: grid;
   grid-template-columns: repeat(10, 1fr);
@@ -57,9 +89,7 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
   aspect-ratio: 1;
   width: 100%;
   user-select: none;
-  transform: rotateX(16deg);
-  transform-style: preserve-3d;
-  box-shadow: 0 30px 40px -18px rgba(0,0,0,.7);
+  box-shadow: 0 12px 24px -12px rgba(0,0,0,.7);
 }
 .cell {
   position: relative;
@@ -73,7 +103,11 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
   justify-content: center;
   overflow: visible;
 }
-.cell.runway { background: #b3a276; background-image: none; box-shadow: inset 0 0 6px rgba(0,0,0,.25); }
+.cell.runway { background: #b3a276; box-shadow: inset 0 0 6px rgba(0,0,0,.25);
+  /* a thin X on every runway square */
+  background-image:
+    linear-gradient(to top right, transparent calc(50% - .7px), rgba(70,48,18,.55) 50%, transparent calc(50% + .7px)),
+    linear-gradient(to bottom right, transparent calc(50% - .7px), rgba(70,48,18,.55) 50%, transparent calc(50% + .7px)); }
 .printed-letter {
   font-family: Georgia, serif;
   font-weight: bold;
@@ -116,6 +150,43 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
   font-family: Georgia, serif;
   box-shadow: 0 1px 3px rgba(0,0,0,.35);
 }
+
+/* --- Flat tile: letter centred, value top-left, stack count bottom-right --- */
+.tile {
+  position: absolute; inset: 4%;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+  background: linear-gradient(180deg, var(--pyr-lite), var(--pyr-mid));
+  border: 2px solid #8d8470;
+  box-shadow: 0 2px 4px rgba(0,0,0,.4);
+  transition: transform .12s;
+  pointer-events: none;
+}
+.tile .L {
+  font-family: Georgia, serif; font-weight: bold; line-height: 1;
+  font-size: clamp(13px, 3.4vmin, 34px);
+  -webkit-text-stroke: 1px #000;
+  paint-order: stroke fill;
+}
+.tile .v, .tile .n {
+  position: absolute; font-style: normal; font-weight: bold; line-height: 1;
+  font-size: clamp(7px, 1.5vmin, 13px); color: #2b2418;
+}
+.tile .v { top: 6%; left: 8%; }
+.tile .n { bottom: 6%; right: 8%; color: #5a4a20; }
+.tile.o-red    { border-color: var(--red); }
+.tile.o-blue   { border-color: var(--blue); }
+.tile.o-green  { border-color: var(--green); }
+.tile.o-yellow { border-color: var(--yellow); }
+.tile.o-red .L    { color: var(--red); }
+.tile.o-blue .L   { color: var(--blue); }
+.tile.o-green .L  { color: var(--green); }
+.tile.o-yellow .L { color: var(--yellow); }
+/* black house squares */
+.tile.o-house { background: linear-gradient(180deg, #3b3842, #232128); border-color: #000; }
+.tile.o-house .L { color: #e8d5a3; -webkit-text-stroke: 0; }
+.tile.o-house .v { color: #c9b98b; }
+.tile.o-house .n { color: #ffd76a; }
 /* the letter on the front face */
 .pyr .pl {
   position: absolute;
@@ -142,7 +213,7 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 /* stack count chip */
 .pyr .cnt {
   position: absolute;
-  top: -6%; right: -6%;
+  top: 3%; right: 3%;
   background: #1d1528;
   color: #ffd76a;
   border: 1px solid #ffd76a;
@@ -153,9 +224,9 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
   z-index: 3;
   box-shadow: 0 2px 4px rgba(0,0,0,.5);
 }
-.cell:hover .pyr { transform: scale(1.12) translateY(-2px); z-index: 5; }
+.cell:hover .tile { transform: scale(1.06); z-index: 5; }
 .cell.sel { outline: 3px solid #fff; outline-offset: -1px; z-index: 4; border-radius: 4px; }
-.cell.sel .pyr { transform: scale(1.15) translateY(-3px); }
+.cell.sel .tile { transform: scale(1.06); }
 .cell.path-hint { box-shadow: inset 0 0 0 3px rgba(255,215,106,.85); border-radius: 4px; }
 
 /* --- Spelling glow: the active word being placed --- */
@@ -166,7 +237,7 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
   animation: glowpulse 1.1s ease-in-out infinite;
 }
 .cell.glow-start { box-shadow: inset 0 0 0 4px #fff, 0 0 14px 4px rgba(255,215,106,.9); }
-.cell.glow-match .pyr { transform: scale(1.12); filter: drop-shadow(0 0 6px #ffd76a); }
+.cell.glow-match .tile { transform: scale(1.06); filter: drop-shadow(0 0 6px #ffd76a); }
 @keyframes glowpulse {
   0%, 100% { box-shadow: inset 0 0 0 3px #ffd76a, 0 0 8px 1px rgba(255,215,106,.55); }
   50%      { box-shadow: inset 0 0 0 3px #fff4cf, 0 0 16px 5px rgba(255,215,106,.95); }
@@ -230,3 +301,32 @@ input[type=text]:focus { outline: 3px solid var(--gold); }
 .toast.good { background: #123420; color: #d9ffe3; border-color: #2c7a44; }
 @keyframes toast-in { from { transform: translateX(-50%) translateY(20px); opacity: 0; } }
 @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+
+/* Results screen: how a tied game was settled */
+.tiebreak { color: var(--sand); font-size: .9rem; margin-bottom: 10px; }
+
+/* --- Direction hints, face-down tiles, live draft line --- */
+.cell.dir-hint { position: relative; }
+.cell.dir-hint::after {
+  content: attr(data-arrow);
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: clamp(14px, 4vmin, 38px); font-weight: bold; line-height: 1;
+  color: #ffd76a; opacity: .4; pointer-events: none; z-index: 7;
+  text-shadow: 0 0 4px rgba(0,0,0,.6);
+}
+.cell.dir-hint:hover::after, .cell.dir-hint.dir-chosen::after { opacity: 1; }
+.tile.o-hidden {
+  background: repeating-linear-gradient(45deg, #2c2438 0 5px, #231d2e 5px 10px);
+  border-color: #4a3d63;
+}
+.tile.o-hidden .L { color: #7d7196; -webkit-text-stroke: 0; }
+.tile.o-hidden .n { color: #a99ac4; }
+.draftline {
+  min-height: 2.2rem; display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+  margin-bottom: 6px; color: #ffd76a; font-size: 1rem;
+}
+.draftline .dchip {
+  display: inline-block; min-width: 1.5em; padding: 2px 5px; text-align: center;
+  background: #e9dfc2; color: #2b2418; border-radius: 4px; font: bold .9rem Georgia, serif;
+}
+.draftline .dchip-black { background: #2a2730; color: #e8d5a3; border: 1px solid #000; }
