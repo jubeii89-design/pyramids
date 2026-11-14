@@ -17,9 +17,15 @@ function acquire(file) {
     try {
       const fd = fs.openSync(lockFile, 'wx', 0o600);
       fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, startedAt: Date.now() }));
+      // release() runs from both a signal handler and the 'exit' handler, so a
+      // second call must be a no-op: closeSync on an already-closed fd throws
+      // EBADF during exit, where nothing catches it.
+      let released = false;
       return {
         release() {
-          fs.closeSync(fd);
+          if (released) return;
+          released = true;
+          try { fs.closeSync(fd); } catch {}
           try {
             const owner = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
             if (owner.pid === process.pid) fs.unlinkSync(lockFile);

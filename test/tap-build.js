@@ -217,8 +217,13 @@ async function main() {
   } finally {
     for (const s of scripted) s.close();
     await browser.close();
+    // Wait for the server to actually exit before removing its store dir:
+    // kill() returns at once, and a dying child still touching the lock or
+    // checkpoint files turns the rmSync into an ENOTEMPTY crash.
+    const stopped = new Promise((resolve) => proc.once('exit', resolve));
     proc.kill();
-    fs.rmSync(storeDir, { recursive: true, force: true });
+    await stopped;
+    fs.rmSync(storeDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
   console.log(failures === 0 ? '\nTAP-TO-BUILD CHECKS ALL PASSED' : `\n${failures} CHECKS FAILED`);
   process.exit(failures === 0 ? 0 : 1);
