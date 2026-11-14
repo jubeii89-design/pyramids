@@ -1,15 +1,20 @@
 # Asset provenance
 
-`space-bg.jpg` is the game's background photograph. It is the `~large`
-rendition (1920×1280) of a NASA photograph, downloaded unmodified from the
-NASA Image and Video Library. The other files in this directory
-(`stage-*.png`) are the project's own artwork.
+`space-bg.jpg` is the game's background photograph, chosen by the project
+author from Unsplash and supplied at 2000×1365. The other files in this
+directory (`stage-*.png`) are the project's own artwork.
 
-| File | NASA ID | Title | Direct asset URL | Source page / collection | Licence | Credit to display |
+| File | Source ID | Title | Artist | Source page | Licence | Credit displayed |
 |---|---|---|---|---|---|---|
-| `space-bg.jpg` | `art002e012588` | Starstruck — the Milky Way photographed by the Artemis II crew (April 7, 2026) | <https://images-assets.nasa.gov/image/art002e012588/art002e012588~large.jpg> | <https://images.nasa.gov/details/art002e012588> (collection: <https://images-assets.nasa.gov/image/art002e012588/collection.json>) | NASA imagery: public domain / not copyrighted, per the NASA Media Usage Guidelines (<https://www.nasa.gov/nasa-brand-center/images-and-media/>) | NASA |
+| `space-bg.jpg` | Unsplash `E0AHdsENmDg` | "blue and purple galaxy digital wallpaper" (the Milky Way) | Jeremy Thomas (<https://unsplash.com/@jeremythomasphoto>) | <https://unsplash.com/photos/blue-and-purple-galaxy-digital-wallpaper-E0AHdsENmDg> | [Unsplash License](https://unsplash.com/license): free to use for commercial and non-commercial purposes, no permission needed; attribution not required | "Photo by Jeremy Thomas on Unsplash" (credits page) |
 
-The library record credits the image to NASA alone: no photographer,
-secondary creator or other rights holder outside NASA is named, and no usage
-restriction is attached to the record. **No restricted or
-attribution-licensed material is included in this directory.**
+Notes:
+
+- The Unsplash License is **not** an attribution-required or share-alike
+  licence, so this asset stays within the project's licensing bar (see
+  `data/WORDLIST.md`); the credit is given voluntarily, at the author's
+  request.
+- An earlier revision used a NASA photograph (`art002e012588`, public
+  domain); it was replaced by this author-chosen image.
+- **No restricted, share-alike or attribution-required material is included
+  in this directory.**
