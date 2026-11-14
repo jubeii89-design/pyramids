@@ -355,6 +355,34 @@ input[type=text]:focus { outline: 3px solid var(--gold); }
 
 /* Results screen: how a tied game was settled */
 .tiebreak { color: var(--sand); font-size: .9rem; margin-bottom: 10px; }
+/* --- M2-05: end-game reveal — captured − left on board = final --- */
+.rv-winner { margin-bottom: 12px; }
+.rv-row { display: flex; text-align: left; align-items: center; gap: 8px; } /* play.html has no .score flex rule of its own */
+.rv-row.mine { background: #3a2e1c; outline: 2px solid var(--gold); }
+.rv-row.mine small { color: var(--gold); }
+.rv-row > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-math { display: flex; gap: 6px; align-items: baseline; color: #b9a87c; flex: none; }
+.rv-math i { font-style: normal; opacity: .7; }
+.rv-cap { color: #d9ffe3; }
+.rv-pen { color: #ff9f8a; }
+.rv-final { font-size: 1.25em; color: var(--gold); min-width: 2.5ch; text-align: right; flex: none; }
+.rv-key { color: #8f8363; font-size: .85rem; margin: 6px 0 2px; }
+.tb-stage { margin-bottom: 10px; }
+.tb-draws { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin: 8px 0; }
+.tb-draw { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: .95rem; }
+.tb-pyr {
+  width: 40px; height: 34px; clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  background: linear-gradient(180deg, var(--pyr-lite), var(--pyr-shadow));
+  display: flex; align-items: flex-end; justify-content: center;
+  font: bold 1rem Georgia, serif; color: #4a4132; padding-bottom: 2px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rv-anim .rv-row { animation: rv-in .45s both; animation-delay: calc(var(--i) * .35s); }
+  .rv-anim .tb-draw { animation: rv-pop .4s both; animation-delay: calc(var(--i) * .45s); }
+  .rv-anim .rv-key, .rv-anim .recap, .rv-anim .tip { animation: rv-in .45s both; animation-delay: 1.6s; }
+}
+@keyframes rv-in { from { opacity: 0; transform: translateY(10px); } }
+@keyframes rv-pop { from { opacity: 0; transform: scale(.4); } }
 
 /* --- Direction hints, face-down tiles, live draft line --- */
 .cell.dir-hint { position: relative; }

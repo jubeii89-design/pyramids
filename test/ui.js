@@ -298,7 +298,11 @@ async function main() {
     const winner = (hostFinals.match(/^\s*🏆\s*(.+?)\s*wins!/) || [])[1];
     const firstListed = (await host4.locator('#finals .score span').first().textContent()).trim();
     check(!!winner && firstListed === winner, `winner is listed first (${winner} / ${firstListed})`);
+    // The reveal spells out everyone's math and stages the draw as pyramids.
+    check((await host4.locator('#finals .rv-final').count()) === 3, 'every player gets a captured − penalty = final row');
+    check((await host4.locator('#finals .tb-pyr').count()) >= 2, 'tie-break staged as drawn pyramids');
     check(/settled by a draw/.test(await phones[0].locator('#finals').textContent()), 'phone explains the tie-break too');
+    check((await phones[0].locator('#finals .rv-row.mine').count()) === 1, 'phone highlights your own row in the reveal');
     check(await phones[0].locator('#againBtn').isVisible(), 'phone game over offers Play Again');
     check(await phones[0].locator('#menuBtn').isVisible(), 'phone game over offers Main Menu');
     await phones[0].screenshot({ path: path.join(SHOTS, 'phone-gameover.png') });

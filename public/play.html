@@ -515,13 +515,10 @@ function renderWordLine(line) {
 
 function renderOver() {
   show('overview'); hide('gameview');
-  const f = state.finalScores;
   const nameOf = (c) => names[c] || COLOR_NAMES[c];
-  document.getElementById('finals').innerHTML =
-    `<p style="margin-bottom:10px">&#127942; <b>${escapeHTML(nameOf(state.winner))}</b> wins!</p>` +
-    tieBreakLine(state, nameOf) +
-    rankFinal(state).map(c => `<div><span class="chip ${c}"></span>${escapeHTML(nameOf(c))}: <b>${f[c]}</b></div>`).join('') +
-    gameRecapHTML(state, nameOf);
+  // Static breakdown on the phone — your own row highlighted; the staged
+  // count-up belongs to the big screen everyone is watching.
+  document.getElementById('finals').innerHTML = finalsRevealHTML(state, nameOf, { me: myColor });
 }
 
 // Game-over options: sit tight for the host's next round, or bail out to the

@@ -34,17 +34,64 @@ function rankFinal(state) {
   });
 }
 
-// One line explaining a tie that went to a draw, or '' when the game was won
+// The tie-break staged as drawn pyramids, or '' when the game was won
 // outright. Keeps the result from looking arbitrary.
-function tieBreakLine(state, nameOf) {
+function tieBreakStageHTML(state, nameOf) {
   const tb = state.tieBreak;
   if (!tb || !tb.resolved) return '';
-  const drew = tb.among
+  const draws = tb.among
     .slice()
     .sort((a, b) => tb.drew[b] - tb.drew[a])
-    .map((c) => `${escapeHTML(nameOf(c))} drew ${tb.drew[c]}`)
-    .join(', ');
-  return `<p class="tiebreak">Tied on score — settled by a draw: ${drew}.</p>`;
+    .map((c, i) =>
+      `<div class="tb-draw" style="--i:${i}">
+        <span class="tb-pyr">${tb.drew[c]}</span>
+        <span><span class="chip ${c}"></span>${escapeHTML(nameOf(c))} drew <b>${tb.drew[c]}</b></span>
+      </div>`)
+    .join('');
+  return `<div class="tb-stage"><p class="tiebreak">Tied on score — settled by a draw:</p>
+    <div class="tb-draws">${draws}</div></div>`;
+}
+
+// The end-game reveal, shared by host and phone: winner line first (screens
+// and tests read it at the top), then the draw stage if the game was tied,
+// then one row per player spelling out captured − own colour left on board
+// = final, then the recap. All of it is in the DOM at once; any staging is
+// CSS-delayed visibility plus the count-up below, never late insertion.
+function finalsRevealHTML(state, nameOf, opts = {}) {
+  const f = state.finalScores;
+  const pen = state.penalties || {};
+  const cap = state.scores || {};
+  const rows = rankFinal(state).map((c, i) => {
+    const p = pen[c] != null ? pen[c] : (cap[c] || 0) - f[c]; // old saved games lack penalties
+    const mine = opts.me === c;
+    return `<div class="score rv-row${mine ? ' mine' : ''}" style="--i:${i}">
+      <span><span class="chip ${c}"></span>${escapeHTML(nameOf(c))}${mine ? ' <small>(you)</small>' : ''}</span>
+      <span class="rv-math"><b class="rv-cap" data-n="${cap[c] || 0}">${cap[c] || 0}</b><i>&minus;</i><b class="rv-pen" data-n="${p}">${p}</b><i>=</i></span>
+      <b class="rv-final" data-n="${f[c]}">${f[c]}</b></div>`;
+  }).join('');
+  return `<p class="rv-winner">&#127942; <b>${escapeHTML(nameOf(state.winner))}</b> wins!</p>` +
+    tieBreakStageHTML(state, nameOf) + rows +
+    `<p class="rv-key">captured &minus; your colour left on board = final</p>` +
+    gameRecapHTML(state, nameOf);
+}
+
+// Count the reveal's numbers up from 0, staggered with the CSS row delays.
+// Skipped under prefers-reduced-motion: the DOM already holds the finals.
+function animateFinalsReveal(el) {
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  el.classList.add('rv-anim');
+  el.querySelectorAll('.rv-row').forEach((row, i) => {
+    row.querySelectorAll('[data-n]').forEach((b) => {
+      const target = parseInt(b.dataset.n, 10) || 0;
+      const t0 = performance.now() + 350 * i; // matches the CSS row delay
+      const dur = 800;
+      (function tick(now) {
+        const k = Math.min(1, Math.max(0, (now - t0) / dur));
+        b.textContent = String(Math.round(target * (1 - Math.pow(1 - k, 3))));
+        if (k < 1) requestAnimationFrame(tick);
+      })(performance.now());
+    });
+  });
 }
 
 // ---- post-game recap, voluntary-support link, and the feedback dialog (shared by host and phone) ----

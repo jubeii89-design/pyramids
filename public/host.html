@@ -22,7 +22,7 @@
   .loglist { max-height: 300px; overflow-y: auto; font-size: .95rem; }
   .loglist div { padding: 4px 2px; border-bottom: 1px solid #3a2e1c; }
   .overlay { position: fixed; inset: 0; background: rgba(10,7,3,.88); display: flex; align-items: center; justify-content: center; z-index: 40; }
-  .overlay .panel { text-align: center; max-width: 480px; }
+  .overlay .panel { text-align: center; max-width: 560px; }
   .hidden { display: none !important; }
   .joinurl { color: #b9a87c; word-break: break-all; margin-top: 10px; font-size: .9rem; }
   .wp-row { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid #3d2f56; }
@@ -305,12 +305,14 @@ function renderGame() {
   renderWords(document.getElementById('log'), state, names);
   if (state.phase === 'over') {
     show('over');
-    const f = state.finalScores;
-    document.getElementById('finals').innerHTML =
-      `<p style="margin-bottom:12px">&#127942; <b>${escapeHTML(pname(state.winner))}</b> wins!</p>` +
-      tieBreakLine(state, pname) +
-      rankFinal(state).map(c => `<div class="score"><span><span class="chip ${c}"></span>${escapeHTML(pname(c))}</span><b>${f[c]}</b></div>`).join('') +
-      gameRecapHTML(state, pname);
+    const el = document.getElementById('finals');
+    // Run the reveal once per game: re-broadcasts (reconnects, late state
+    // echoes) must not restart the count-up mid-show.
+    if (el.dataset.revealedFor !== String(state.gameId)) {
+      el.dataset.revealedFor = String(state.gameId);
+      el.innerHTML = finalsRevealHTML(state, pname);
+      animateFinalsReveal(el);
+    }
   }
 }
 

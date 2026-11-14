@@ -114,6 +114,7 @@ function createGame(playerColors, rng = Math.random) {
     log: [],                       // {color, word, points} history
     winner: null,
     finalScores: null,
+    penalties: null,
     tieBreak: null,
   };
   for (const c of playerColors) {
@@ -407,10 +408,13 @@ function finish(state, rng = Math.random) {
   // colour out there is a penalty. `state.scores` is the running capture
   // total (see playWord); the deduction is applied once, here.
   const finals = {};
+  const penalties = {};
   for (const color of state.players) {
-    finals[color] = state.scores[color] - remainingOnBoard(state, color).pts;
+    penalties[color] = remainingOnBoard(state, color).pts;
+    finals[color] = state.scores[color] - penalties[color];
   }
   state.finalScores = finals;
+  state.penalties = penalties; // stored so the reveal can SHOW the deduction
 
   let top = null;
   for (const color of state.players) {
@@ -521,6 +525,8 @@ function serialize(state) {
     passes: state.passes, // consecutive passes; players.length * 2 ends the game
     scores: over ? state.scores : null,
     finalScores: state.finalScores,
+    penalties: state.penalties || null, // pts of your own colour left on board, set at over
+
     winner: state.winner,
     tieBreak: state.tieBreak,
     log: publicLog,
