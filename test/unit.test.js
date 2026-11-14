@@ -55,6 +55,29 @@ test('setup: pyramid counts and layout', () => {
   assert.ok(st.players.includes(st.players[st.turn]));
 });
 
+// The board's identity: the printed ring spells PYRAMIDS around the four
+// colors' x5 start stacks, and the tracker opens full. Locked so no renderer
+// or rules change can ever quietly disturb the start layout.
+test('setup: the printed ring spells PYRAMIDS and the tracker starts full', () => {
+  const st = g.createGame(['red', 'blue', 'green', 'yellow'], seeded(3));
+  assert.strictEqual(st.cells[1][1].printed, 'p');
+  assert.strictEqual(st.cells[1][8].printed, 's');
+  assert.strictEqual(st.cells[8][1].printed, 's');
+  assert.strictEqual(st.cells[8][8].printed, 'p');
+  for (const color of g.COLORS) {
+    const printed = g.startSpaces(color).map(([r, c]) => st.cells[r][c].printed).join('');
+    assert.strictEqual(printed, 'yramid');
+  }
+  const s = g.serialize(st);
+  assert.deepStrictEqual(s.remaining, { red: 30, blue: 30, green: 30, yellow: 30, house: 36 });
+  for (const color of g.COLORS) {
+    for (const [r, c] of g.startSpaces(color)) {
+      assert.strictEqual(s.cells[r][c].n, 5);
+      assert.strictEqual(s.cells[r][c].t.o, color);
+    }
+  }
+});
+
 test('who goes first: lowest exposed tip total', () => {
   const st = g.createGame(['red', 'blue', 'green', 'yellow'], seeded(7));
   const sums = st.players.map((color) => {

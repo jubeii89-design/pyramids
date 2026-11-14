@@ -76,7 +76,7 @@
 
   <!-- GAME -->
   <div id="gamearea" class="gamegrid hidden">
-    <div class="boardwrap"><div id="draftline" class="draftline"></div><div class="board" id="board"></div></div>
+    <div class="boardwrap"><div id="draftline" class="draftline"></div><div class="board" id="board"></div><div id="callout" class="steal-callout" aria-live="polite"></div></div>
     <div>
       <div class="panel" style="margin-bottom: 14px">
         <h3 class="gold" style="margin-bottom:8px">Scores</h3>
@@ -110,6 +110,7 @@
 <script src="/board.js"></script>
 <script>
 let room = null, state = null, names = {}, draft = null;
+let pendingAnim = null; // a 'played' event waiting for its state broadcast to animate
 
 keepAwake();
 
@@ -163,6 +164,14 @@ function onMsg(msg) {
     hide('lobby'); show('gamearea');
     if (state.phase !== 'over') hide('over'); // a fresh board after Play Again
     renderGame();
+    // The board above already shows the truth; now replay the move on top of it.
+    if (state.phase === 'over') {
+      pendingAnim = null;
+      clearFlyers(); // nothing may keep flying over the results screen
+    } else if (pendingAnim && pendingAnim.gameId === state.gameId && pendingAnim.revision === state.revision) {
+      animatePlay(document.getElementById('board'), pendingAnim, { sweepTo: document.getElementById('scores') });
+      pendingAnim = null;
+    }
   } else if (msg.type === 'draft') {
     if (state && msg.gameId === state.gameId && msg.revision === state.revision && msg.color === state.current) {
       draft = msg.items && msg.items.length ? msg : null;
@@ -170,6 +179,21 @@ function onMsg(msg) {
     if (state) renderGame();
   } else if (msg.type === 'played') {
     draft = null;
+    // The OLD board is still on screen right now: remember where each moved
+    // piece currently sits, so the state broadcast that follows can fly it.
+    pendingAnim = null;
+    if (msg.presentation && state && msg.gameId === state.gameId) {
+      const boardEl = document.getElementById('board');
+      const size = state.size || 10;
+      const fromRects = {};
+      for (const s of msg.presentation.steps || []) {
+        if (s.kind !== 'move') continue;
+        const div = boardEl.children[s.from[0] * size + s.from[1]];
+        if (div) fromRects[s.pieceId] = div.getBoundingClientRect();
+      }
+      pendingAnim = { gameId: msg.gameId, revision: msg.revision, steps: msg.presentation.steps, fromRects, size };
+    }
+    stealCallout(msg);
     toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}!`, true);
   } else if (msg.type === 'skipped') {
     draft = null;
@@ -223,6 +247,23 @@ function renderLobby() {
 
 function pname(c) { return names[c] || COLOR_NAMES[c] || c; }
 
+// Name the steal on the big screen: the whole table should groan together.
+function stealCallout(msg) {
+  if (!msg.presentation || !state) return;
+  const victims = {};
+  for (const s of msg.presentation.steps || []) {
+    if (s.kind === 'printed' || !s.owner || s.owner === 'house' || s.owner === msg.color) continue;
+    (victims[s.owner] = victims[s.owner] || []).push(String(s.letter || '').toUpperCase());
+  }
+  const parts = Object.keys(victims).map((o) => `${pname(msg.color)} took ${pname(o)}'s ${victims[o].join(', ')}!`);
+  if (!parts.length) return;
+  const el = document.getElementById('callout');
+  el.textContent = parts.join(' ');
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
 function connOf(c) {
   const p = room && room.players.find((x) => x.color === c);
   return p ? p.connected : true;
@@ -238,6 +279,8 @@ function renderGame() {
   document.getElementById('scores').innerHTML = state.players.map(c => {
     const isTurn = state.phase === 'playing' && state.current === c;
     const off = !connOf(c) ? ' <small style="color:#e0a">(reconnecting…)</small>' : '';
+    // No numbers next to names during play — the Pyramid Tracker alone tells
+    // the depletion story; scores stay hidden until the end (locked rule).
     return `<div class="score ${isTurn ? 'current' : ''}">
       <span><span class="chip ${c}"></span>${escapeHTML(pname(c))}${off}</span>
       <b>${isTurn ? '▲' : ''}</b></div>`;
