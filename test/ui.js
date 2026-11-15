@@ -280,7 +280,12 @@ async function main() {
         if (over) break;
         for (const p of players) {
           const mine = await p.evaluate(() => state && state.phase === 'playing' && state.current === myColor);
-          if (mine) await p.click('#passBtn');
+          // "mine" can be read from state that is already stale: the previous
+          // pass may have ended the game, and the arriving over-broadcast then
+          // hides this button while the click still waits on it. Bound the
+          // wait; the loop re-checks #over and the final waitForSelector is
+          // the real assertion.
+          if (mine) await p.click('#passBtn', { timeout: 2000 }).catch(() => {});
         }
         await host4.waitForTimeout(200);
       }

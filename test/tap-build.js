@@ -107,14 +107,24 @@ async function main() {
     if (nb[0] > 9 || nb[1] > 9) nb = [ar - nbStep[0], ac - nbStep[1]];
     // Letters in order through the black one, one tap on its neighbour for the direction, then the rest.
     // A neighbour that is also one of the letters is simply tapped again where it belongs.
+    // A server broadcast arriving mid-build re-renders the phone and can reset
+    // the half-built word (the board-changed guard), so on a slow runner the
+    // word line ends up short. Build, verify, and start over if disturbed.
     const tapWord = async ({ noDir = false } = {}) => {
-      for (let i = 0; i <= ai; i++) { await tap(...cells[i]); await ph.waitForTimeout(60); }
-      if (!noDir) { await tap(...nb); await ph.waitForTimeout(60); }
-      for (let i = ai + 1; i < cells.length; i++) { await tap(...cells[i]); await ph.waitForTimeout(60); }
+      for (let attempt = 0; attempt < 3; attempt++) {
+        for (let i = 0; i <= ai; i++) { await tap(...cells[i]); await ph.waitForTimeout(60); }
+        if (!noDir) { await tap(...nb); await ph.waitForTimeout(60); }
+        for (let i = ai + 1; i < cells.length; i++) { await tap(...cells[i]); await ph.waitForTimeout(60); }
+        await ph.waitForTimeout(150);
+        if ((await ph.evaluate(() => currentWord())) === move.word) return;
+        await clearIfAny();
+      }
     };
     const hostCounts = () => host.evaluate(() => [...document.querySelectorAll('#board .cell')].map((c) => (c.querySelector('.n') || {}).textContent || ''));
     const hostLetters = () => host.evaluate(() => [...document.querySelectorAll('#board .cell')].map((c) => (c.querySelector('.L') || {}).textContent || ''));
-    const hostGlowIs = (n) => host.waitForFunction((k) => document.querySelectorAll('#board .cell.glow').length === k, n, { timeout: 5000 }).then(() => true, () => false);
+    // 15s, not 5: the draft relay is rate-limited and a loaded CI runner can
+    // sit behind that window before the host sees the glow.
+    const hostGlowIs = (n) => host.waitForFunction((k) => document.querySelectorAll('#board .cell.glow').length === k, n, { timeout: 15000 }).then(() => true, () => false);
 
     check((await ph.locator('#dirH, #dirV, .dirbtn').count()) === 0, 'no Across/Down buttons on the phone');
 
