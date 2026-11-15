@@ -48,6 +48,7 @@
   <header>
     <h1>&#9650; Crossword Pyramids</h1>
     <span>Room:</span><span class="code-big" id="code">....</span>
+    <button class="btn secondary" data-sound-toggle style="padding:4px 12px"></button>
   </header>
 
   <!-- LOBBY -->
@@ -121,8 +122,10 @@
 </div>
 
 <script src="/board.js"></script>
+<script src="/sounds.js"></script>
 <script>
 let room = null, state = null, names = {}, draft = null;
+let lobbySeen = 0; // seated players last time a room snapshot arrived
 let pendingAnim = null; // a 'played' event waiting for its state broadcast to animate
 
 keepAwake();
@@ -168,6 +171,9 @@ function onMsg(msg) {
     room = msg;
     names = {};
     for (const p of msg.players) names[p.color] = p.name;
+    const n = seated(msg.players).length;
+    if (msg.phase === 'lobby' && n > lobbySeen) Sounds.play('join');
+    lobbySeen = n;
     renderLobby();
     if (msg.phase === 'lobby') { show('lobby'); hide('gamearea'); hide('over'); state = null; draft = null; }
   } else if (msg.type === 'state') {
@@ -206,7 +212,7 @@ function onMsg(msg) {
       }
       pendingAnim = { gameId: msg.gameId, revision: msg.revision, steps: msg.presentation.steps, fromRects, size };
     }
-    stealCallout(msg);
+    Sounds.play(stealCallout(msg) ? 'steal' : 'played');
     toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}!`, true);
   } else if (msg.type === 'skipped') {
     draft = null;
@@ -262,19 +268,20 @@ function pname(c) { return names[c] || COLOR_NAMES[c] || c; }
 
 // Name the steal on the big screen: the whole table should groan together.
 function stealCallout(msg) {
-  if (!msg.presentation || !state) return;
+  if (!msg.presentation || !state) return false;
   const victims = {};
   for (const s of msg.presentation.steps || []) {
     if (s.kind === 'printed' || !s.owner || s.owner === 'house' || s.owner === msg.color) continue;
     (victims[s.owner] = victims[s.owner] || []).push(String(s.letter || '').toUpperCase());
   }
   const parts = Object.keys(victims).map((o) => `${pname(msg.color)} took ${pname(o)}'s ${victims[o].join(', ')}!`);
-  if (!parts.length) return;
+  if (!parts.length) return false;
   const el = document.getElementById('callout');
   el.textContent = parts.join(' ');
   el.classList.add('show');
   clearTimeout(el._t);
   el._t = setTimeout(() => el.classList.remove('show'), 2200);
+  return true;
 }
 
 function connOf(c) {
@@ -312,6 +319,7 @@ function renderGame() {
       el.dataset.revealedFor = String(state.gameId);
       el.innerHTML = finalsRevealHTML(state, pname);
       animateFinalsReveal(el);
+      Sounds.play('over');
     }
   }
 }

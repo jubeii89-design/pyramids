@@ -91,6 +91,7 @@ architecture:
     public/index.html: home page — host or join; contains a STALE rules dialog (see known_issues KI-07)
     public/host.html: the big screen (TV) — lobby QR, board, tracker, words panel, results
     public/play.html: phone controller — join, tap-to-build word entry, pass, results
+    public/sounds.js: all sound cues, synthesized on the spot with Web Audio oscillators (no audio files); [data-sound-toggle] mute persisted per device; fails silent everywhere
     public/board.js: shared renderer + helpers; flat tile board (letter centre, value top-left, count bottom-right); HOWTO_STEPS guide; draft line; tracker; keepAwake (server ping only — NOT a screen wake lock)
   ws_protocol:
     path: /ws
@@ -142,7 +143,7 @@ features_existing:  # do not re-propose these; they are built and tested
   - play again on the same code - still-connected players straight into a new deal
   - end screen reveal: per-player captured - left-on-board = final rows (host staged with count-up, phone static with your row highlighted), tie-break staged as drawn pyramids; main-menu buttons
   - how-to-play dialog (HOWTO_STEPS, board.js:77) on every page
-  - feedback button -> server jsonl
+  - sound cues (join, your-turn chime, word played, steal sting, game-over fanfare) synthesized in-browser by public/sounds.js, persistent mute; provenance in public/assets/SOUNDS.md  - feedback button -> server jsonl
   - /health build check; room checkpoint restart recovery
   - word list 125,795 words (ENABLE public domain + house modern words + reviewed neol2016 - 69 excluded slur forms); SHA-pinned, test-enforced (data/WORDLIST.md)
 
@@ -163,7 +164,7 @@ quality:
     ui.js + tap-build.js (Playwright, via "npx grunt verify-ui"): lobby, join, full game, phone tap-to-build
   ci: .github/workflows/ci.yml - jobs test (npm test with --test-concurrency=1, then e2e) and browser (Playwright); concurrency serialized because parallel child servers hang 2-vCPU runners; de-flaked 2026-11 after 3 different slow-runner races in one night - ui.js passToGameOver clicks pass with a bounded catch (a stale-state click can target a button the over-broadcast just hid), tap-build tapWord verifies currentWord and rebuilds if a mid-build broadcast reset the draft, hostGlowIs waits 15s for the rate-limited draft relay; locally the suites bind fixed ports 3123/3124/3127 so never run two gates at once
   deploy: deploy/aws.md (Lightsail), deploy/pyramids.service, deploy/Caddyfile, render.yaml (tracks main); temporary domain crosswordpyramids.duckdns.org
-  not_covered: never deployed; zero human playtests; no sound; no tutorial beyond the how-to dialog; no accessibility pass; rights to name/rules text unconfirmed
+  not_covered: never deployed; zero human playtests; no tutorial beyond the how-to dialog; no accessibility pass; rights to name/rules text unconfirmed
 
 known_issues:  # each verified against the code on generated_on; status open unless noted
   - id: KI-01
@@ -287,6 +288,7 @@ improvement_tree:  # the plan in IMPROVEMENT-PLAN.md as addressable nodes. "do M
       title: sound - small synthesized/CC0 set (join, your-turn chime, word played, steal, game over) + mute; licences documented like the word list
       size: M
       acceptance: every sound's provenance in a SOUNDS.md; mute persists
+      status: done - public/sounds.js synthesizes all five cues with Web Audio oscillators (no audio files anywhere, so nothing to license; provenance in public/assets/SOUNDS.md); TV sounds every word and plays steal/over, phone plays join/your-turn/own word and stings only when its own pyramids are taken; mute via [data-sound-toggle] buttons (host header, phone topbar + lobby), persisted in localStorage cp_muted; everything fails silent - a never-touched TV stays quiet (browser autoplay lock) rather than erroring, and cues are dropped, not queued, while the context is locked
     - id: M2-05
       title: end-game reveal - count up captures per player, visibly subtract the leftover-colour penalty, stage the tie-break as drawn pyramids
       fixes: KI-12

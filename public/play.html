@@ -49,7 +49,7 @@
     <h2 class="gold">You're in!</h2>
     <p id="mycolor" style="font-size:1.3rem; margin:14px 0"></p>
     <p style="color:var(--sand)">Waiting for the host to start the game&hellip;</p>
-    <p><button class="btn secondary" id="inviteBtn">Invite a friend</button> <button class="btn secondary" id="howtoWaitBtn" data-howto>How to play</button></p>
+    <p><button class="btn secondary" id="inviteBtn">Invite a friend</button> <button class="btn secondary" id="howtoWaitBtn" data-howto>How to play</button> <button class="btn secondary" data-sound-toggle></button></p>
     <div class="rules-mini panel" style="margin-top:20px; text-align:left">
       <b class="gold">How to play:</b> On your turn, <b>tap letters</b> on the board in the
       order you want to spell them, and press Submit.
@@ -62,7 +62,7 @@
   <div id="gameview" class="hidden">
     <div class="topbar">
       <span class="me" id="me"></span>
-      <span><button class="btn secondary" id="howtoBtn" data-howto aria-label="How to play" style="padding:4px 10px; margin-right:8px">?</button><span id="roomcode" style="letter-spacing:.2em; color:var(--gold)"></span></span>
+      <span><button class="btn secondary" data-sound-toggle style="padding:4px 10px; margin-right:8px"></button><button class="btn secondary" id="howtoBtn" data-howto aria-label="How to play" style="padding:4px 10px; margin-right:8px">?</button><span id="roomcode" style="letter-spacing:.2em; color:var(--gold)"></span></span>
     </div>
     <div class="turnbanner" id="turnbanner"></div>
     <div class="boardwrap"><div class="board" id="board"></div></div>
@@ -102,6 +102,7 @@
 </div>
 
 <script src="/board.js"></script>
+<script src="/sounds.js"></script>
 <script>
 const params = new URLSearchParams(location.search);
 let myColor = null, myName = null, state = null, names = {};
@@ -259,6 +260,7 @@ async function requestWakeLock() {
 const BASE_TITLE = document.title;
 let titleTimer = null;
 function alertMyTurn() {
+  Sounds.play('yourturn');
   try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch {}
   if (titleTimer || !document.hidden) return;
   let on = false;
@@ -319,6 +321,7 @@ function onMsg(msg) {
     renderGame();
   } else if (msg.type === 'joined') {
     rejoinTries = 0;
+    Sounds.play('join');
     myColor = msg.color;
     myName = msg.name;
     if (msg.token) seatToken = msg.token;
@@ -368,8 +371,15 @@ function onMsg(msg) {
     if (!myTurn() && state.phase === 'playing' && state.players.includes(myColor)) renderGame();
   } else if (msg.type === 'played') {
     spectDraft = null;
-    if (msg.color === myColor) toast(`You spelled ${msg.word.toUpperCase()}!`, true);
-    else toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}`, true);
+    if (msg.color === myColor) {
+      Sounds.play('played');
+      toast(`You spelled ${msg.word.toUpperCase()}!`, true);
+    } else {
+      // The TV sounds every word; the phone only stings when YOUR pyramids
+      // were taken, so four phones don't echo the big screen.
+      if (msg.presentation && (msg.presentation.steps || []).some((s) => s.kind !== 'printed' && s.owner === myColor)) Sounds.play('steal');
+      toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}`, true);
+    }
   } else if (msg.type === 'skipped') {
     spectDraft = null;
     if (msg.color === myColor) { resetBuild(); toast('You dropped off — your turn was skipped.'); }
