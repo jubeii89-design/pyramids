@@ -143,7 +143,8 @@ features_existing:  # do not re-propose these; they are built and tested
   - play again on the same code - still-connected players straight into a new deal
   - end screen reveal: per-player captured - left-on-board = final rows (host staged with count-up, phone static with your row highlighted), tie-break staged as drawn pyramids; main-menu buttons
   - how-to-play dialog (HOWTO_STEPS, board.js:77) on every page
-  - sound cues (join, your-turn chime, word played, steal sting, game-over fanfare) synthesized in-browser by public/sounds.js, persistent mute; provenance in public/assets/SOUNDS.md  - feedback button -> server jsonl
+  - sound cues (join, your-turn chime, word played, steal sting, game-over fanfare) synthesized in-browser by public/sounds.js, persistent mute; provenance in public/assets/SOUNDS.md
+  - shareable front door: favicon.svg + apple-touch-icon, theme-color, meta descriptions, OG link-preview card (assets/og.jpg composited from the space photo, provenance in ASSETS.md); og:image stays relative on purpose until the deploy domain is fixed  - feedback button -> server jsonl
   - /health build check; room checkpoint restart recovery
   - word list 125,795 words (ENABLE public domain + house modern words + reviewed neol2016 - 69 excluded slur forms); SHA-pinned, test-enforced (data/WORDLIST.md)
 
