@@ -6,8 +6,8 @@ meta:
   pitch: Jackbox-style party word game — host on a big screen, players join on phones via QR or a 4-letter code
   repo: jubeii89-design/pyramids
   branch: claude/session-hsd67f
-  pr: "#9 (draft, open; deploys and render.yaml track main, so nothing here is live until it merges)"
-  generated_from_commit: bb11020
+  pr: '#9 MERGED on 2026-11-16 as af3951c, so main now carries every commit on this branch (14 commits, +1406/-195 across 23 files) and the two Dependabot alerts it was holding open (body-parser high, qs moderate) are cleared - npm audit on the merged tree reports 0. What stands between main and a playable game is now a DEPLOY that nobody has performed, not a merge: .github/workflows/ci.yml runs only the two test jobs on push to main and has no deploy step, and render.yaml is an unapplied blueprint, so no Render service exists. Note render.yaml names plan: starter, a PAID plan, and rights to the name, rules text and art are still unconfirmed - so the deploy decision engages both standing bars (nothing public, nothing paid, without written permission) even though this merge engaged neither.'
+  generated_from_commit: af3951c
   generated_on: 2026-11-16
   authority: >
     server/game.js is the canonical rules source. Where any document (this file
