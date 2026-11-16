@@ -13,8 +13,25 @@ source of truth; this file only records decisions and where things are.
   checkpoint file).
 - `public/host.html` big screen, `public/play.html` phone controller,
   `public/board.js` shared helpers and the flat board (letter centred, tip
-  value top-left, stack count bottom-right). The board is flat: the old three.js
-  and Blender sprite pipeline were removed (they are in git history).
+  value top-left, stack count bottom-right, owner shape top-right). The board
+  is flat: the old three.js and Blender sprite pipeline were removed (they are
+  in git history). `board.js` also holds the keyed renderer (the 100 cell nodes
+  are made once and rebuilt only when a per-cell signature changes,
+  `board.js:209`), `animatePlay`, which replays `presentation.steps` on the TV
+  (`board.js:380`), and the end-game reveal both screens share
+  (`finalsRevealHTML`, `tieBreakStageHTML`, `animateFinalsReveal`,
+  `board.js:39-95`).
+- `public/sounds.js` - a new client file, loaded by both the host and the phone.
+  Five cues (join, your turn, word played, steal, game over) are synthesized at
+  play time with Web Audio oscillators: there are no audio files anywhere in
+  the project, so there is nothing to license (note in
+  `public/assets/SOUNDS.md`). A page opts in with the script tag plus any
+  `[data-sound-toggle]` button; mute is per device (`localStorage` key
+  `cp_muted`) and every path fails silent while the browser's autoplay lock
+  holds, so a TV nobody touches is simply quiet rather than broken.
+- `public/assets/` - the Milky Way background, the favicon and apple-touch
+  icon, and the link-preview image, with provenance in `ASSETS.md` and
+  `SOUNDS.md`; `public/credits.html` carries the credits.
 - Building a word on a phone: tap letters in spelling order; the first black
   letter fixes where the word sits. The direction comes from the neighbour tap:
   tap the square beside the black letter (right or below = Across or Down; left
@@ -55,19 +72,76 @@ These override anything older:
 6. **Humans only**: 2-4 players, no computer players.
 7. Scores stay hidden until the game ends; the recap appears then.
 
+## Presentation decisions made by the author
+
+Newer than the rules list above, and equally binding:
+
+1. **The sky shows.** Every background darkening sits at 20% - the page wash
+   and vignette (`public/style.css:26-29`) and the host's Game Over scrim
+   (`public/host.html:28`). Mid-game dialog backdrops stay dark on purpose:
+   they are focus modals, not background treatment (`style.css:97,115`,
+   `index.html:68`). Tuning is judged by eye from screenshots.
+2. **Colour is never the only signal.** Each owner carries a shape as well as a
+   hue - Red circle, Blue square, Green diamond, Gold star - drawn as a CSS
+   `::after` (`style.css:238-247`, word-line and lobby chips `332-341`, flying
+   tiles `454-458`), so identity survives greyscale and no glyph ever enters
+   `textContent`, which several suites depend on. The triangle is reserved for
+   whose turn it is (`host.html:34`, `play.html:36`) - do not reuse it. The
+   four hues are deliberately unchanged, because they are player-facing names;
+   a deuteranope retune is its own plan item (M4-04).
+3. **Sound is synthesized, never recorded**, so no audio file ever needs a
+   licence.
+4. **The phone board is sized in `svh`, never `dvh`** (`play.html:61`): the
+   dynamic viewport grows as the URL bar hides, which resized the board under
+   a player's thumb mid-word. `vh` stays only as the legacy fallback.
+5. **Tile text follows the board, not the viewport**: `.boardwrap` is a size
+   container and the tile clamps are in `cqw` (`style.css:95,207-217`), with
+   the old `vmin` clamps kept underneath as the fallback.
+6. **The end-game maths is shown, not merely applied**: both screens spell out
+   captured - your own colour left on board = final, and a tie is staged as the
+   pyramids each tied player drew (`server/game.js:411-417` stores the
+   deduction, `:528` serializes it, null during play).
+7. **Pinch-zoom stays on** (`play.html:5` carries no `maximum-scale`), and
+   board cells stay at the WCAG 2.2 AA floor of 24px rather than growing to
+   44px, which would fight the board's aspect ratio; a magnify/pan mode is a
+   separate item (M4-03). Measure such things in a browser, never on paper.
+
 ## Operations notes
 
 - One server instance only. Rooms are checkpointed to `ROOM_STORE_PATH` so a
   process restart on the same disk recovers them; that is not a backup.
 - Production requires `PUBLIC_ORIGIN`; behind a proxy set `TRUST_PROXY=1`.
 - Optional: `TIP_URL` (https, shown only after a game), `FEEDBACK_PATH`.
+- Link previews carry a relative `og:image` (`public/index.html:16`,
+  `public/play.html:14`); it resolves only once there is a real deploy domain.
 
 ## Not done
 
-- Never deployed; no human has played a full game under test.
+- Never deployed, not once. Zero human playtests: no human has played a full
+  game, under test or otherwise. That is still the most important fact here.
 - Rights to the name, rules text and art are unconfirmed; written permission
   is needed before anything public or paid. Nothing paid is built.
-- Sound, tutorial, accessibility pass, graceful shutdown. (The word list is public-domain ENABLE plus our own short modern-words file and reviewed words from Alan Beale's public-domain neol2016, with slurs removed; see `data/WORDLIST.md` and `tools/build-wordlist.js`. A wider modern vocabulary needs a source whose licence you have checked.)
+- Every known issue in `docs/ai-mindmap.yaml` (KI-01..KI-13) is closed, but one
+  left a residue: KI-13 closed as a test-harness bug, and the server behaviour
+  it uncovered stands - the draft relay drops silently on its throttle or the
+  200-per-10s per-address limit and never re-sends (`server/index.js:366-374`),
+  so three or more games behind one address could leave each other's mirrors
+  stale.
+- The accessibility pass (M4-01) is complete in code: tap targets, pinch-zoom,
+  landscape and the owner shapes, then the semantics, keyboard and focus third
+  - a polite live region so toasts are announced, cell labels that name the
+  player rather than the colour key, one roving tab stop with arrow keys instead
+  of a hundred, visible focus rings, and a word line patched in place so focus
+  survives a letter landing. What is NOT done is the verification that counts:
+  nothing has been heard in VoiceOver or TalkBack, and no colour-blind player
+  has seen the shapes. Playwright contains no assistive technology, so every
+  assertion in the suite is a DOM proxy - the node exists, it is in the
+  accessibility tree, its text changed - and none of it is evidence that a
+  screen reader speaks a word of it. The host screen remains the thinnest of
+  the three surfaces.
+- Tutorial beyond the how-to dialog, graceful shutdown. (Sound is done now -
+  see `public/sounds.js`.)
+- (The word list is public-domain ENABLE plus our own short modern-words file and reviewed words from Alan Beale's public-domain neol2016, with slurs removed; see `data/WORDLIST.md` and `tools/build-wordlist.js`. A wider modern vocabulary needs a source whose licence you have checked.)
 - See `IMPROVEMENT-PLAN.md` (design plan, in the repo) and `docs/ai-mindmap.yaml`
   (its machine-readable companion: locked rules, protocol, known issues, plan
   items with stable IDs). `PUBLIC-READINESS-REVIEW.md` exists only locally, if at all.

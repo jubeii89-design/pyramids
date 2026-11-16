@@ -35,37 +35,90 @@ judgment and is written as one.
   under a lifted top that only you can see — this is tactile and already
   closer to the physical game than typing a word ever was.
 
+### What has since been delivered
+
+The weaknesses this plan was written against have been built out. All thirteen
+known issues in the mind map (KI-01..KI-13) now carry a fixed status, and M1,
+M2 and part of M4 have landed. The evidence, in the order the original
+complaints appeared:
+
+- **The show exists.** `animatePlay` (public/board.js:380) replays
+  `presentation.steps` on the TV on top of a keyed renderer whose cell nodes
+  survive a state update (public/board.js:209), both asserted in the browser
+  (test/ui.js:181,183).
+- **Phones keep their screens.** `requestWakeLock()` (public/play.html:292)
+  takes a real screen wake lock, and `alertMyTurn()` buzzes and flashes the tab
+  title when your turn arrives on a hidden tab (play.html:298-303).
+- **The celebration is no longer undercut.** A `pendingSubmit` flag suppresses
+  the board-changed toast for your own accepted word (public/play.html:155,389).
+- **One rules voice.** The home dialog (public/index.html:157) and the README
+  (README.md:42-45) now describe tap-to-build, and a unit test holds the line
+  that no refusal hint names a removed control (test/unit.test.js:335).
+- **The TV reads from a couch.** `.boardwrap` is a size container and the tile
+  clamps are `cqw`, so tile text follows the board rather than the viewport
+  (public/style.css:95,207-217); the host's private seat QR sits behind a "Show
+  my seat code" button (public/host.html:76); the words log cap went to 500
+  (server/game.js:10).
+- **The end-game maths is shown.** The server stores the deduction at game over
+  and serializes it, null during play (server/game.js:411-417,528), and both
+  screens spell out captured − own colour left on board = final with the
+  tie-break staged as drawn pyramids (public/board.js:39-95, host.html:325-326,
+  play.html:569; asserted at test/ui.js:355-358, test/e2e.js:194,
+  test/unit.test.js:182,244).
+- **Sound.** Five cues synthesized with Web Audio oscillators and no audio
+  files anywhere, so nothing needs a licence (public/sounds.js:46-77,
+  provenance in public/assets/SOUNDS.md); mute persists per device
+  (sounds.js:10-12) and every path fails silent under the autoplay lock
+  (sounds.js:79-88).
+- **Ergonomics.** `maximum-scale` is gone from the phone viewport
+  (public/play.html:5), the in-game controls measure ≥44×44 in a browser
+  (test/tap-build.js:88-106), and landscape — which had no orientation query at
+  all — is a two-column grid sized in `svh` (public/play.html:52-69).
+- **Colour is no longer the only signal.** Each owner carries a shape as well
+  as a hue, as a CSS `::after` that never enters `textContent`
+  (public/style.css:238-247,332-341,454-458; asserted at
+  test/ui.js:123,135 and test/tap-build.js:121,123,245).
+
 ### What is honestly weak
 
-- **Nobody has played it.** Never deployed; no human has completed a full game
-  (HANDOFF.md "Not done"). Everything below is theory until one game night
-  happens. That is the single most important fact about this project.
-- **The show doesn't exist yet.** The server narrates every word as a
-  step-by-step `presentation` (game.js:307-315, broadcast at
-  server/index.js:390) and **no client renders it** — pieces teleport, steals
-  go unannounced, the board just blinks into its next state. The best material
-  in the codebase is being thrown away on arrival.
-- **Phones will die mid-game.** `keepAwake()` (public/board.js:140-142) pings
-  the server; it does not keep the *screen* awake. A phone that sleeps drops
-  its socket and gets skipped after 30 s — at a real table this will happen in
-  the first ten minutes.
-- **The game undercuts its own best moment.** Submitting a word leaves the
-  local build list populated (public/play.html:495-500), so the very next
-  state broadcast toasts *"The board changed - your word was cleared."*
-  (play.html:317) on top of *"You spelled X!"* — the player's reward reads
-  like an error.
-- **Three voices tell the rules, two of them wrongly.** The home-page dialog
-  (public/index.html:146-151) and README (README.md:42-48) still describe the
-  removed type-a-word flow; refusal hints still say "Press Auto" and
-  "highlighted pieces" (game.js:193,226,232,286) — controls that don't exist.
-  Only `HOWTO_STEPS` (board.js:77-84) is current.
-- **The TV is a web page, not a stage.** Tile values and stack counts bottom
-  out at 7 px (public/style.css:167-173,214-221); the host's *private* seat QR
-  renders on the shared screen where anyone can scan it and take the seat
-  (host.html:54-55); nothing on the screen reacts to events.
+- **Nobody has played it.** Never deployed; zero human playtests
+  (docs/ai-mindmap.yaml:168, HANDOFF.md "Not done"). Everything below is still
+  theory until one game night happens. That remains the single most important
+  fact about this project.
 - **Unresolved rights.** The name, rules text and art provenance are
   unconfirmed (HANDOFF.md). No amount of code fixes this; it gates anything
   public or paid.
+- **Accessibility is a complete pass in code and an unverified one in fact.**
+  M4-01 is finished (docs/ai-mindmap.yaml:325): the ergonomic and colour half,
+  then semantics, keyboard and focus. The sound toggle's `aria-pressed` and
+  `aria-label` are applied at runtime (public/sounds.js:95-96), and the host
+  screen is still the thinnest of the three surfaces. My judgment: the owner
+  shapes and the live region are the structurally right fixes, but no screen
+  reader has read this app aloud and no colour-blind player has seen the
+  shapes, so none of it is verified where it counts - and a DOM assertion in a
+  headless browser cannot stand in for either.
+- **Nothing has been seen on real hardware.** The landscape and `svh` work was
+  measured in headless Chromium, which has no URL bar, so `svh`, `dvh` and `vh`
+  measure identically there: the suite proves no regression and cannot prove
+  the fix (docs/ai-mindmap.yaml:168,371). A real phone is the only evidence
+  that will do.
+- **The sound layer is untested as sound.** The only assertion that touches it
+  is the toggle's tap size (test/tap-build.js:98) — Web Audio is not exercised
+  headless. Design judgment: acceptable for cues that fail silent by
+  construction, but a broken cue would ship unnoticed.
+- **The front door is shareable but not yet linkable.** `og:image` is a
+  relative path on purpose, because no deploy domain exists
+  (public/index.html:14-16) — so the link-preview card cannot actually be
+  checked until there is somewhere to deploy.
+- **Waiting players still only watch.** M3 is untouched: both of its items are
+  in the mind map with no status (docs/ai-mindmap.yaml:311-318). The draft
+  mirror makes waiting watchable, which is the floor, not the ceiling.
+- **The draft relay still fails quietly.** It returns on a turn, gameId or
+  revision mismatch, on a 50 ms per-socket throttle and on a 200-per-10s
+  per-address limit, and nothing is re-sent (server/index.js:365-381), so a
+  starved mirror stays stale until the player touches the board again. KI-13
+  closed as a test-harness bug; this server half is unchanged, and three or
+  more games behind one address would cross the limit (docs/ai-mindmap.yaml:223).
 
 ## 2. Locked constraints
 
@@ -102,39 +155,63 @@ Full per-item detail — problem, evidence, acceptance criteria, size,
 dependencies — lives in `improvement_tree` of the mind map with stable IDs.
 Summary:
 
-### M1 — Game-night safe (P0, all small)
-The gate at the end of M1 is **one real game night with humans**. Nothing in
-M2+ is worth building before that.
+### M1 — Game-night safe (P0, all small) — **delivered**
+The gate at the end of M1 is **one real game night with humans**, and that gate
+is still unmet: the code is done, the game night has not happened. Nothing in
+M2+ was worth building before it; some of it was built anyway, which is a risk
+this plan should name rather than hide.
 
-| ID | Item |
-|---|---|
-| M1-01 | Screen Wake Lock + your-turn vibration/title flash |
-| M1-02 | Clear the build on Submit — kill the celebration-undercutting toast |
-| M1-03 | Rewrite refusal hints for tap-to-build; keep the word on refusal |
-| M1-04 | Fix join dead-ends (ROOM_GONE hides the code field; name collisions) |
-| M1-05 | Take the host's private seat QR off the shared TV |
-| M1-06 | Visible "Reconnecting…"; make passes visible; stalemate warning |
-| M1-07 | Retire the two stale rules texts in favour of HOWTO_STEPS |
-| M1-08 | Lift the 60-entry words-log cap that corrupts long-game recaps |
+| ID | Item | Status |
+|---|---|---|
+| M1-01 | Screen Wake Lock + your-turn vibration/title flash | delivered |
+| M1-02 | Clear the build on Submit — kill the celebration-undercutting toast | delivered |
+| M1-03 | Rewrite refusal hints for tap-to-build; keep the word on refusal | delivered |
+| M1-04 | Fix join dead-ends (ROOM_GONE hides the code field; name collisions) | delivered |
+| M1-05 | Take the host's private seat QR off the shared TV | delivered |
+| M1-06 | Visible "Reconnecting…"; make passes visible; stalemate warning | delivered |
+| M1-07 | Retire the two stale rules texts in favour of HOWTO_STEPS | delivered |
+| M1-08 | Lift the 60-entry words-log cap that corrupts long-game recaps | delivered |
 
-### M2 — The show (P1)
-M2-01 keyed-DOM board renderer (tech enabler — board.js:159 rebuilds all 100
-cells with innerHTML per state, blocking all animation) → M2-02 **animate
-`presentation.steps`** (pieces fly, steals named, capture piles grow) →
-M2-03 TV layout pass (readable at 3 m) → M2-04 sound with documented licences
-→ M2-05 the end-game reveal: count captures up, *visibly* subtract the
-leftover-colour penalty (today the maths is never shown and players will ask
-"why 12?"), stage the tie-break as drawn pyramids.
+### M2 — The show (P1) — **delivered**
 
-### M3 — Everyone plays (P2)
+| ID | Item | Status |
+|---|---|---|
+| M2-01 | Keyed-DOM board renderer (tech enabler for any animation) | delivered — public/board.js:209 |
+| M2-02 | Animate `presentation.steps`: pieces fly, steals named | delivered — public/board.js:380 |
+| M2-03 | TV layout pass, tiles readable at 3 m | delivered — public/style.css:95,207-217 |
+| M2-04 | Sound, with licences documented like the word list | delivered — public/sounds.js, nothing to license |
+| M2-05 | End-game reveal: *visibly* subtract the penalty, stage the tie-break | delivered — public/board.js:39-95 |
+| M2-06 | Atmosphere: the real sky behind the board | delivered — public/style.css:26-29,36-60 |
+
+Design judgment on M2-04: synthesizing the cues instead of sourcing CC0 files
+was the right trade. It satisfies the licensing bar by having nothing to
+license, at the cost of cues that are plain by construction. If a playtest says
+the game sounds thin, that is the moment to buy or record, not before.
+
+### M3 — Everyone plays (P2) — **open, untouched**
 Waiting-player engagement on top of the draft mirror (emoji reactions on the
 TV, a one-tap "will it land?" prediction); lobby identity (avatars, VIP
-start-from-phone via the existing host seat, kick).
+start-from-phone via the existing host seat, kick). Both items sit in the mind
+map with no status (docs/ai-mindmap.yaml:311-318). My judgment: this milestone
+should not start until a real table has shown whether waiting is actually the
+problem — it is the item in this plan most likely to be wrong.
 
-### M4 — Reach everyone (P3)
-≥44 px tap targets, re-enable pinch zoom, colour-blind-safe palette with owner
-glyphs (colour never the only signal), aria labels with display names,
-landscape, focus retention; one in-character string table.
+### M4 — Reach everyone (P3) — **partly delivered**
+
+| ID | Item | Status |
+|---|---|---|
+| M4-01 | Ergonomics + accessibility | **delivered** — targets, pinch-zoom, landscape, owner shapes, then semantics, keyboard and focus (docs/ai-mindmap.yaml:325); unverified by a real screen reader |
+| M4-02 | Copy/tone pass: one in-character string table | open |
+| M4-03 | Board magnify/pan so cells can reach the AAA 44 px bar | open — split out of M4-01 (docs/ai-mindmap.yaml:330-334) |
+| M4-04 | Deuteranope palette study on top of the shapes | open — split out of M4-01 (docs/ai-mindmap.yaml:335-339) |
+
+M4-01's acceptance was restated when it landed, and the restatement matters:
+"≥44 px taps" cannot hold for board cells (ten across a 390 px phone is 32 px
+by arithmetic), so cells are held to the 24 px WCAG 2.2 SC 2.5.8 AA floor and
+measured in a browser, in portrait and landscape, while the phone's in-game
+controls are measured at 44×44 one by one (test/tap-build.js:88-106,
+test/ui.js:249-250). Only the controls the suite names are measured. The
+44 px figure is SC 2.5.5, AAA — M4-03's bar, not this one's.
 
 ## 5. What I would NOT do
 
@@ -153,10 +230,19 @@ landscape, focus retention; one in-character string table.
 ## 6. Verification
 
 - Per-item acceptance criteria are in the mind map (`improvement_tree`).
-- The existing harnesses carry most of it: `npm test` (14 serialized suites),
-  `node test/e2e.js 5`, `npx grunt verify-ui` (Playwright: lobby, full game,
-  tap-to-build). M1 items each get a test in the suite that already covers
-  their surface; M2-01 must pass the existing browser suites unchanged.
+- The existing harnesses carry most of it, and `npx grunt all` is now the whole
+  gate in one command: unit (`npm test`, 14 serialized files — package.json:11),
+  network (`node test/e2e.js 5`), then the two Playwright suites, `test/ui.js`
+  and `test/tap-build.js` (Gruntfile.js:13-15). `TEST_REPORT.md` lists what each
+  one covers. CI splits the same commands across two jobs
+  (.github/workflows/ci.yml).
+- Everything delivered above carries assertions in that gate; the one exception
+  is sound, where only the toggle's tap size is checked (test/tap-build.js:98).
+- The hard-won lessons about *how* to verify are recorded as conventions in the
+  mind map (docs/ai-mindmap.yaml:358-375) — measure layout in a browser rather
+  than on paper, never pipe a gate through `tail` without `pipefail`, a test
+  must fail rather than abort. They exist because each mistake was made once
+  here; re-read them before adding a gate.
 - Physical checklist for the M1 gate: two phones (one iOS, one Android), a TV
   at 3 m, one full game with a forced disconnect/reclaim, one Play Again, one
   stalemate ending — and the feedback log read afterwards.
