@@ -52,6 +52,25 @@ async function main() {
     check(await home.locator('.btn', { hasText: 'Host Game' }).isVisible(), 'Host Game button visible');
     await home.locator('.btn', { hasText: 'Join Game' }).click();
     check(await home.locator('#code').isVisible(), 'join code box opens');
+
+    // The Join button is a disclosure for #join, so it has to say so and carry
+    // the focus with it: into the box when it opens, back onto the button when
+    // it closes. Focus dropping to <body> on close is the failure this guards -
+    // a keyboard player would have to tab in from the top of the page again.
+    const joinBtn = home.locator('.btn', { hasText: 'Join Game' });
+    check((await joinBtn.getAttribute('aria-controls')) === 'join', 'Join names the box it controls');
+    check((await joinBtn.getAttribute('aria-expanded')) === 'true', 'Join reports the box as open');
+    check(await home.evaluate(() => document.activeElement === document.getElementById('code')),
+      'opening the box puts the caret in the room-code field');
+    await joinBtn.click();
+    check((await joinBtn.getAttribute('aria-expanded')) === 'false', 'Join reports the box as closed again');
+    const backTo = await home.evaluate(() => {
+      const a = document.activeElement;
+      return { tag: a ? a.tagName : 'none', text: a ? (a.textContent || '').trim() : '' };
+    });
+    check(backTo.tag === 'BUTTON' && /Join Game/.test(backTo.text),
+      `closing the box returns focus to Join, not to the page body (${backTo.tag} "${backTo.text.slice(0, 20)}")`);
+    await joinBtn.click(); // leave it open again: the screenshot below is of the join box
     await home.screenshot({ path: path.join(SHOTS, 'home.png'), fullPage: true });
 
     // --- B: Host + phone join
@@ -106,6 +125,23 @@ async function main() {
     check(/^[1-9]$/.test(await host.locator('#board .tile').first().getAttribute('data-value')), 'tile carries its tip value');
     check((await host.locator('#board .tile .L').count()) === tileCount, 'every tile shows its letter in the centre');
     check((await host.locator('#board .tile .n').count()) === tileCount, 'every tile shows its stack count in a corner');
+
+    // Every cell is a button to a keyboard player, so its aria-label is the only
+    // thing that says what is on the square - and it must name the owner the way
+    // the game names them everywhere else: a display name, or failing that the
+    // colour's own word, never the engine's key. The regex is case-sensitive on
+    // purpose: 'House' and 'Red' are display names, 'house' and 'red' are keys,
+    // and only a key is a bug.
+    const cellLabels = await host.evaluate(() => [...document.querySelectorAll('#board .cell')].map((c) => c.getAttribute('aria-label') || ''));
+    const rawOwner = cellLabels.filter((t) => /\b(red|blue|green|yellow|house)\b/.test(t));
+    check(rawOwner.length === 0, `no cell reads out a raw colour key (${rawOwner.length ? rawOwner[0] : 'none found'})`);
+    // Gold is the one display name that appears nowhere else in the markup, so a
+    // label holding it proves the lookup really ran instead of falling through
+    // to the key - the old code printed the word "yellow" right here. Yellow is
+    // the fourth seat and only two scripted players join, so it is unclaimed and
+    // COLOR_NAMES has to supply the word.
+    check(cellLabels.some((t) => /\bGold\b/.test(t)),
+      `the unclaimed colour's squares read out as Gold (${cellLabels.find((t) => /\bGold\b/.test(t)) || 'no Gold anywhere'})`);
     // Colour is never the only signal (M4-01): each owner carries a shape in
     // the tile's free corner. getComputedStyle returns the literal string
     // 'none' when there is no pseudo-element, so test for a quoted value.

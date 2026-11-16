@@ -200,6 +200,32 @@ function tileHTML(top, depth) {
   </div>`;
 }
 
+// What a screen reader says about one square. The owner key ('yellow') is a
+// word the game shows nowhere else — the Gold player is "Gold" on every screen
+// and in the tracker — so a raw key here is the one place a listener would hear
+// a colour the game does not use. `names` is opts.names, key -> player name.
+// "Row N, column N" stays the opening: it is the only way a listener can tell
+// which square is being described.
+function cellLabel(cell, r, c, names) {
+  const where = `Row ${r + 1}, column ${c + 1}: `;
+  if (!cell.t) return where + (cell.p ? `printed letter ${cell.p.toUpperCase()}` : 'empty');
+  // A covered piece (another player's lifted stack) has no letter or owner to
+  // read out — tileHTML shows it as a bare "?" — so don't invent one.
+  if (cell.t.o === 'hidden') return where + `a covered pyramid, stack of ${cell.n}`;
+  const who = (names && names[cell.t.o]) || COLOR_NAMES[cell.t.o] || cell.t.o;
+  const stack = cell.n > 1 ? `${who}'s stack of ${cell.n}` : `${who}'s pyramid`;
+  return where + `${cell.t.l.toUpperCase()}, value ${cell.t.v}, ${stack}`;
+}
+
+// Arrow-key moves for the board's roving tabindex, as [dr, dc].
+const CELL_STEP = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+// Which square currently holds the board's single tabindex="0", or null for the
+// derived default. Only an arrow key sets it, and focus leaving the board
+// clears it: #board's innerHTML is captured and compared byte for byte after a
+// Clear, so a tab stop that remembered where the user had been would make two
+// identical game states serialize differently.
+let roved = null;
+
 // state.cells[r][c] = { p: printedLetter|null, n: stackDepth, t: {l,v,o}|null }
 // Keyed renderer: the size*size cell nodes are created once per board element
 // and reused for every render. A cell's content is rebuilt only when its
@@ -228,12 +254,60 @@ function renderBoard(el, state, opts = {}) {
     };
     el.addEventListener('click', (e) => fire(e.target));
     el.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      if (e.target.classList && e.target.classList.contains('cell')) { e.preventDefault(); fire(e.target); }
+      if (e.key === 'Enter' || e.key === ' ') {
+        if (e.target.classList && e.target.classList.contains('cell')) { e.preventDefault(); fire(e.target); }
+        return;
+      }
+      // The board is one tab stop, so the arrows are the only way to reach the
+      // other 99 squares. They move focus and the stop together, and never
+      // re-render: a render would rebuild nothing but would cost the keyboard
+      // user their place if the derived stop disagreed.
+      const step = CELL_STEP[e.key];
+      if (!step && e.key !== 'Home' && e.key !== 'End') return;
+      if (!el._onCell) return; // a non-interactive board has no tab stop at all
+      const from = e.target;
+      if (!from.classList || !from.classList.contains('cell') || from.parentElement !== el) return;
+      e.preventDefault(); // otherwise the arrows scroll the page out from under the board
+      const clamp = (v) => Math.max(0, Math.min(size - 1, v));
+      const r = +from.dataset.r, c = +from.dataset.c;
+      const nr = step ? clamp(r + step[0]) : r; // clamped, not wrapped: the edge is the edge
+      const nc = step ? clamp(c + step[1]) : (e.key === 'Home' ? 0 : size - 1);
+      const next = el.children[nr * size + nc];
+      if (!next) return;
+      roved = { r: nr, c: nc };
+      from.setAttribute('tabindex', '-1');
+      next.setAttribute('tabindex', '0');
+      next.focus();
+    });
+    // Once focus is off the board entirely, the stop goes back to the derived
+    // one. relatedTarget is the element taking focus, so a move between two
+    // cells (which is what .focus() above causes) must not clear it.
+    el.addEventListener('focusout', (e) => {
+      if (!e.relatedTarget || !el.contains(e.relatedTarget)) roved = null;
     });
   }
   el._onCell = opts.onCell || null;
   const interactive = !!opts.onCell;
+  // Exactly one square carries tabindex="0", so the board costs a keyboard user
+  // one Tab press to pass, not a hundred. The stop is derived from the state on
+  // every render — the selected square, else wherever the arrows last left the
+  // user, else the first square with something on it. The fallback is
+  // deliberately not (0,0): that corner is a runway square, empty on the
+  // opening board, and onCell answers an empty square with "That square is
+  // empty." — a dead end as the first thing a keyboard user lands on.
+  let stop = null;
+  if (interactive) {
+    const onBoard = (p) => !!p && p.r >= 0 && p.r < size && p.c >= 0 && p.c < size;
+    if (onBoard(opts.selected)) stop = { r: opts.selected.r, c: opts.selected.c };
+    else if (onBoard(roved)) stop = roved;
+    for (let r = 0; !stop && r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        const cell = state.cells[r][c];
+        if (cell.t || cell.p) { stop = { r, c }; break; }
+      }
+    }
+    if (!stop) stop = { r: 0, c: 0 }; // only reachable on a board with nothing on it
+  }
   for (let r = 0; r < size; r++) {
     for (let c = 0; c < size; c++) {
       const cell = state.cells[r][c];
@@ -244,11 +318,19 @@ function renderBoard(el, state, opts = {}) {
         div.innerHTML = cell.t
           ? tileHTML(cell.t, cell.n)
           : cell.p ? `<span class="printed-letter">${cell.p.toUpperCase()}</span>` : '';
-        div.setAttribute('aria-label', `Row ${r+1}, column ${c+1}: ${cell.t ? cell.t.l.toUpperCase()+' value '+cell.t.v+' '+cell.t.o+' stack '+cell.n : cell.p || 'empty'}`);
       }
+      // The label lives outside the sig branch because the sig holds no owner
+      // NAME: inside, a cell would keep whatever `names` held when its pieces
+      // last changed, and on the phone that is the empty map from before the
+      // `room` message for the ~90 cells that never change again. Writing it
+      // only on a change keeps #board's innerHTML snapshot stable — setAttribute
+      // on an attribute that already exists keeps its position in the list,
+      // while removeAttribute would re-append it at the end.
+      const label = cellLabel(cell, r, c, opts.names);
+      if (div.getAttribute('aria-label') !== label) div.setAttribute('aria-label', label);
       const runway = r === 0 || r === size - 1 || c === 0 || c === size - 1;
       div.classList.toggle('runway', runway && !cell.t && !cell.p);
-      if (interactive) { div.setAttribute('role', 'button'); div.setAttribute('tabindex', '0'); }
+      if (interactive) { div.setAttribute('role', 'button'); div.setAttribute('tabindex', stop.r === r && stop.c === c ? '0' : '-1'); }
       else { div.removeAttribute('role'); div.removeAttribute('tabindex'); }
       // Decorations are recomputed from scratch on every render.
       div.classList.remove('sel', 'cand', 'path-hint', 'dir-hint', 'glow', 'glow-start', 'glow-match');
@@ -431,10 +513,35 @@ function animatePlay(boardEl, anim, opts = {}) {
   }, reduced ? 0 : 520 + t);
 }
 
-function toast(text, good) {
+// A toast is a bare div that appears and vanishes, so a screen reader never
+// heard a refusal or "You spelled CAT!" at all. One live region, created on
+// first use and reused, carries the same text to the accessibility tree. It has
+// to be in the tree to be read, so it is clipped to a pixel rather than hidden:
+// display:none and visibility:hidden would take it out and nothing would speak.
+let srlive = null;
+function announce(text) {
+  if (!srlive) {
+    srlive = document.createElement('div');
+    srlive.id = 'srlive';
+    srlive.className = 'srlive';
+    srlive.setAttribute('aria-live', 'polite');
+    srlive.setAttribute('aria-atomic', 'true');
+    srlive.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap';
+    document.body.appendChild(srlive);
+  }
+  // Writing the same string twice is not a change, so screen readers say
+  // nothing the second time and a repeated refusal — exactly the case a blind
+  // player needs — would be silent. Blanking first makes it a change again.
+  // Synchronously: the UI suite reads textContent straight after the action.
+  if (srlive.textContent === text) srlive.textContent = '';
+  srlive.textContent = text;
+}
+
+function toast(text, good, quiet) {
   const t = document.createElement('div');
   t.className = 'toast' + (good ? ' good' : '');
   t.textContent = text;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 3200);
+  if (!quiet) announce(text); // `quiet` is for callers that announce richer text themselves
 }

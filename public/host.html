@@ -296,7 +296,9 @@ function connOf(c) {
 
 function renderGame() {
   const d = draft ? draftOpts(state, draft) : null;
-  renderBoard(document.getElementById('board'), d ? d.state : state, d ? d : {});
+  // names rides alongside draftOpts' own options so cell labels can say the
+  // player's name instead of their colour key.
+  renderBoard(document.getElementById('board'), d ? d.state : state, { ...(d || {}), names });
   renderDraftLine(document.getElementById('draftline'), draft, draft ? pname(draft.color) : '');
   renderTracker(document.getElementById('tracker'), state, names);
   // Scores stay hidden until the end — spelling is the focus. During play this

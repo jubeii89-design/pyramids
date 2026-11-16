@@ -399,7 +399,9 @@ function onMsg(msg) {
   } else if (msg.type === 'reject') {
     // The board did not change on a refusal, so the word is still coherent:
     // keep it on the line for the player to fix instead of wiping their work.
-    pendingSubmit = false; showWhy(msg); toast(msg.error); if (state) renderGame();
+    // #whybox is role="alert" and already reads the refusal out, so the toast
+    // goes up quiet - otherwise a screen reader hears the same reason twice.
+    pendingSubmit = false; showWhy(msg); toast(msg.error, false, true); if (state) renderGame();
   } else if (msg.type === 'draft') {
     if (msg.color === myColor || !state) return;
     if (msg.gameId !== state.gameId || msg.revision !== state.revision || msg.color !== state.current) return;
@@ -463,7 +465,7 @@ function renderGame() {
   const line = document.getElementById('wordline');
   const spect = !myTurn() && spectDraft && typeof draftOpts === 'function' ? draftOpts(state, spectDraft) : null;
   if (spect) {
-    renderBoard(boardElement, spect.state, { selected: spect.selected, spelling: spect.spelling, hintCells: spect.hintCells, onCell: null });
+    renderBoard(boardElement, spect.state, { selected: spect.selected, spelling: spect.spelling, hintCells: spect.hintCells, onCell: null, names });
     line.replaceChildren();
     if (typeof renderDraftLine === 'function') renderDraftLine(line, spectDraft, names[spectDraft.color] || COLOR_NAMES[spectDraft.color]);
   } else {
@@ -487,7 +489,7 @@ function renderGame() {
     renderBoard(boardElement, viewState(), {
       selected: anchor ? { r: anchor.r, c: anchor.c } : null,
       spelling: myTurn() && path.length ? { path, word } : null,
-      arrows, hintCells,
+      arrows, hintCells, names,
       onCell: myTurn() ? onCell : null,
     });
     renderWordLine(line);
@@ -542,23 +544,53 @@ function pushDraft() {
 
 function renderWordLine(line) {
   // The word line: every letter is a button that takes that letter back out.
-  line.replaceChildren();
-  if (!build.length) {
-    const ph = document.createElement('span'); ph.className = 'ph';
-    ph.textContent = myTurn() ? 'Tap letters on the board to spell your word.' : 'Your word will appear here on your turn.';
-    line.append(ph);
+  // Patched in place, never rebuilt. renderGame() runs on every inbound state
+  // and draft message - drafts land roughly every 120ms - and the old
+  // replaceChildren() threw the chips away each time, so a keyboard user's
+  // focus went to <body> mid-word, and because #wordline is aria-live a screen
+  // reader re-read the whole word instead of just the letter that changed.
+  let ph = null;
+  const chips = [];
+  for (const node of Array.from(line.children)) {
+    if (node.classList.contains('wchip')) chips.push(node);
+    else if (node.classList.contains('ph') && !ph) ph = node;
+    // The spectator branch fills this same element with a read-only draft
+    // line (.dtext/.dchip), so anything else is somebody else's markup.
+    else node.remove();
+  }
+  if (build.length) {
+    if (ph) { ph.remove(); ph = null; }
+  } else {
+    if (!ph) { ph = document.createElement('span'); ph.className = 'ph'; line.append(ph); }
+    const text = myTurn() ? 'Tap letters on the board to spell your word.' : 'Your word will appear here on your turn.';
+    if (ph.textContent !== text) ph.textContent = text;
   }
   build.forEach((it, i) => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'wchip ' + (it.black ? 'black' : 'o-' + it.o);
-    b.textContent = it.l.toUpperCase();
-    if (it.v) { const s = document.createElement('small'); s.textContent = it.v; b.append(s); }
+    let b = chips[i];
+    if (!b) { b = document.createElement('button'); b.type = 'button'; line.append(b); }
+    const L = it.l.toUpperCase();
+    const cls = 'wchip ' + (it.black ? 'black' : 'o-' + it.o);
+    if (b.className !== cls) b.className = cls;
+    // The letter lives in the button's own first text node: setting textContent
+    // here would wipe the nested <small> value child along with it.
+    let t = b.firstChild;
+    if (!t || t.nodeType !== 3) { t = document.createTextNode(''); b.insertBefore(t, b.firstChild); }
+    if (t.nodeValue !== L) t.nodeValue = L;
+    const s = b.querySelector('small');
+    if (it.v) {
+      const v = String(it.v);
+      if (!s) { const el = document.createElement('small'); el.textContent = v; b.append(el); }
+      else if (s.textContent !== v) s.textContent = v;
+    } else if (s) s.remove();
     // Printed squares arrive with o:'house' too, so branch on it.black.
     const whose = it.black ? 'black letter' : `${names[it.o] || COLOR_NAMES[it.o]} pyramid`;
-    b.setAttribute('aria-label', `Letter ${i + 1}: ${it.l.toUpperCase()}, ${whose}. Tap to remove.`);
+    const label = `Letter ${i + 1}: ${L}, ${whose}. Tap to remove.`;
+    if (b.getAttribute('aria-label') !== label) b.setAttribute('aria-label', label);
+    // Rebound every render, never skipped: a reused chip has moved index after
+    // a removal, and a stale closure would take out the wrong letter.
     b.onclick = () => removeItem(i);
-    line.append(b);
   });
+  for (let i = build.length; i < chips.length; i++) chips[i].remove();
 }
 
 function renderOver() {

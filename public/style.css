@@ -15,6 +15,13 @@
   --pyr-mid: #e9e5d8;
   --pyr-dark: #cfc9b6;
   --pyr-shadow: #b3ac96;
+  /* Focus rings only. Violet because every other ring on the board means
+     something already: red, blue, green and gold are the four player
+     colours, gold is also .cell.cand and white is .cell.sel. Its lightness
+     is deliberately mid-scale (~0.2) so the one ring clears 3:1 both on the
+     pale tiles and on the black house tiles - no single colour can do
+     better than that against both ends at once. */
+  --focus: #8b5cf6;
 }
 body {
   font-family: 'Verdana', 'Trebuchet MS', sans-serif;
@@ -87,6 +94,41 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .btn:disabled { opacity: .45; cursor: default; transform: none; }
 /* Icon-sized button that still clears the 44px touch target (M4-01). */
 .btn.mini { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 6px 12px; font-size: 1rem; line-height: 1.1; }
+
+/* ================= FOCUS (M4-01) ================= */
+/* This file used to carry exactly one focus rule - the room-code input's -
+   so a player driving the game from the keyboard could not see which button
+   they were on. One ring for everything, dashed on purpose: .cell.cand is
+   already a solid gold outline and .cell.sel a solid white one, and a solid
+   focus ring would read as 'candidate' or 'selected' instead of 'focused'.
+   `outline`, never box-shadow: .btn keeps its 3D edge in box-shadow (just
+   above) and .cell.runway / .cell.path-hint keep theirs in an inset one, and
+   box-shadow does not stack - a winning focus rule replaces the whole value,
+   so it would silently flatten the button or drop the path hint. Outline and
+   outline-offset also paint outside the layout box, which the tap targets
+   measured in test/tap-build.js depend on. */
+.btn:focus-visible,
+.fb-btn:focus-visible,
+.howto-dialog button:focus-visible,
+.fb-dialog button:focus-visible,
+textarea:focus-visible {
+  outline: 3px dashed var(--focus);
+  outline-offset: 3px;
+}
+/* .wchip is not defined in this file: it is in play.html's inline <style>,
+   which loads AFTER the stylesheet link, so source order is already lost and
+   only specificity can carry this rule. :focus-visible counts as a class, so
+   this selector is (0,3,0) and beats the strongest .wchip rule over there
+   (.wchip.o-red and friends, (0,2,0)) outright rather than tying with it -
+   and those set border-color, not outline, so the ring is never at stake. */
+.wordline .wchip:focus-visible { outline: 3px dashed var(--focus); outline-offset: 3px; }
+/* The announcer board.js appends to document.body. It sets the same clipping
+   inline when it creates the node, so an announcement survives this file
+   failing to load; this is the declarative duplicate. Clipped to 1px and
+   NEVER display:none or visibility:hidden - either of those drops the node
+   out of the accessibility tree, and then nothing is ever announced, which
+   is the element's whole job. */
+.srlive { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* ================= BOARD ================= */
 /* The board is the container: 1cqw = 1% of board width (~0.104 x cell), so
@@ -291,6 +333,12 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .cell.sel { outline: 3px solid #fff; outline-offset: -1px; z-index: 4; border-radius: 4px; }
 .cell.sel .tile { transform: scale(1.06); }
 .cell.path-hint { box-shadow: inset 0 0 0 3px rgba(255,215,106,.85); border-radius: 4px; }
+/* Keyboard focus on a square. The offset is NEGATIVE so the ring sits inside
+   the square: .board has no overflow clip, so an outside ring on an edge cell
+   spills over the board frame. (0,3,0) on purpose - it has to beat .cell.cand
+   and .cell.sel, which are both (0,2,0), and it restates outline-offset
+   because their -3px / -1px would otherwise survive underneath. */
+.board .cell:focus-visible { outline: 3px dashed var(--focus); outline-offset: -4px; }
 
 /* --- Spelling glow: the active word being placed --- */
 .cell.glow {
@@ -361,6 +409,11 @@ input[type=text] {
   letter-spacing: .12em;
 }
 input[type=text]:focus { outline: 3px solid var(--gold); }
+/* The gold ring above stays exactly as it is for pointer focus. This is the
+   keyboard one, so the room-code field matches every other ring on the page,
+   held clear of the input's own 2px border. Same specificity as the rule
+   above (0,2,1), so it must stay below it to win for :focus-visible. */
+input[type=text]:focus-visible { outline: 3px dashed var(--focus); outline-offset: 2px; }
 .toast {
   position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
   background: #47161d; color: #ffd9d9; border: 2px solid #8a2c3a;

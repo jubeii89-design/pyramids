@@ -272,6 +272,39 @@ async function main() {
     check((await snap()) === before, 'every stack is back exactly as it was');
     check(JSON.stringify(await counts()) === JSON.stringify(countsBefore), 'all stack counts restored');
 
+    // The announcer (M4-01). A toast is a visual event and a screen-reader user
+    // gets nothing from it, so toast() also writes its text into a polite live
+    // region. Be honest about what this can prove: there is no assistive
+    // technology in Playwright, so NOTHING below shows that a screen reader
+    // SPEAKS any of it. The three-part proxy - the node exists, it is in the
+    // accessibility tree (not display:none or visibility:hidden, either of which
+    // silently drops it and nothing would be read), and its text changed - is
+    // the most a headless browser can give.
+    const srlive = () => ph.evaluate(() => {
+      const found = document.querySelectorAll('#srlive');
+      if (found.length !== 1) return { count: found.length };
+      const el = found[0], cs = getComputedStyle(el);
+      return {
+        count: 1, live: el.getAttribute('aria-live'), display: cs.display, visibility: cs.visibility,
+        width: el.getBoundingClientRect().width, onBody: el.parentElement === document.body,
+        text: el.textContent.trim(),
+      };
+    });
+    // A corner runway square is empty, so this toasts and adds nothing to the
+    // build: the cheapest deterministic announcement in the suite, and it leaves
+    // #board alone (play.html:241 returns before renderGame), so the snapshot
+    // comparison further down is unaffected.
+    await tap(0, 0);
+    await ph.waitForTimeout(150);
+    const sr = await srlive();
+    check(sr.count === 1, `the page has exactly one live region (${sr.count})`);
+    check(sr.live === 'polite', `the live region is polite, so it waits its turn (${sr.live})`);
+    check(sr.display !== 'none' && sr.visibility !== 'hidden',
+      `the live region stays in the accessibility tree (display ${sr.display}, visibility ${sr.visibility})`);
+    check(sr.width <= 2, `the live region is invisible to sighted players (${sr.width}px wide)`);
+    check(sr.onBody === true, 'the live region hangs off <body>, not inside the #board innerHTML snapshot');
+    check(sr.text === 'That square is empty.', `a toast is announced as well as shown (${sr.text || 'nothing announced'})`);
+
     // A word that is not in the dictionary: refused with a reason, everything returned.
     // Reversing a real word can land on another real word (the engine drew
     // "span", whose reversal "naps" and rotation "pans" are both in the
@@ -297,10 +330,20 @@ async function main() {
     const word2 = order ? await ph.evaluate(() => currentWord()) : '';
     // A scrambled order can put the word off the board, and then Submit stays off (a client-side guard): nothing to send.
     if (order && !DICT.has(word2) && await ph.locator('#playBtn').isEnabled()) {
+      // Blank the live region first: an earlier toast's text is still sitting in
+      // it, and an empty region after the refusal is the only way to tell that
+      // the quiet flag suppressed the duplicate rather than that nothing ran.
+      await ph.evaluate(() => { const n = document.getElementById('srlive'); if (n) n.textContent = ''; });
       await ph.click('#playBtn');
       await ph.waitForSelector('#whybox:not(.hidden)', { timeout: 10000 });
       const why = await ph.locator('#whybox').textContent();
       check(why.trim().length > 10, `refused word gives a reason (${why.trim().slice(0, 60)}…)`);
+
+      // The same refusal must not be said twice: #whybox is role="alert" and
+      // already reads it out, so the toast beside it goes up quiet.
+      const srQuiet = await srlive();
+      check(why.trim().length > 10 && srQuiet.text === '',
+        `the refusal is announced once, by #whybox alone (live region holds "${srQuiet.text}")`);
       // A refusal keeps the word on the line so the player can fix it; Clear
       // (or any board change) sends every letter back.
       check((await ph.locator('#wordline .wchip').count()) === word2.length, 'refused word stays on the line to fix');
@@ -309,6 +352,153 @@ async function main() {
     } else {
       await ph.click('#clearBtn');
     }
+
+    // --- Keyboard on the board (M4-01). EVERYTHING below moves focus and the
+    // roving tab stop, which is why it sits here, after the last snap()
+    // comparison in the suite: a roved, non-canonical stop baked into `before`
+    // would have broken the two post-Clear snapshot checks above instead of
+    // showing up here, where a failure is cheap to localise. It is still this
+    // player's turn - the word above was refused, so the turn never passed.
+    // As above: none of this proves a screen reader says anything.
+    await ph.bringToFront(); // real key presses, so give the page the keyboard
+    const stopCount = await ph.evaluate(() => {
+      const cells = [...document.querySelectorAll('#board .cell')];
+      const zero = cells.filter((c) => c.getAttribute('tabindex') === '0');
+      return {
+        zero: zero.length,
+        minus: cells.filter((c) => c.getAttribute('tabindex') === '-1').length,
+        at: zero.length ? zero[0].dataset.r + ',' + zero[0].dataset.c : 'nowhere',
+      };
+    });
+    // One tab stop, not a hundred: otherwise tabbing past the board costs a
+    // keyboard player 100 presses to reach Clear.
+    check(stopCount.zero === 1, `exactly one board cell is in the tab order (${stopCount.zero}, at ${stopCount.at})`);
+    check(stopCount.minus === 99, `the other 99 are reachable by arrow key only (${stopCount.minus} at tabindex -1)`);
+
+    const activeCell = () => ph.evaluate(() => {
+      const a = document.activeElement;
+      const cell = a && a.classList && a.classList.contains('cell') ? a : null;
+      return {
+        rc: cell ? cell.dataset.r + ',' + cell.dataset.c : (a ? '<' + (a.id || a.tagName) + '>' : 'none'),
+        tabindex: cell ? cell.getAttribute('tabindex') : null,
+        zero: document.querySelectorAll('#board .cell[tabindex="0"]').length,
+      };
+    });
+    const step = (rc, dr, dc) => { const [r, c] = rc.split(',').map(Number); return (r + dr) + ',' + (c + dc); };
+    let stop0 = await ph.evaluate(() => {
+      const el = document.querySelector('#board .cell[tabindex="0"]');
+      if (el) el.focus();
+      return el ? el.dataset.r + ',' + el.dataset.c : '';
+    });
+    // Start from the real stop - that is where a keyboard player lands - but an
+    // arrow first if it derived onto the far edge, where ArrowRight/ArrowDown
+    // would correctly clamp instead of moving. An arrow press is the right way
+    // to get off the edge: it carries the single stop with it, which a bare
+    // .focus() would not, leaving two cells at tabindex 0.
+    if (/,9$/.test(stop0)) { await ph.keyboard.press('ArrowLeft'); await ph.waitForTimeout(80); stop0 = (await activeCell()).rc; }
+    if (/^9,/.test(stop0)) { await ph.keyboard.press('ArrowUp'); await ph.waitForTimeout(80); stop0 = (await activeCell()).rc; }
+    await ph.keyboard.press('ArrowRight');
+    await ph.waitForTimeout(80);
+    let moved = await activeCell();
+    check(moved.rc === step(stop0, 0, 1), `ArrowRight moves focus along the row (${stop0} -> ${moved.rc})`);
+    check(moved.tabindex === '0' && moved.zero === 1, `the tab stop travels with the focus and stays single (${moved.zero} at tabindex 0)`);
+    const stop1 = moved.rc;
+    await ph.keyboard.press('ArrowDown');
+    await ph.waitForTimeout(80);
+    moved = await activeCell();
+    check(moved.rc === step(stop1, 1, 0), `ArrowDown moves focus down the column (${stop1} -> ${moved.rc})`);
+    check(moved.tabindex === '0' && moved.zero === 1, `the stop travels on that move too (${moved.zero} at tabindex 0)`);
+    // The grid clamps at its edges and never wraps: wrapping out of the corner
+    // would lose a blind player their place entirely.
+    await ph.evaluate(() => document.querySelectorAll('#board .cell')[0].focus());
+    await ph.keyboard.press('ArrowLeft');
+    await ph.keyboard.press('ArrowUp');
+    await ph.waitForTimeout(80);
+    const corner = await activeCell();
+    check(corner.rc === '0,0', `ArrowLeft and ArrowUp clamp in the top-left corner rather than wrap (${corner.rc})`);
+
+    // Enter has activated a cell since the board was keyed (board.js:256-259)
+    // and nothing had ever tested it.
+    const chipsBeforeEnter = await ph.locator('#wordline .wchip').count();
+    const enterAt = await ph.evaluate(() => {
+      const el = [...document.querySelectorAll('#board .cell')].find((c) => c.querySelector('.tile'));
+      if (el) el.focus();
+      return el ? el.dataset.r + ',' + el.dataset.c : 'no tile on the board';
+    });
+    await ph.keyboard.press('Enter');
+    await ph.waitForTimeout(200);
+    check((await ph.locator('#wordline .wchip').count()) === chipsBeforeEnter + 1,
+      `Enter on a square plays its letter with no tap (${enterAt})`);
+
+    // The invariant the whole roving design rests on: the stop lives in an
+    // attribute that is already there and is re-derived on every render, so a
+    // post-Clear board is byte-for-byte the board `before` captured even after
+    // all that arrowing. A failure here means the stop is being churned -
+    // removeAttribute/setAttribute re-appends, which reorders the attribute list
+    // that innerHTML serialises - or that a roved stop outlived the Clear.
+    // clearIfAny, not a bare click: with no letter on the line Clear is disabled
+    // and click() would wait out its full timeout and abort the whole run.
+    await clearIfAny();
+    await ph.waitForTimeout(250);
+    check((await snap()) === before, 'arrowing and clearing leaves the board byte-identical');
+
+    // Focus survives the word line being patched in place: renderGame() runs on
+    // every inbound state and draft message - drafts land roughly every 120ms -
+    // and the chip under the player's finger used to be thrown away each time.
+    const twoTiles = await ph.evaluate(() => {
+      const out = [];
+      // Plain coloured tops only: no house pyramid, so the build has no black
+      // letter and therefore no anchor, so neither tap can be swallowed as a
+      // direction tap - and no '?' top, whose letter is not known here.
+      state.cells.forEach((row, r) => row.forEach((cell, c) => {
+        if (out.length < 2 && cell.t && cell.t.o !== 'house' && cell.t.o !== 'hidden') out.push([r, c]);
+      }));
+      return out;
+    });
+    if (twoTiles.length === 2) {
+      await tap(...twoTiles[0]);
+      await ph.waitForTimeout(150);
+      // Tag the chip as well as focusing it: a patched chip is the same node, so
+      // the tag survives; a rebuilt line loses it, and that is the bug.
+      await ph.evaluate(() => { const b = document.querySelector('#wordline .wchip'); if (b) { b.dataset.probe = '1'; b.focus(); } });
+      await tap(...twoTiles[1]);
+      await ph.waitForTimeout(250);
+      const held = await ph.evaluate(() => {
+        const a = document.activeElement;
+        return {
+          same: !!(a && a.dataset && a.dataset.probe === '1'),
+          where: a ? (a.className || a.id || a.tagName) : 'none',
+          chips: document.querySelectorAll('#wordline .wchip').length,
+        };
+      });
+      check(held.chips === 2 && held.same,
+        `focus stays on the same chip while another letter is added (${held.chips} chips, focus on ${held.where})`);
+      const heldBox = (await ph.locator('#wordline .wchip').count()) ? await ph.locator('#wordline .wchip').first().boundingBox() : null;
+      check(!!heldBox && heldBox.width >= 44 && heldBox.height >= 44,
+        `patched-in-place chips are still at least 44x44 (${heldBox ? Math.round(heldBox.width) + 'x' + Math.round(heldBox.height) : 'no chips rendered'})`);
+      await clearIfAny();
+    } else {
+      check(false, `could not find two plain tiles to build with (${twoTiles.length})`);
+    }
+
+    // Focus rings, measured on the rendered page rather than read off the
+    // stylesheet. :focus-visible does NOT match a programmatic .focus() in every
+    // engine, so drive it with a real Tab press - which is what a keyboard
+    // player does anyway. Tab out of the board (one press, because of the single
+    // stop) and the next tabbable thing is a control button: Clear, or Submit
+    // and Pass when Clear is disabled, since disabled buttons are skipped. The
+    // label says which one was measured.
+    await ph.evaluate(() => {
+      const el = document.querySelector('#board .cell[tabindex="0"]');
+      if (el) el.focus();
+    });
+    await ph.keyboard.press('Tab');
+    const ring = await ph.evaluate(() => {
+      const a = document.activeElement, cs = getComputedStyle(a);
+      return { btn: !!(a.classList && a.classList.contains('btn')), who: a.id || a.className || a.tagName, style: cs.outlineStyle, width: cs.outlineWidth };
+    });
+    check(ring.btn && ring.style !== 'none' && parseFloat(ring.width) > 0,
+      `a button focused from the keyboard draws a focus ring (${ring.who}: outline ${ring.style} ${ring.width})`);
 
     // The good word goes through and lands in the words panel on both screens.
     await clearIfAny();
