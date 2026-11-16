@@ -31,6 +31,7 @@
   .joinurl { color: #b9a87c; word-break: break-all; margin-top: 10px; font-size: .9rem; }
   .wp-row { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid #3d2f56; }
   .wp-row.wp-turn .wp-who { color: var(--gold); }
+    .wp-row.wp-turn .wp-who::after { content: ' \25B2'; }
   .wp-who { flex: 0 0 34%; } .wp-words b { margin-right: 10px; letter-spacing: .05em; } .wp-words i { color: #8f8363; }
   /* TV sizes: the board already grows with the wider wrap (container-query
      tile fonts in style.css follow it); scale the host chrome to match. */

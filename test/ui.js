@@ -106,6 +106,33 @@ async function main() {
     check(/^[1-9]$/.test(await host.locator('#board .tile').first().getAttribute('data-value')), 'tile carries its tip value');
     check((await host.locator('#board .tile .L').count()) === tileCount, 'every tile shows its letter in the centre');
     check((await host.locator('#board .tile .n').count()) === tileCount, 'every tile shows its stack count in a corner');
+    // Colour is never the only signal (M4-01): each owner carries a shape in
+    // the tile's free corner. getComputedStyle returns the literal string
+    // 'none' when there is no pseudo-element, so test for a quoted value.
+    const ownerMarks = await host.evaluate(() => {
+      const out = {};
+      for (const t of document.querySelectorAll('#board .tile[data-owner]')) {
+        const cs = getComputedStyle(t, '::after');
+        out[t.dataset.owner] = { glyph: cs.content, px: parseFloat(cs.fontSize) };
+      }
+      return out;
+    });
+    const owners = ['red', 'blue', 'green', 'yellow'].filter((c) => ownerMarks[c]);
+    check(owners.length === 4, `all four colours are on the opening board (${owners.join(',')})`);
+    const marked = owners.filter((c) => /^".+"$/.test(ownerMarks[c].glyph));
+    check(marked.length === owners.length, `every owner's tiles carry a shape (${owners.map((c) => c + ownerMarks[c].glyph).join(' ')})`);
+    check(new Set(owners.map((c) => ownerMarks[c].glyph)).size === owners.length, 'the four owner shapes are all different');
+    check(owners.every((c) => ownerMarks[c].px >= 10), `owner shapes are readable on the TV (${ownerMarks[owners[0]].px.toFixed(1)}px)`);
+    // The swatch shape must be a pseudo-element, never DOM text: #scores feeds
+    // the no-digits gate in section E, and it already prints a real U+25B2
+    // turn marker, so test the invariant (empty swatches) and only the three
+    // shapes this change introduced - not the whole geometric-shapes block.
+    const sc = await host.evaluate(() => ({
+      chips: [...document.querySelectorAll('#scores .chip')].map((c) => c.textContent),
+      text: document.getElementById('scores').textContent,
+    }));
+    check(sc.chips.length >= 2 && sc.chips.every((t) => t === '') && !/[\u25CF\u25A0\u2605]/.test(sc.text),
+      `owner shapes are CSS-only - the ${sc.chips.length} score swatches hold no text`);
     check((await host.locator('#board canvas').count()) === 0, 'no 3D canvas');
     check((await host.locator('#tracker .trk').count()) === 5, 'pyramid tracker shows 4 colors + house');
     check((await host.locator('#tracker').textContent()).includes('Gold'), 'Gold color naming in tracker');

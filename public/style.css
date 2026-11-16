@@ -227,6 +227,24 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .tile.o-blue .L   { color: var(--blue); }
 .tile.o-green .L  { color: var(--green); }
 .tile.o-yellow .L { color: var(--yellow); }
+/* Owner SHAPE, so colour is never the only signal (M4-01). Dark ink for all
+   four on purpose - the shape carries identity, which survives greyscale and
+   any colour-vision deficiency, and the hue stays as redundant reinforcement.
+   A gold star in var(--yellow) on the tan tile would also be low contrast.
+   Top-right is the one free corner: .v holds top-left, .n bottom-right.
+   Pseudo-element on purpose - a glyph in textContent would break the word-line
+   and tile regexes in the suite. House and hidden tiles get none (house is
+   already structurally different, hidden means the owner is unknown). */
+.tile::after {
+  position: absolute; top: 4%; right: 7%;
+  line-height: 1; color: #2b2418;
+  font-size: clamp(10px, 1.7vmin, 15px);
+  font-size: clamp(10px, 2.4cqw, 30px);
+}
+.tile.o-red::after    { content: '\25CF'; }
+.tile.o-blue::after   { content: '\25A0'; }
+.tile.o-green::after  { content: '\25B2'; }
+.tile.o-yellow::after { content: '\2605'; }
 /* black house squares */
 .tile.o-house { background: linear-gradient(180deg, #3b3842, #232128); border-color: #000; }
 .tile.o-house .L { color: #e8d5a3; -webkit-text-stroke: 0; }
@@ -311,10 +329,16 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .bar-green { background: var(--green); } .bar-yellow { background: var(--yellow); }
 .bar-house { background: #8a8494; }
 
-.chip { display: inline-block; width: 13px; height: 13px; border-radius: 4px; margin-right: 6px; vertical-align: baseline; box-shadow: inset 0 -2px 0 rgba(0,0,0,.3); }
+.chip { display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border-radius: 4px; margin-right: 6px; vertical-align: baseline; box-shadow: inset 0 -2px 0 rgba(0,0,0,.3); }
 .chip.red { background: var(--red); } .chip.blue { background: var(--blue); }
 .chip.green { background: var(--green); } .chip.yellow { background: var(--yellow); }
 .chip.house { background: var(--house); border: 1px solid #55515c; }
+/* The same shape on the swatch: this is where a player learns circle = Red. */
+.chip::after { font-size: 9px; line-height: 1; color: rgba(0,0,0,.78); }
+.chip.red::after    { content: '\25CF'; }
+.chip.blue::after   { content: '\25A0'; }
+.chip.green::after  { content: '\25B2'; }
+.chip.yellow::after { content: '\2605'; }
 
 .panel {
   background: var(--panel);
@@ -425,6 +449,13 @@ input[type=text]:focus { outline: 3px solid var(--gold); }
 .fly.o-green  { border-color: var(--green);  color: var(--green); }
 .fly.o-yellow { border-color: var(--yellow); color: var(--yellow); }
 .fly.o-house  { background: linear-gradient(180deg, #3b3842, #232128); border-color: #000; color: #e8d5a3; -webkit-text-stroke: 0; }
+/* Captured tiles in flight are the loudest moment of the game and were
+   distinguished by border colour alone. .fly sizes its font inline, so 40%. */
+.fly::after { position: absolute; top: 4%; right: 7%; font-size: 40%; line-height: 1; color: #2b2418; -webkit-text-stroke: 0; }
+.fly.o-red::after    { content: '\25CF'; }
+.fly.o-blue::after   { content: '\25A0'; }
+.fly.o-green::after  { content: '\25B2'; }
+.fly.o-yellow::after { content: '\2605'; }
 /* A landing pulse on each square the word covers. */
 .cell.land { animation: landpulse .5s ease-out; border-radius: 4px; z-index: 7; }
 @keyframes landpulse {

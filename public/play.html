@@ -27,8 +27,13 @@
   .wchip small { position: absolute; top: 2px; left: 4px; font: bold .6rem Verdana, sans-serif; }
   .wchip.o-red { border-color: var(--red); } .wchip.o-blue { border-color: var(--blue); }
   .wchip.o-green { border-color: var(--green); } .wchip.o-yellow { border-color: var(--yellow); }
+  /* Owner shape on the letters you are holding, bottom-right (small owns top-left). */
+  .wchip::after { position: absolute; bottom: 2px; right: 4px; font: bold .55rem Verdana, sans-serif; color: rgba(0,0,0,.78); }
+  .wchip.o-red::after { content: '\25CF'; } .wchip.o-blue::after { content: '\25A0'; }
+  .wchip.o-green::after { content: '\25B2'; } .wchip.o-yellow::after { content: '\2605'; }
   .wp-row { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px solid #3d2f56; font-size: .92rem; }
   .wp-row.wp-turn .wp-who { color: var(--gold); }
+  .wp-row.wp-turn .wp-who::after { content: ' \25B2'; } /* whose turn was gold text alone */
   .wp-who { flex: 0 0 38%; }
   .wp-words b { margin-right: 8px; letter-spacing: .04em; } .wp-words i { color: #8f8363; }
   .controls { margin-top: 12px; }
@@ -545,7 +550,9 @@ function renderWordLine(line) {
     b.type = 'button'; b.className = 'wchip ' + (it.black ? 'black' : 'o-' + it.o);
     b.textContent = it.l.toUpperCase();
     if (it.v) { const s = document.createElement('small'); s.textContent = it.v; b.append(s); }
-    b.setAttribute('aria-label', `Letter ${i + 1}: ${it.l.toUpperCase()}. Tap to remove.`);
+    // Printed squares arrive with o:'house' too, so branch on it.black.
+    const whose = it.black ? 'black letter' : `${names[it.o] || COLOR_NAMES[it.o]} pyramid`;
+    b.setAttribute('aria-label', `Letter ${i + 1}: ${it.l.toUpperCase()}, ${whose}. Tap to remove.`);
     b.onclick = () => removeItem(i);
     line.append(b);
   });

@@ -86,7 +86,10 @@ async function main() {
     // phone is 32px wide by arithmetic - so cells are held to the WCAG 2.2
     // SC 2.5.8 AA floor of 24px, with pinch-zoom as the magnifier (M4-01).
     const tapOk = async (sel, label) => {
-      const b = await ph.locator(sel).first().boundingBox();
+      // Guard the count first: boundingBox() on a locator that matches nothing
+      // waits the full 30s timeout and then throws, turning a soft check
+      // failure into a hard abort of the whole suite.
+      const b = (await ph.locator(sel).count()) ? await ph.locator(sel).first().boundingBox() : null;
       check(!!b && b.width >= 44 && b.height >= 44,
         `${label} is at least 44x44 (${b ? Math.round(b.width) + 'x' + Math.round(b.height) : 'not rendered'})`);
     };
@@ -98,14 +101,26 @@ async function main() {
     await tapOk('#playBtn', 'Submit');
     await tapOk('#passBtn', 'Pass');
     await tapOk('.fb-btn', 'the feedback button');
-    const cellBox = await ph.locator('#board .cell').first().boundingBox();
-    check(Math.min(cellBox.width, cellBox.height) >= 24,
-      `board cells clear the 24px AA floor (${cellBox.width.toFixed(1)}x${cellBox.height.toFixed(1)}; height is the binding dimension)`);
+    const cellBox = (await ph.locator('#board .cell').count()) ? await ph.locator('#board .cell').first().boundingBox() : null;
+    check(!!cellBox && Math.min(cellBox.width, cellBox.height) >= 24,
+      `board cells clear the 24px AA floor (${cellBox ? cellBox.width.toFixed(1) + 'x' + cellBox.height.toFixed(1) : 'not rendered'}; height is the binding dimension)`);
     const fbBox = await ph.locator('.fb-btn').boundingBox();
     const bdBox = await ph.locator('#board').boundingBox();
     check(!(fbBox.x < bdBox.x + bdBox.width && fbBox.x + fbBox.width > bdBox.x
           && fbBox.y < bdBox.y + bdBox.height && fbBox.y + fbBox.height > bdBox.y),
       'the feedback button does not sit on top of the board');
+
+    // The same owner shapes on the phone, at 32px cells.
+    const phoneMarks = await ph.evaluate(() => {
+      const out = {};
+      for (const t of document.querySelectorAll('#board .tile[data-owner]')) out[t.dataset.owner] = getComputedStyle(t, '::after').content;
+      return out;
+    });
+    const phOwners = Object.keys(phoneMarks).filter((o) => o !== 'house' && o !== 'hidden');
+    check(phOwners.length >= 2 && phOwners.every((o) => /^".+"$/.test(phoneMarks[o])),
+      `tiles carry an owner shape on the phone too (${phOwners.map((o) => o + phoneMarks[o]).join(' ')})`);
+    check(/^"/.test(await ph.evaluate(() => getComputedStyle(document.querySelector('.chip'), '::after').content)),
+      'the lobby colour swatch carries the shape too, so players learn it');
     check(await ph.locator('#wordspanel').isVisible(), 'words panel is on the phone');
 
     // A legal word the engine can see: its letters and where each comes from.
@@ -137,20 +152,59 @@ async function main() {
     // the half-built word (the board-changed guard), so on a slow runner the
     // word line ends up short. Build, verify, and start over if disturbed.
     const tapWord = async ({ noDir = false } = {}) => {
-      for (let attempt = 0; attempt < 3; attempt++) {
-        for (let i = 0; i <= ai; i++) { await tap(...cells[i]); await ph.waitForTimeout(60); }
+      // A square that sits BESIDE the black anchor has its first tap consumed
+      // as a direction tap, so the letter needs a second one. Evidence: SCRIP
+      // lost its 'i' from (1,2), directly above the black 'r' at (2,2),
+      // identically on all 5 attempts - deterministic, so retrying the whole
+      // word could never have helped. Verify each tap landed instead.
+      const tapLetter = async (rc) => {
+        const before = await ph.evaluate(() => currentWord().length);
+        await tap(...rc); await ph.waitForTimeout(60);
+        if ((await ph.evaluate(() => currentWord().length)) === before) {
+          await tap(...rc); await ph.waitForTimeout(60);
+        }
+      };
+      const got = [];
+      for (let attempt = 0; attempt < 5; attempt++) {
+        for (let i = 0; i <= ai; i++) await tapLetter(cells[i]);
         if (!noDir) { await tap(...nb); await ph.waitForTimeout(60); }
-        for (let i = ai + 1; i < cells.length; i++) { await tap(...cells[i]); await ph.waitForTimeout(60); }
+        for (let i = ai + 1; i < cells.length; i++) await tapLetter(cells[i]);
         await ph.waitForTimeout(150);
-        if ((await ph.evaluate(() => currentWord())) === move.word) return;
+        const w = await ph.evaluate(() => currentWord());
+        if (w === move.word) return true;
+        got.push(w || '(empty)');
         await clearIfAny();
       }
+      // Give up LOUDLY, and dump the geometry. A bare red here cost a whole
+      // debugging session once: the same wrong word came back all 5 times, so
+      // it was never a race, and no retry count could ever have fixed it.
+      check(false, `tapWord could not build ${move.word.toUpperCase()} in 5 attempts (got ${got.join(', ')})`);
+      const seen = await ph.evaluate((cs) => cs.map(([r, c]) => {
+        const cell = state.cells[r][c];
+        return `${r},${c}=${cell.t ? cell.t.l + (cell.n > 1 ? '(stack ' + cell.n + ')' : '') : cell.p ? cell.p + '(printed)' : 'empty'}`;
+      }), cells);
+      console.log(`      [diag] word ${move.word} dir ${move.dir} | black index ${ai} | direction tap ${nb[0]},${nb[1]}`);
+      console.log(`      [diag] tap cells: ${seen.join('  ')}`);
+      console.log(`      [diag] distinct cells: ${new Set(cells.map((c) => c.join(','))).size} of ${cells.length}`);
+      return false;
     };
     const hostCounts = () => host.evaluate(() => [...document.querySelectorAll('#board .cell')].map((c) => (c.querySelector('.n') || {}).textContent || ''));
     const hostLetters = () => host.evaluate(() => [...document.querySelectorAll('#board .cell')].map((c) => (c.querySelector('.L') || {}).textContent || ''));
     // 15s, not 5: the draft relay is rate-limited and a loaded CI runner can
     // sit behind that window before the host sees the glow.
-    const hostGlowIs = (n) => host.waitForFunction((k) => document.querySelectorAll('#board .cell.glow').length === k, n, { timeout: 15000 }).then(() => true, () => false);
+    const hostGlowIs = async (n) => {
+      const ok = await host.waitForFunction((k) => document.querySelectorAll('#board .cell.glow').length === k, n, { timeout: 15000 }).then(() => true, () => false);
+      if (!ok) {
+        // Say WHY, so this never has to be re-diagnosed from a bare red check.
+        // A stale NON-ZERO host count means the server dropped the last draft:
+        // index.js:370-374 returns on the 50ms throttle / IP limiter with no
+        // trailing send, so the TV mirror keeps whatever it last received.
+        const got = await host.evaluate(() => document.querySelectorAll('#board .cell.glow').length);
+        const mine = await ph.evaluate(() => document.querySelectorAll('#board .cell.glow').length);
+        console.log(`      [diag] wanted ${n} glows, host has ${got}, phone has ${mine} - ${got !== 0 && got !== n ? 'STALE host mirror (dropped final draft)' : 'host never received the draft'}`);
+      }
+      return ok;
+    };
 
     check((await ph.locator('#dirH, #dirV, .dirbtn').count()) === 0, 'no Across/Down buttons on the phone');
 
@@ -181,9 +235,16 @@ async function main() {
     await ph.waitForTimeout(250);
     const chips = await ph.locator('#wordline .wchip').allTextContents();
     check(chips.map((t) => t.replace(/\d/g, '')).join('').toLowerCase() === move.word, `word line shows ${move.word.toUpperCase()}`);
-    const chipBox = await ph.locator('#wordline .wchip').first().boundingBox();
-    check(chipBox.width >= 44 && chipBox.height >= 44,
-      `word-line letter chips are at least 44x44 (${Math.round(chipBox.width)}x${Math.round(chipBox.height)})`);
+    const nChip = await ph.locator('#wordline .wchip').count();
+    const chipBox = nChip ? await ph.locator('#wordline .wchip').first().boundingBox() : null;
+    check(!!chipBox && chipBox.width >= 44 && chipBox.height >= 44,
+      `word-line letter chips are at least 44x44 (${chipBox ? Math.round(chipBox.width) + 'x' + Math.round(chipBox.height) : 'no chips rendered'})`);
+    // The shapes must stay CSS-only: this line strips digits, not glyphs, so a
+    // glyph in textContent would break the word check just above.
+    check(!/[\u25A0-\u25FF\u2605]/.test(await ph.locator('#wordline').textContent()),
+      'owner shapes are CSS-only - the word line text is still just the word');
+    check(nChip > 0 && /pyramid|black letter/.test(await ph.locator('#wordline .wchip').first().getAttribute('aria-label') || ''),
+      'word-line chips name whose pyramid the letter came from');
     const [fr, fc] = cellFor(steps.findIndex((s) => s.kind === 'move'));
     const idx = fr * 10 + fc;
     const countsDuring = await counts();
@@ -212,12 +273,24 @@ async function main() {
     check(JSON.stringify(await counts()) === JSON.stringify(countsBefore), 'all stack counts restored');
 
     // A word that is not in the dictionary: refused with a reason, everything returned.
-    let scrambled = move.word.split('').reverse().join('');
-    if (DICT.has(scrambled) || scrambled === move.word) scrambled = move.word.slice(1) + move.word[0];
-    check(!DICT.has(scrambled), `"${scrambled}" is not a word`);
+    // Reversing a real word can land on another real word (the engine drew
+    // "span", whose reversal "naps" and rotation "pans" are both in the
+    // dictionary), so search a few cheap reorderings of the SAME letters and
+    // take the first the dictionary actually rejects, rather than assuming.
+    const bl = move.word.split('');
+    const ix = bl.map((_, i) => i);
+    const asWord = (ord) => ord.map((i) => bl[i]).join('');
+    const rot = (k) => [...ix.slice(k), ...ix.slice(0, k)];
+    const swap = (k) => { const o = [...ix]; [o[k], o[k + 1]] = [o[k + 1], o[k]]; return o; };
+    const candidates = [[...ix].reverse()];
+    for (let k = 1; k < bl.length; k++) candidates.push(rot(k), [...rot(k)].reverse());
+    for (let k = 0; k < bl.length - 1; k++) candidates.push(swap(k));
+    const order = candidates.find((o) => asWord(o) !== move.word && !DICT.has(asWord(o)));
+    const scrambled = order ? asWord(order) : '';
+    check(!!order && !DICT.has(scrambled), `"${scrambled}" is not a word`);
     // Spell the letters in a different order, with the same squares, by sending the build over the socket path the UI uses.
     await tapWord();
-    await ph.evaluate((w) => { build.reverse(); renderGame(); }, scrambled);
+    await ph.evaluate((ord) => { const b = ord.map((i) => build[i]); build.length = 0; build.push(...b); renderGame(); }, order);
     const word2 = await ph.evaluate(() => currentWord());
     // A scrambled order can put the word off the board, and then Submit stays off (a client-side guard): nothing to send.
     if (!DICT.has(word2) && await ph.locator('#playBtn').isEnabled()) {
