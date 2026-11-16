@@ -80,6 +80,32 @@ async function main() {
     check(/^\d+×$/.test(await first.locator('.n').textContent()), 'tile shows its stack count in the opposite corner');
     check((await ph.locator('canvas').count()) === 0, 'no 3D canvas anywhere');
     check((await ph.locator('#viewbar, #viewBtn, #rotBtn').count()) === 0, 'no 3D view controls');
+
+    // Touch targets, measured in the browser, not computed: every control a
+    // thumb hits clears 44x44. The board grid cannot - 10 cells across a 390px
+    // phone is 32px wide by arithmetic - so cells are held to the WCAG 2.2
+    // SC 2.5.8 AA floor of 24px, with pinch-zoom as the magnifier (M4-01).
+    const tapOk = async (sel, label) => {
+      const b = await ph.locator(sel).first().boundingBox();
+      check(!!b && b.width >= 44 && b.height >= 44,
+        `${label} is at least 44x44 (${b ? Math.round(b.width) + 'x' + Math.round(b.height) : 'not rendered'})`);
+    };
+    // Scoped to #gameview: the lobby copy of the toggle is inside the hidden
+    // #waitview, and boundingBox() on a display:none element is null.
+    await tapOk('#gameview [data-sound-toggle]', 'the in-game sound toggle');
+    await tapOk('#howtoBtn', 'the how-to button');
+    await tapOk('#clearBtn', 'Clear');
+    await tapOk('#playBtn', 'Submit');
+    await tapOk('#passBtn', 'Pass');
+    await tapOk('.fb-btn', 'the feedback button');
+    const cellBox = await ph.locator('#board .cell').first().boundingBox();
+    check(Math.min(cellBox.width, cellBox.height) >= 24,
+      `board cells clear the 24px AA floor (${cellBox.width.toFixed(1)}x${cellBox.height.toFixed(1)}; height is the binding dimension)`);
+    const fbBox = await ph.locator('.fb-btn').boundingBox();
+    const bdBox = await ph.locator('#board').boundingBox();
+    check(!(fbBox.x < bdBox.x + bdBox.width && fbBox.x + fbBox.width > bdBox.x
+          && fbBox.y < bdBox.y + bdBox.height && fbBox.y + fbBox.height > bdBox.y),
+      'the feedback button does not sit on top of the board');
     check(await ph.locator('#wordspanel').isVisible(), 'words panel is on the phone');
 
     // A legal word the engine can see: its letters and where each comes from.
@@ -155,6 +181,9 @@ async function main() {
     await ph.waitForTimeout(250);
     const chips = await ph.locator('#wordline .wchip').allTextContents();
     check(chips.map((t) => t.replace(/\d/g, '')).join('').toLowerCase() === move.word, `word line shows ${move.word.toUpperCase()}`);
+    const chipBox = await ph.locator('#wordline .wchip').first().boundingBox();
+    check(chipBox.width >= 44 && chipBox.height >= 44,
+      `word-line letter chips are at least 44x44 (${Math.round(chipBox.width)}x${Math.round(chipBox.height)})`);
     const [fr, fc] = cellFor(steps.findIndex((s) => s.kind === 'move'));
     const idx = fr * 10 + fc;
     const countsDuring = await counts();

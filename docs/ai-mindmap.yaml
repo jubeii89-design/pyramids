@@ -6,9 +6,9 @@ meta:
   pitch: Jackbox-style party word game — host on a big screen, players join on phones via QR or a 4-letter code
   repo: jubeii89-design/pyramids
   branch: claude/session-hsd67f
-  pr: "#6 (draft, open; deploys and render.yaml track main, so nothing here is live until it merges)"
-  generated_from_commit: 55b8e26
-  generated_on: 2026-11-14
+  pr: "#9 (draft, open; deploys and render.yaml track main, so nothing here is live until it merges)"
+  generated_from_commit: 8f45a8c  # maintained in place since; updated in the same change-set as every development
+  generated_on: 2026-11-16
   authority: >
     server/game.js is the canonical rules source. Where any document (this file
     included) disagrees with the code, the code wins. Every number in the rules
@@ -165,7 +165,7 @@ quality:
     ui.js + tap-build.js (Playwright, via "npx grunt verify-ui"): lobby, join, full game, phone tap-to-build
   ci: .github/workflows/ci.yml - jobs test (npm test with --test-concurrency=1, then e2e) and browser (Playwright); concurrency serialized because parallel child servers hang 2-vCPU runners; de-flaked 2026-11 after 3 different slow-runner races in one night - ui.js passToGameOver clicks pass with a bounded catch (a stale-state click can target a button the over-broadcast just hid), tap-build tapWord verifies currentWord and rebuilds if a mid-build broadcast reset the draft, hostGlowIs waits 15s for the rate-limited draft relay; locally the suites bind fixed ports 3123/3124/3127 so never run two gates at once
   deploy: deploy/aws.md (Lightsail), deploy/pyramids.service, deploy/Caddyfile, render.yaml (tracks main); temporary domain crosswordpyramids.duckdns.org
-  not_covered: never deployed; zero human playtests; no tutorial beyond the how-to dialog; no accessibility pass; rights to name/rules text unconfirmed
+  not_covered: never deployed; zero human playtests; no tutorial beyond the how-to dialog; accessibility pass in progress (M4-01) and never verified with a real screen reader or by a colour-blind player, and the host/TV screen has had no pass; rights to name/rules text unconfirmed
 
 known_issues:  # each verified against the code on generated_on; status open unless noted
   - id: KI-01
@@ -206,6 +206,7 @@ known_issues:  # each verified against the code on generated_on; status open unl
     summary: board renderer rebuilds all 100 cells with innerHTML on every state (board.js:159) - blocks animation and breaks screen-reader focus; prerequisite for KI-01
   - id: KI-10
     severity: low
+    status: fixed in M4-01 - maximum-scale dropped from play.html's viewport so pinch-zoom works again; every control on the phone is now >=44x44 (topbar sound + "?" buttons via a shared .btn.mini, word-line chips 44x46, the feedback button, which also stops floating over the board's lower-right corner below 700px). Board cells stay as they are and that is deliberate - 10 across a 390px phone is 32.0px wide by arithmetic, and measured in Chromium the binding dimension is cell HEIGHT, 29.0px at 390px and 26.6px at 360px - both clear WCAG 2.2 SC 2.5.8 Target Size (Minimum), Level AA, which asks for 24x24 CSS px and is tested by whether a solid 24x24 axis-aligned square fits inside the target, so the SMALLER dimension is what counts. The 44px figure is SC 2.5.5 Target Size (Enhanced), Level AAA, not the AA bar. W3C is explicit that the 24px requirement is independent of zoom, so restoring pinch-zoom is an ergonomic win and the literal KI-10 fix, NOT the conformance argument - the cells pass on their own measured size. A magnify/pan mode that would reach the AAA 44px is split out as M4-03
     summary: phone tap targets ~30px and maximum-scale=1 (play.html:5) - below the 44px guideline and pinch-zoom disabled
   - id: KI-11
     severity: low
@@ -298,7 +299,7 @@ improvement_tree:  # the plan in IMPROVEMENT-PLAN.md as addressable nodes. "do M
       status: done - server stores/serializes penalties at over (null during play); shared finalsRevealHTML/tieBreakStageHTML/animateFinalsReveal in board.js; host stages rows (CSS delays + eased count-up, all gated text synchronous in the DOM, one run per gameId); phone static with own row highlighted "(you)"; prefers-reduced-motion skips straight to finals; ui.js now asserts the per-player math rows + staged draw pyramids
     - id: M2-06
       status: done
-      title: atmosphere - outer-space background; a real Milky Way photograph chosen by the author (Jeremy Thomas on Unsplash, provenance in public/assets/ASSETS.md, credit on credits.html) under the pure-CSS twinkling starfield layers (body::before/after, prefers-reduced-motion safe); "in the clouds" variant deferred as a possible theme; author direction 2026-11: photo must NOT be muted - page wash/vignette and host game-over scrim all at 20% alpha, tune further by eye from screenshots (mid-game dialog backdrops stay dark on purpose, they are focus modals)
+      title: atmosphere - outer-space background; a real Milky Way photograph chosen by the author (Jeremy Thomas on Unsplash, provenance in public/assets/ASSETS.md, credit on credits.html) under the pure-CSS twinkling starfield layers (body::before/after, prefers-reduced-motion safe); "in the clouds" variant deferred as a possible theme; author direction 2026-11 - photo must NOT be muted - page wash/vignette and host game-over scrim all at 20% alpha, tune further by eye from screenshots (mid-game dialog backdrops stay dark on purpose, they are focus modals)
       size: S
       acceptance: board, panels and gold text keep full contrast; no images, no JS, no test movement
   M3:  # Everyone plays (P2) - no bored spectators
@@ -312,10 +313,11 @@ improvement_tree:  # the plan in IMPROVEMENT-PLAN.md as addressable nodes. "do M
       acceptance: lobby is legible from the phone alone; host can remove a seat
   M4:  # Reach everyone (P3)
     - id: M4-01
-      title: ergonomics + accessibility - >=44px taps, remove maximum-scale=1, colour-blind-safe palette + owner glyphs, aria labels with display names, landscape, focus retention
+      title: ergonomics + accessibility - >=44px controls, remove maximum-scale=1, owner glyphs so colour is never the only signal, aria labels with display names, landscape, focus retention
       fixes: KI-10
       size: M
-      acceptance: colour is never the only signal; WCAG touch-target pass on the build screen
+      acceptance: colour is never the only signal on any surface; every control outside the board grid is >=44x44 CSS px on the phone (the SC 2.5.5 AAA bar); board cells clear SC 2.5.8 Target Size (Minimum), AA, in portrait AND landscape, measured as the smaller dimension of the real rendered box in a browser rather than computed; pinch-zoom available on the phone
+      status: in progress (1/3) - targets, pinch-zoom and landscape landed. Acceptance restated because ">=44px taps" cannot hold for board cells - 10 across a 390px phone is 32.0px by arithmetic and min-height on .cell would fight .board's aspect-ratio and desync animatePlay's cellAt() geometry, so the 44px bar (SC 2.5.5 Target Size (Enhanced), AAA) applies to every control OUTSIDE the grid, while cells are held to the 24px floor of SC 2.5.8 Target Size (Minimum), AA, which they clear on their own measured size - zoom is explicitly not a way to satisfy that criterion, so pinch-zoom is an ergonomic win rather than the conformance argument. Measured in Chromium at six phone sizes rather than computed - cell is 32.0x29.0 at 390x844 and 29.0x26.6 at 360x800 - HEIGHT is the binding dimension, not width, so 26.6px is the real worst case. Landscape was broken, not merely cramped (no orientation or height media query existed in play.html at all; at 844x390 the board rendered ~532px square in a 390px viewport and Submit sat below the fold), and is now a two-column grid with the board in column 1 and the topbar, banner and controls stacked in column 2 - keeping chrome out of the board's height budget, which the first attempt did not - full-width chrome left a 640x360 phone only 268px of board, i.e. ~22.6px cells, under the floor. The board track must be a DEFINITE width (min(56vw, 100dvh - 24px)); an auto track collapsed the width:100% board to its padding and border, 24px, which only the measurement caught. Landscape now measures slightly better than portrait - 32.4x29.4 at 844x390 and 29.4x27.0 at 640x360, with Submit on screen at scrollY 0 at all six sizes. Also - #controls off-turn dimming 0.45 -> 0.7 (it compounded with .btn:disabled's own 0.45 to ~20%), and six dead rule blocks removed (.piece-inspector/.draft-controls/.draft-status/.pickrow/.pick-chip/.pick-auto - the repo's only 44px rules, referenced by no html or js)
     - id: M4-02
       title: copy/tone pass - in-character string table (announcements like "ANN ROBBED BOB!"), one voice across pages
       size: S

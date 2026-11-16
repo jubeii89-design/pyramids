@@ -47,6 +47,8 @@ async function main() {
     const home = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await home.goto(BASE);
     check((await home.title()).includes('Crossword Pyramids'), 'title renders');
+    const homeVp = await home.locator('meta[name=viewport]').getAttribute('content');
+    check(!/maximum-scale|user-scalable/.test(homeVp), 'home page allows pinch-zoom');
     check(await home.locator('.btn', { hasText: 'Host Game' }).isVisible(), 'Host Game button visible');
     await home.locator('.btn', { hasText: 'Join Game' }).click();
     check(await home.locator('#code').isVisible(), 'join code box opens');
@@ -67,6 +69,11 @@ async function main() {
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 } }); // iPhone-ish
     await phone.goto(joinUrl); // what scanning the QR does
     check(await phone.locator('#codein').isHidden(), 'room code prefilled from QR link');
+    // KI-10: maximum-scale=1 used to block pinch-zoom on the one surface a
+    // player holds in their hand. The board grid cannot reach 44px cells, so
+    // browser zoom is the magnifier and must stay available.
+    const phVp = await phone.locator('meta[name=viewport]').getAttribute('content');
+    check(/width=device-width/.test(phVp) && !/maximum-scale|user-scalable/.test(phVp), `phone allows pinch-zoom (${phVp})`);
     await phone.fill('#namein', 'Cleo');
     await phone.click('#joinBtn');
     await phone.waitForSelector('#waitview:not(.hidden)');
@@ -202,6 +209,20 @@ async function main() {
     check(!/\d/.test(hostTxt), 'host shows no point numbers during play');
     const phoneTxt = await ph.locator('#scoresmini').textContent();
     check(!/:\s*\d/.test(phoneTxt), 'phone shows no point numbers during play');
+
+    // Landscape: the board is square, so the portrait column pushed Submit
+    // below the fold. Measure the real boxes rather than trusting arithmetic.
+    await ph.setViewportSize({ width: 844, height: 390 });
+    await ph.waitForTimeout(200);
+    const land = await ph.evaluate(() => {
+      const b = document.getElementById('playBtn').getBoundingClientRect();
+      const c = document.querySelector('#board .cell').getBoundingClientRect();
+      return { bottom: b.bottom, h: innerHeight, sy: scrollY, cw: c.width, ch: c.height };
+    });
+    check(land.sy === 0 && land.bottom <= land.h, `Submit is on screen in landscape with no scrolling (bottom ${Math.round(land.bottom)} of ${land.h})`);
+    check(Math.min(land.cw, land.ch) >= 24, `landscape cells clear the 24px WCAG 2.2 AA floor (${land.cw.toFixed(1)}x${land.ch.toFixed(1)})`);
+    await ph.setViewportSize({ width: 390, height: 844 });
+    await ph.waitForTimeout(150);
 
     // Wait for the phone's turn, then tap letters to spell a word
     await ph.waitForFunction(
