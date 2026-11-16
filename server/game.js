@@ -25,7 +25,7 @@ const VALUES = {
 // Each player's 30 letters: every letter once, plus an extra A, E, I, O
 const PLAYER_LETTERS = 'abcdefghijklmnopqrstuvwxyzaeio'.split('');
 
-// 42 black house pyramid letters (common-letter heavy); 36 are placed each game
+// 43 black house pyramid letters (common-letter heavy); 36 are placed each game
 const HOUSE_LETTERS = (
   'eeeee' + 'aaaa' + 'iiii' + 'oooo' + 'ssss' + 'tttt' +
   'nnn' + 'rrr' + 'll' + 'uu' + 'dd' + 'cmhgbw'
@@ -97,7 +97,7 @@ function createGame(playerColors, rng = Math.random) {
     });
   }
 
-  // 36 of 42 house pyramids on the inner squares
+  // 36 of 43 house pyramids on the inner squares
   const house = shuffle(HOUSE_LETTERS, rng).slice(0, 36);
   let hi = 0;
   for (let r = 2; r <= 7; r++)
@@ -114,6 +114,7 @@ function createGame(playerColors, rng = Math.random) {
     log: [],                       // {color, word, points} history
     winner: null,
     finalScores: null,
+    penalties: null,
     tieBreak: null,
   };
   for (const c of playerColors) {
@@ -407,10 +408,13 @@ function finish(state, rng = Math.random) {
   // colour out there is a penalty. `state.scores` is the running capture
   // total (see playWord); the deduction is applied once, here.
   const finals = {};
+  const penalties = {};
   for (const color of state.players) {
-    finals[color] = state.scores[color] - remainingOnBoard(state, color).pts;
+    penalties[color] = remainingOnBoard(state, color).pts;
+    finals[color] = state.scores[color] - penalties[color];
   }
   state.finalScores = finals;
+  state.penalties = penalties; // stored so the reveal can SHOW the deduction
 
   let top = null;
   for (const color of state.players) {
@@ -521,6 +525,8 @@ function serialize(state) {
     passes: state.passes, // consecutive passes; players.length * 2 ends the game
     scores: over ? state.scores : null,
     finalScores: state.finalScores,
+    penalties: state.penalties || null, // pts of your own colour left on board, set at over
+
     winner: state.winner,
     tieBreak: state.tieBreak,
     log: publicLog,

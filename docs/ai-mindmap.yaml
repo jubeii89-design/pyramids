@@ -6,9 +6,9 @@ meta:
   pitch: Jackbox-style party word game — host on a big screen, players join on phones via QR or a 4-letter code
   repo: jubeii89-design/pyramids
   branch: claude/session-hsd67f
-  pr: "#6 (draft, open; deploys and render.yaml track main, so nothing here is live until it merges)"
-  generated_from_commit: 55b8e26
-  generated_on: 2026-11-14
+  pr: "#9 (draft, open; deploys and render.yaml track main, so nothing here is live until it merges)"
+  generated_from_commit: bb11020
+  generated_on: 2026-11-16
   authority: >
     server/game.js is the canonical rules source. Where any document (this file
     included) disagrees with the code, the code wins. Every number in the rules
@@ -42,7 +42,6 @@ rules:
       9: [Q, Z]
     per_colour_set: A-Z once each plus an extra A, E, I, O = 30 pyramids, 100 points total, dealt as 6 stacks of 5
     house_pool: 43 black house letters (common-letter heavy); 36 are shuffled onto the inner squares each game, 7 stay out
-    house_pool_code_comment_wrong: the comment at game.js:23 says 42; the string holds 43 — trust the code
   turn_order:
     locked: true
     first: lowest sum of exposed tip values across your six start stacks (game.js createGame)
@@ -92,6 +91,7 @@ architecture:
     public/index.html: home page — host or join; contains a STALE rules dialog (see known_issues KI-07)
     public/host.html: the big screen (TV) — lobby QR, board, tracker, words panel, results
     public/play.html: phone controller — join, tap-to-build word entry, pass, results
+    public/sounds.js: all sound cues, synthesized on the spot with Web Audio oscillators (no audio files); [data-sound-toggle] mute persisted per device; fails silent everywhere
     public/board.js: shared renderer + helpers; flat tile board (letter centre, value top-left, count bottom-right); HOWTO_STEPS guide; draft line; tracker; keepAwake (server ping only — NOT a screen wake lock)
   ws_protocol:
     path: /ws
@@ -112,7 +112,7 @@ architecture:
       hosted: "{ code, token, joinUrl, qr, playUrl?, playQr? } — playUrl/playQr (host's own seat link) only on a brand-new room"
       room: lobby/seat snapshot (names, colours, connected, hostSeat+claimed)
       joined: "{ code, color, name, token }"
-      state: "{ state: serialize() + gameId + revision } — scores null until over; log has points only when over; passes = consecutive-pass counter"
+      state: "{ state: serialize() + gameId + revision } — scores null until over; penalties (own-colour pts left on board, per seated colour) null until over; log has points only when over; passes = consecutive-pass counter"
       played: "{ color, word, gameId, revision, actionId, presentation } — presentation.steps lists every piece move/capture; NO client renders it yet (see KI-01)"
       draft: relayed public view { color, items:[{r,c,l,b}], start, lifted }
       preview / lift: replies with requestId
@@ -134,16 +134,17 @@ features_existing:  # do not re-propose these; they are built and tested
   - host a room with QR + 4-letter code; invite link share/copy on the phone
   - credentialed seat reclaim after disconnect (same colour, captures, log)
   - host screen disconnect survival (10-min grace) and host resume by code+token
-  - reserved host seat claimed from the host's own phone via #seat=TOKEN link
+  - 'reserved host seat claimed from the host''s own phone via #seat=TOKEN link'
   - tap-to-build word entry - first black letter anchors the word; direction by tapping beside the anchor; local undo; Clear
   - private lift - see the letter under a lifted top (current player only, never usable same turn)
   - live draft mirroring - everyone watches the current player's word form, public letters only
   - structured refusals with stable codes and hints
   - pass with confirm; auto-skip only for disconnected players (30s)
   - play again on the same code - still-connected players straight into a new deal
-  - end screen with final scores, penalty applied, tie-break explained; main-menu buttons
+  - end screen reveal: per-player captured - left-on-board = final rows (host staged with count-up, phone static with your row highlighted), tie-break staged as drawn pyramids; main-menu buttons
   - how-to-play dialog (HOWTO_STEPS, board.js:77) on every page
-  - feedback button -> server jsonl
+  - sound cues (join, your-turn chime, word played, steal sting, game-over fanfare) synthesized in-browser by public/sounds.js, persistent mute; provenance in public/assets/SOUNDS.md
+  - shareable front door: favicon.svg + apple-touch-icon, theme-color, meta descriptions, OG link-preview card (assets/og.jpg composited from the space photo, provenance in ASSETS.md); og:image stays relative on purpose until the deploy domain is fixed  - feedback button -> server jsonl
   - /health build check; room checkpoint restart recovery
   - word list 125,795 words (ENABLE public domain + house modern words + reviewed neol2016 - 69 excluded slur forms); SHA-pinned, test-enforced (data/WORDLIST.md)
 
@@ -162,9 +163,9 @@ quality:
     wordlist.test.js: word list integrity vs fresh build + exclusions
     e2e.js: five full scripted games over real WebSockets
     ui.js + tap-build.js (Playwright, via "npx grunt verify-ui"): lobby, join, full game, phone tap-to-build
-  ci: .github/workflows/ci.yml - jobs test (npm test with --test-concurrency=1, then e2e) and browser (Playwright); concurrency serialized because parallel child servers hang 2-vCPU runners
+  ci: .github/workflows/ci.yml - jobs test (npm test with --test-concurrency=1, then e2e) and browser (Playwright); concurrency serialized because parallel child servers hang 2-vCPU runners; de-flaked 2026-11 after 3 different slow-runner races in one night - ui.js passToGameOver clicks pass with a bounded catch (a stale-state click can target a button the over-broadcast just hid), tap-build tapWord verifies currentWord and rebuilds if a mid-build broadcast reset the draft, hostGlowIs waits 15s for the rate-limited draft relay; 2026-11-16 a fourth, different flake - tap-build built its "refused word" by reversing the drawn word and, if that was real, rotating once, then ASSERTED the result was not a word without checking. CI drew "span", whose reversal "naps" and rotation "pans" are both in the dictionary, so the check failed on a sound build. It now searches reversal, rotations and adjacent swaps of the same letters and takes the first the dictionary actually rejects, and the UI applies THAT order instead of a blind build.reverse(). Swept over the whole word list - the new search finds a non-word for all 80495 candidates of length 3-8, where the old logic would have asserted a real word for 123 of them (~0.15% of runs, a latent red that took until now to come up); locally the suites bind fixed ports 3123/3124/3127 so never run two gates at once
   deploy: deploy/aws.md (Lightsail), deploy/pyramids.service, deploy/Caddyfile, render.yaml (tracks main); temporary domain crosswordpyramids.duckdns.org
-  not_covered: never deployed; zero human playtests; no sound; no tutorial beyond the how-to dialog; no accessibility pass; rights to name/rules text unconfirmed
+  not_covered: 'never deployed; zero human playtests; no tutorial beyond the how-to dialog; M4-01 is complete (3/3) but NOTHING in it has been heard in a real screen reader - VoiceOver and TalkBack have never run against this, and Playwright contains no assistive technology, so every accessibility assertion is a DOM proxy (the node exists, it is in the accessibility tree, its text changed) and not evidence that anything is spoken; no colour-blind player has seen the owner shapes; the host/TV screen still has the thinnest pass of the three surfaces; the svh landscape fix is browser-verified only - headless Chromium has no URL bar, so svh, dvh and vh all measure identically there, which proves no regression but cannot prove the fix (needs a real phone); rights to name/rules text unconfirmed'
 
 known_issues:  # each verified against the code on generated_on; status open unless noted
   - id: KI-01
@@ -190,6 +191,7 @@ known_issues:  # each verified against the code on generated_on; status open unl
   - id: KI-06
     severity: medium
     summary: TV tile values/counts bottom out at 7px (style.css:167-173,214-221) - unreadable from a couch
+    status: fixed in M2-03 - premise corrected (7px floor was phone-only; TV values were capped at 13px by vmin clamps + the 1200px wrap); tile fonts now container-query cqw on .boardwrap (vmin kept as fallback), wrap 1700px, >=1500px host chrome scale-up - 1080p values 13px -> ~20px, letters 34px -> ~44px
   - id: KI-07
     severity: medium
     status: fixed in M1 (home dialog and README rewritten to the tap-to-build flow)
@@ -204,13 +206,21 @@ known_issues:  # each verified against the code on generated_on; status open unl
     summary: board renderer rebuilds all 100 cells with innerHTML on every state (board.js:159) - blocks animation and breaks screen-reader focus; prerequisite for KI-01
   - id: KI-10
     severity: low
+    status: fixed in M4-01 - maximum-scale dropped from play.html's viewport so pinch-zoom works again; every control on the phone is now >=44x44 (topbar sound + "?" buttons via a shared .btn.mini, word-line chips 44x46, the feedback button, which also stops floating over the board's lower-right corner below 700px). Board cells stay as they are and that is deliberate - 10 across a 390px phone is 32.0px wide by arithmetic, and measured in Chromium the binding dimension is cell HEIGHT, 29.0px at 390px and 26.6px at 360px - both clear WCAG 2.2 SC 2.5.8 Target Size (Minimum), Level AA, which asks for 24x24 CSS px and is tested by whether a solid 24x24 axis-aligned square fits inside the target, so the SMALLER dimension is what counts. The 44px figure is SC 2.5.5 Target Size (Enhanced), Level AAA, not the AA bar. W3C is explicit that the 24px requirement is independent of zoom, so restoring pinch-zoom is an ergonomic win and the literal KI-10 fix, NOT the conformance argument - the cells pass on their own measured size. A magnify/pan mode that would reach the AAA 44px is split out as M4-03
     summary: phone tap targets ~30px and maximum-scale=1 (play.html:5) - below the 44px guideline and pinch-zoom disabled
   - id: KI-11
     severity: low
     summary: HOUSE_LETTERS comment says 42, string holds 43 (game.js:23-27) - comment-only error, behaviour correct (36 placed)
+    status: fixed - comment now says 43, matching the string
   - id: KI-12
     severity: low
     summary: end-game penalty is applied but never shown being applied - players will ask "why 12?"; tie-break resolves in one sentence instead of a staged draw
+    status: fixed in M2-05 - penalties serialized at over; both screens spell out captured - left-on-board = final; tie-break staged as drawn pyramids
+
+  - id: KI-13
+    severity: low
+    status: root-caused and fixed in the harness 2026-11-16; the server behaviour below is unchanged and still worth knowing
+    summary: the draft relay drops silently by design (server/index.js:366-374 returns on a turn/gameId/revision mismatch, on a 50ms per-socket throttle, and on a 200-per-10s PER-IP limiter), and nothing is ever re-sent, so a starved mirror stays stale until the player touches the board again. This was the second half of a single harness bug, not two flakes - test/tap-build.js tapped a letter whose SOURCE square sits beside the black anchor, where the first tap is consumed as a DIRECTION tap, so that letter never landed (evidence - SCRIP lost its 'i' from 1,2 directly above the black 'r' at 2,2, identically on all 5 attempts, i.e. deterministic and beyond any retry count); tapWord then silently retried the whole word, and the retry storm burned the per-IP draft budget, after which the host received NO draft at all and showed 0 glows while the phone showed 3. Fixed by verifying each tap landed and tapping once more if not - 18/18 clean runs after, against 5 failures in 14 before. Production risk is low but real - only the player whose turn it is sends drafts, so one room is ~83 drafts per 10s against the 200 limit, but three or more concurrent games behind one NAT (a venue, a party on one WiFi) would cross it and freeze the mirrors. A trailing flush of the newest view, rather than a bare return, is the fix if that ever matters
 
 improvement_tree:  # the plan in IMPROVEMENT-PLAN.md as addressable nodes. "do M1-01" = implement exactly this.
   M1:  # Game-night safe (P0) - gate: one real game night
@@ -262,14 +272,14 @@ improvement_tree:  # the plan in IMPROVEMENT-PLAN.md as addressable nodes. "do M
       acceptance: a 100-word game's recap lists 100 words
   M2:  # The show (P1) - the TV becomes a stage
     - id: M2-01
-      status: done (delivered in PR #8 with M2-02)
+      status: 'done (delivered in PR #8 with M2-02)'
       title: keyed-DOM board renderer (stable per-cell nodes, diff updates)
       fixes: KI-09
       size: L
       note: tech enabler - prerequisite for M2-02
       acceptance: a state update touches only changed cells; existing Playwright suites still pass
     - id: M2-02
-      status: done (delivered in PR #8; no capture-count digits in Scores — nothing readable as a score during play, per the locked hidden-scores rule; the Pyramid Tracker alone shows depletion)
+      status: 'done (delivered in PR #8; no capture-count digits in Scores — nothing readable as a score during play, per the locked hidden-scores rule; the Pyramid Tracker alone shows depletion)'
       title: animate presentation.steps on the TV - pieces fly from source to word, steals named, capture piles grow
       fixes: KI-01
       depends_on: [M2-01]
@@ -280,18 +290,21 @@ improvement_tree:  # the plan in IMPROVEMENT-PLAN.md as addressable nodes. "do M
       fixes: KI-06
       size: M
       acceptance: code legible at 3m on a 1080p TV; tile letters >= ~28px rendered
+      status: done - container-type inline-size on .boardwrap with cqw font clamps (vmin fallback lines kept for pre-2023 browsers); host wrap 1200 -> 1700px so the 1080p board is vh-capped (~925px) not width-capped; @media >=1500px scales header/code/scores/tracker/log/draftline; at 1080p letters ~44px + values ~20px (acceptance met); phone floor raised 7 -> 8px, no layout change at 390px
     - id: M2-04
       title: sound - small synthesized/CC0 set (join, your-turn chime, word played, steal, game over) + mute; licences documented like the word list
       size: M
       acceptance: every sound's provenance in a SOUNDS.md; mute persists
+      status: done - public/sounds.js synthesizes all five cues with Web Audio oscillators (no audio files anywhere, so nothing to license; provenance in public/assets/SOUNDS.md); TV sounds every word and plays steal/over, phone plays join/your-turn/own word and stings only when its own pyramids are taken; mute via [data-sound-toggle] buttons (host header, phone topbar + lobby), persisted in localStorage cp_muted; everything fails silent - a never-touched TV stays quiet (browser autoplay lock) rather than erroring, and cues are dropped, not queued, while the context is locked
     - id: M2-05
       title: end-game reveal - count up captures per player, visibly subtract the leftover-colour penalty, stage the tie-break as drawn pyramids
       fixes: KI-12
       size: M
       acceptance: a player can explain their own final number after watching the reveal
+      status: done - server stores/serializes penalties at over (null during play); shared finalsRevealHTML/tieBreakStageHTML/animateFinalsReveal in board.js; host stages rows (CSS delays + eased count-up, all gated text synchronous in the DOM, one run per gameId); phone static with own row highlighted "(you)"; prefers-reduced-motion skips straight to finals; ui.js now asserts the per-player math rows + staged draw pyramids
     - id: M2-06
       status: done
-      title: atmosphere - outer-space background; a real Milky Way photograph chosen by the author (Jeremy Thomas on Unsplash, provenance in public/assets/ASSETS.md, credit on credits.html) under the pure-CSS twinkling starfield layers (body::before/after, prefers-reduced-motion safe); "in the clouds" variant deferred as a possible theme
+      title: atmosphere - outer-space background; a real Milky Way photograph chosen by the author (Jeremy Thomas on Unsplash, provenance in public/assets/ASSETS.md, credit on credits.html) under the pure-CSS twinkling starfield layers (body::before/after, prefers-reduced-motion safe); "in the clouds" variant deferred as a possible theme; author direction 2026-11 - photo must NOT be muted - page wash/vignette and host game-over scrim all at 20% alpha, tune further by eye from screenshots (mid-game dialog backdrops stay dark on purpose, they are focus modals)
       size: S
       acceptance: board, panels and gold text keep full contrast; no images, no JS, no test movement
   M3:  # Everyone plays (P2) - no bored spectators
@@ -305,14 +318,26 @@ improvement_tree:  # the plan in IMPROVEMENT-PLAN.md as addressable nodes. "do M
       acceptance: lobby is legible from the phone alone; host can remove a seat
   M4:  # Reach everyone (P3)
     - id: M4-01
-      title: ergonomics + accessibility - >=44px taps, remove maximum-scale=1, colour-blind-safe palette + owner glyphs, aria labels with display names, landscape, focus retention
+      title: ergonomics + accessibility - >=44px controls, remove maximum-scale=1, owner glyphs so colour is never the only signal, aria labels with display names, landscape, focus retention
       fixes: KI-10
       size: M
-      acceptance: colour is never the only signal; WCAG touch-target pass on the build screen
+      acceptance: colour is never the only signal on any surface; every control outside the board grid is >=44x44 CSS px on the phone (the SC 2.5.5 AAA bar); board cells clear SC 2.5.8 Target Size (Minimum), AA, in portrait AND landscape, measured as the smaller dimension of the real rendered box in a browser rather than computed; pinch-zoom available on the phone
+      status: 'done (3/3) - targets, pinch-zoom and landscape landed, then owner shapes, then semantics/keyboard/focus. Acceptance was restated once because ">=44px taps" cannot hold for board cells - 10 across a 390px phone is 32.0px by arithmetic and min-height on .cell would fight .board''s aspect-ratio and desync animatePlay''s cellAt() geometry, so the 44px bar (SC 2.5.5 Target Size (Enhanced), AAA) applies to every control OUTSIDE the grid, while cells are held to the 24px floor of SC 2.5.8 Target Size (Minimum), AA, which they clear on their own measured size - zoom is explicitly not a way to satisfy that criterion, so pinch-zoom is an ergonomic win rather than the conformance argument. Measured in Chromium at six phone sizes rather than computed - cell is 32.0x29.0 at 390x844 and 29.0x26.6 at 360x800 - HEIGHT is the binding dimension, not width, so 26.6px is the real worst case. STEP 3, the remaining third, closed six defects: toast() appended a bare div so a screen reader never heard a refusal or "You spelled X!", and now also writes to a polite live region (#srlive, created lazily on document.body - NOT inside #board, whose child count is locked by the keyed-renderer guard, and NOT a child of #gameview, an explicit grid where a new child auto-places and pushes the controls below the fold); the cell aria-label read the raw owner key, so a listener heard "red stack 3" and, worse, "yellow" for the player every other surface calls Gold, and now resolves opts.names then COLOR_NAMES; all 100 cells carried tabindex=0, a hundred tab stops to leave the board, and now exactly one does, with arrow keys, Home/End and edge clamping; there were no :focus-visible rings anywhere (style.css styled only input[type=text]:focus) so every button was invisible to a keyboard user; renderWordLine called replaceChildren() on every render - and renderGame runs on every inbound state and draft message, roughly every 120ms - throwing away the chip under the player''s finger and, because #wordline is aria-live, re-reading the whole word instead of the letter that changed, and now patches chips in place; and the Join button toggled the box then focused #code unconditionally, so CLOSING it focused an input inside a display:none subtree and dropped focus to <body>. Delivered by five agents on disjoint files with one serial gate; 24 new assertions were written BEFORE the gate, since the suite had exactly one accessibility assertion before this and nothing anywhere asserted tabindex, role, focus or keyboard.'
     - id: M4-02
       title: copy/tone pass - in-character string table (announcements like "ANN ROBBED BOB!"), one voice across pages
+      size: M
+      note: 're-sized from S to M after the strings were actually counted. The CLIENT half is tractable - roughly 90 user-facing strings across index/host/play and board.js, and the file convention for a shared public/strings.js already exists (a bare top-level const, like COLOR_NAMES, loaded by a plain script tag before board.js). The SERVER half is the problem and is why a flat key->string table cannot meet the acceptance as written: game.js composes refusals from fragments - a lead, a mid-clause and a tail across four refusal codes, 12 fragments rendering 16 sentences - and interpolates counts and positions with no pluralization. Worse, the client PARSES server prose: play.html matches /is taken/ against the name-clash error to decide whether to focus the name field, so rewording that one sentence silently breaks a behaviour no test covers. Either the server stops sending prose and sends a code plus values for the client to compose, or there are two tables and the acceptance says so.'
+      acceptance: 'every user-facing string on the CLIENT comes from one table and no stale hint is possible by construction; server refusals are addressed by code rather than by prose, OR the acceptance is explicitly restated to cover two tables - as M4-01''s was - rather than quietly claimed'
+    - id: M4-03
+      title: board magnify/pan on the phone - an optional zoomed view of the grid, so cells can reach the AAA 44px bar
+      size: M
+      note: split out of M4-01, where the ">=44px taps" clause could not hold for board cells - 10 across a 390px phone is 32.0px by arithmetic, and min-height on .cell would fight .board's aspect-ratio
+      acceptance: in the magnified mode every board cell's SMALLER rendered dimension is >=44px measured in a browser (SC 2.5.5 Target Size (Enhanced), AAA), the unmagnified board still clears the 24px AA floor, and animatePlay's cellAt() geometry stays in sync with the visible grid - the flying-tile animation must land on the right square in BOTH modes
+    - id: M4-04
+      title: deuteranope palette study - retune the four owner hues, keeping the shapes as the primary signal
       size: S
-      acceptance: all user-facing strings come from one table; no stale hints possible by construction
+      note: split out of M4-01. The shapes landed there are the structural fix (colour is no longer the only signal); this is the hue work on top of it. Palette hues were deliberately left alone because the colours are player-facing names - Red/Blue/Green/Gold are spoken in the room, so a retune must not make a name a lie
+      acceptance: the four hues are told apart under a simulated deuteranopia filter at tile size, the shapes still carry identity with colour removed entirely (greyscale render), and a real colour-blind player confirms it - the filter is evidence, not proof
   not_doing:  # deliberate scope walls - do not propose these
     - framework or build-step rewrite (vanilla JS is a decision)
     - accounts, databases, or multi-instance scaling
@@ -331,3 +356,27 @@ conventions:
   - production requires PUBLIC_ORIGIN; behind a proxy set TRUST_PROXY=1
   - npm test must stay green and serialized (--test-concurrency=1 - parallel child servers hang small CI runners)
   - rights to the name/rules/art are unconfirmed - nothing public or paid until written permission exists (HANDOFF.md)
+  # Verification lessons, each earned by a real failure in this repo (2026-11-16).
+  # They exist because the mistake was made once; do not re-learn them the hard way.
+  - never pipe a gate to tail without pipefail - "npx grunt all | tail" reports TAIL's exit code, so a FAILING gate looked like exit 0; read the suite verdict text, not the status
+  - measure layout in a browser, never from arithmetic - paper math for the landscape grid would have shipped ~22.6px cells on a 640x360 phone, and minmax(0, auto) silently collapsed the width:100% board to its 24px padding+border; both were invisible until measured
+  - for touch targets the binding dimension is the SMALLER one - board cell HEIGHT (26.6px at 360px) is well under its width (29px), and WCAG 2.2 SC 2.5.8 asks whether a solid 24x24 square FITS INSIDE the target
+  - zoom is not a conformance argument - W3C states SC 2.5.8 is independent of zoom, so pinch-zoom is an ergonomic win, never the reason a small target is acceptable
+  - look at a 3x render before judging small UI - at an 8px floor the owner circle and square both collapsed to the same dot on a phone, and a 1x screenshot is blurrier than any real device, so it flatters nothing and hides this
+  - a test must fail, never abort - boundingBox() on a locator matching nothing waits the full 30s and THROWS, turning one soft check failure into a dead suite; guard with count() first
+  - a helper that gives up must give up loudly - tapWord returned silently after its retries, leaving an empty word line so every later check failed with no clue which was the cause
+  - 'assert what you mean, not a superset - a U+25A0-U+25FF range meant to catch new CSS glyphs swept up the real U+25B2 turn marker #scores has always printed'
+  - verify a test's own premise against the data - the refused-word check assumed a reversed/rotated word is not a word; swept over the list it would assert a REAL word for 123 of 80495 candidates, a latent ~0.15% red
+  - diagnose flakes, do not just raise the retry count - two symptoms in the tap suite (a lost letter and a dead host mirror) turned out to be ONE deterministic bug, and the retry loop was itself the thing starving the draft relay; instrumenting the failure found it in one run after three wrong theories from reading alone
+  - write the tests before starting the gate - a 25-minute gate run that does not include the new assertions proves nothing
+  - size a surface people TAP with svh, never dvh - the dynamic viewport grows as a phone's URL bar hides, so a dvh-sized board resizes under a thumb already aiming at a ~29px cell; note headless Chromium has no URL bar, so svh/dvh/vh measure identically there and a green gate proves no regression, not the fix
+  - never reuse a glyph that already carries meaning in the same UI - check the existing vocabulary first; the owner shape for Green collided with the turn marker and only a read-through of the rendered row caught it
+  - guard every value handed to page.evaluate - an undefined argument throws inside the page and kills the run, the same abort-instead-of-fail trap as an unguarded boundingBox()
+  - tee a long gate to a file, never pipe it only through tail - tail buffers, so when a 25-minute run was stopped at its time limit the ENTIRE output was lost and the run proved nothing; `npx grunt all 2>&1 | tee gate.log | tail -5` keeps the partial transcript and still shows the verdict
+  - 'a space-hash inside a plain YAML scalar starts a COMMENT, so this file was silently dropping its own content - M4-01 status held 4606 characters but any parser saw only 1798 of them, because " #controls off-turn dimming" ended the scalar; features_existing lost "#seat=TOKEN link" and a convention lost its closing clause the same way. CSS ids, channel names and issue numbers in prose all trigger it. Quote any value that contains one (single quotes, doubling internal apostrophes), and after editing this file do not merely check that it PARSES - diff the parsed character count against the raw line, because a truncated scalar parses perfectly and reads fine to a human looking at the file.'
+  - 'a label written inside a keyed renderer''s did-this-change branch bakes in whatever data was available the last time the CONTENT changed - the board''s aria-label sat inside the sig branch and the sig held no player name, so threading names through would have silently done nothing for the ~90 cells that never change again after the opening render, while passing a naive test on a cell that had just changed. If a label depends on data that arrives LATER (names come with the room message), compute it every render and write it only when it differs; do not add the data to the sig instead, because a sig change rewrites innerHTML and destroys the tile markup and any ghost-letter child.'
+  - 'box-shadow does not stack - a winning rule replaces the whole value - so a focus ring written in box-shadow silently erases an existing inset shadow at equal specificity. .cell.path-hint and .cell.runway both keep their hint in an inset box-shadow at (0,2,0) and .btn keeps its 3D edge there too, so focus rings use outline + outline-offset, which also paint outside the layout box and therefore cannot disturb a measured tap target.'
+  - 'classic scripts share ONE global lexical scope, so a new top-level let/const/function in board.js collides with an inline script''s binding of the same name as a parse-time SyntaxError that blanks the entire page - grep every public/*.html for the name before adding one.'
+  - 'parallel agents must own DISJOINT files and the gate must stay serial - the suites bind fixed ports 3123/3124/3127 and two runs at once corrupt each other, so the parallelism belongs in the editing and never in the verification; freeze the shared names (ids, classes, function signatures) in a written contract before any lane starts, because that contract is the only coupling between them.'
+  - 'smoke the changed pages in a browser for ten seconds before starting a 25-minute gate - load each page, collect pageerror and console.error, and assert the two or three things the change was supposed to do. A syntax error or a dead handler is found in seconds instead of after half an hour, and the gate then runs once rather than twice.'
+  - 'check the subagent, not just the diff - a parallel lane''s report claimed the landing page needed aria-hidden on its decorative board, which was already there, and another proposed a tap target as a deterministic trigger without confirming the square was empty. Both were plausible and written with confidence. Verify a delegated claim against the code the same way you would your own.'

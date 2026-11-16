@@ -179,6 +179,7 @@ test('final score is what you captured minus your colour left on the board', () 
     const stranded = g.remainingOnBoard(st, c).pts;
     assert.strictEqual(st.scores[c], held, `${c}: running score is the captured tip values`);
     assert.strictEqual(st.finalScores[c], held - stranded, `${c}: finals deduct your own pyramids left on the board`);
+    assert.strictEqual(st.penalties[c], stranded, `${c}: the deduction is stored explicitly so the reveal can show it`);
     assert.ok(stranded > 0, 'this game really does leave pyramids on the board');
   }
 });
@@ -240,6 +241,7 @@ test('scores stay hidden until the game is over', () => {
   const st = g.createGame(['red', 'blue'], seeded(21));
   let s = g.serialize(st);
   assert.strictEqual(s.scores, null, 'no running scores exposed during play');
+  assert.strictEqual(s.penalties, null, 'no penalties exposed during play');
   // word log entries carry no point values while playing
   const botWords = [...DICT].filter((w) => w.length >= 3 && w.length <= 5);
   const cur = st.players[st.turn];
@@ -254,6 +256,8 @@ test('scores stay hidden until the game is over', () => {
   if (st.phase === 'over') {
     assert.ok(s.scores && typeof s.scores[cur] === 'number', 'scores revealed at game over');
     assert.ok(s.finalScores);
+    assert.ok(s.penalties && s.finalScores[cur] === s.scores[cur] - s.penalties[cur],
+      'finals = captured − explicit penalty, so the reveal can show the math');
   }
 });
 

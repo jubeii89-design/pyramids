@@ -142,6 +142,7 @@ test('serialization includes exposed IDs without revealing buried identities or 
   assert.deepEqual(actual, [...exposedPieces(state).keys()]);
   assert.equal(publicState.scores, null);
   assert.equal(publicState.finalScores, null);
+  assert.equal(publicState.penalties, null);
 });
 
 test('invalid plans and commits reject without mutating state or leaking a presentation', () => {

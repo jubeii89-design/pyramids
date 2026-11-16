@@ -4,9 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Crossword Pyramids — Host</title>
+<meta name="description" content="The big-screen host view for Crossword Pyramids — show the room code, watch every word land.">
+<meta name="theme-color" content="#0c0a16">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <link rel="stylesheet" href="/style.css">
 <style>
-  .wrap { max-width: 1200px; margin: 0 auto; padding: 18px; }
+  .wrap { max-width: 1700px; margin: 0 auto; padding: 18px; }
   header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
   header h1 { color: var(--gold); font-size: 1.6rem; }
   .code-big { font-size: 2rem; letter-spacing: .3em; color: var(--ink); background: #0d0a06; padding: 4px 16px; border-radius: 10px; border: 2px solid var(--gold); }
@@ -21,13 +25,27 @@
   .score.current { background: #3a2e1c; outline: 2px solid var(--gold); }
   .loglist { max-height: 300px; overflow-y: auto; font-size: .95rem; }
   .loglist div { padding: 4px 2px; border-bottom: 1px solid #3a2e1c; }
-  .overlay { position: fixed; inset: 0; background: rgba(10,7,3,.88); display: flex; align-items: center; justify-content: center; z-index: 40; }
-  .overlay .panel { text-align: center; max-width: 480px; }
+  .overlay { position: fixed; inset: 0; background: rgba(10,7,3,.2); display: flex; align-items: center; justify-content: center; z-index: 40; }
+  .overlay .panel { text-align: center; max-width: 560px; }
   .hidden { display: none !important; }
   .joinurl { color: #b9a87c; word-break: break-all; margin-top: 10px; font-size: .9rem; }
   .wp-row { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid #3d2f56; }
   .wp-row.wp-turn .wp-who { color: var(--gold); }
+    .wp-row.wp-turn .wp-who::after { content: ' \25B2'; }
   .wp-who { flex: 0 0 34%; } .wp-words b { margin-right: 10px; letter-spacing: .05em; } .wp-words i { color: #8f8363; }
+  /* TV sizes: the board already grows with the wider wrap (container-query
+     tile fonts in style.css follow it); scale the host chrome to match. */
+  @media (min-width: 1500px) {
+    header h1 { font-size: 2rem; }
+    .code-big { font-size: 2.8rem; }
+    .gamegrid { grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; }
+    .gamegrid .score { font-size: 1.5rem; }
+    .gamegrid .trk { font-size: 1.15rem; }
+    .gamegrid .wp-row { font-size: 1.1rem; }
+    .gamegrid .draftline { font-size: 1.25rem; }
+    .gamegrid .draftline .dchip { font-size: 1.1rem; }
+    .joinurl { font-size: 1.05rem; }
+  }
 </style>
 </head>
 <body>
@@ -35,6 +53,7 @@
   <header>
     <h1>&#9650; Crossword Pyramids</h1>
     <span>Room:</span><span class="code-big" id="code">....</span>
+    <button class="btn secondary mini" data-sound-toggle></button>
   </header>
 
   <!-- LOBBY -->
@@ -108,8 +127,10 @@
 </div>
 
 <script src="/board.js"></script>
+<script src="/sounds.js"></script>
 <script>
 let room = null, state = null, names = {}, draft = null;
+let lobbySeen = 0; // seated players last time a room snapshot arrived
 let pendingAnim = null; // a 'played' event waiting for its state broadcast to animate
 
 keepAwake();
@@ -155,6 +176,9 @@ function onMsg(msg) {
     room = msg;
     names = {};
     for (const p of msg.players) names[p.color] = p.name;
+    const n = seated(msg.players).length;
+    if (msg.phase === 'lobby' && n > lobbySeen) Sounds.play('join');
+    lobbySeen = n;
     renderLobby();
     if (msg.phase === 'lobby') { show('lobby'); hide('gamearea'); hide('over'); state = null; draft = null; }
   } else if (msg.type === 'state') {
@@ -193,7 +217,7 @@ function onMsg(msg) {
       }
       pendingAnim = { gameId: msg.gameId, revision: msg.revision, steps: msg.presentation.steps, fromRects, size };
     }
-    stealCallout(msg);
+    Sounds.play(stealCallout(msg) ? 'steal' : 'played');
     toast(`${names[msg.color] || COLOR_NAMES[msg.color]} spelled ${msg.word.toUpperCase()}!`, true);
   } else if (msg.type === 'skipped') {
     draft = null;
@@ -249,19 +273,20 @@ function pname(c) { return names[c] || COLOR_NAMES[c] || c; }
 
 // Name the steal on the big screen: the whole table should groan together.
 function stealCallout(msg) {
-  if (!msg.presentation || !state) return;
+  if (!msg.presentation || !state) return false;
   const victims = {};
   for (const s of msg.presentation.steps || []) {
     if (s.kind === 'printed' || !s.owner || s.owner === 'house' || s.owner === msg.color) continue;
     (victims[s.owner] = victims[s.owner] || []).push(String(s.letter || '').toUpperCase());
   }
   const parts = Object.keys(victims).map((o) => `${pname(msg.color)} took ${pname(o)}'s ${victims[o].join(', ')}!`);
-  if (!parts.length) return;
+  if (!parts.length) return false;
   const el = document.getElementById('callout');
   el.textContent = parts.join(' ');
   el.classList.add('show');
   clearTimeout(el._t);
   el._t = setTimeout(() => el.classList.remove('show'), 2200);
+  return true;
 }
 
 function connOf(c) {
@@ -271,7 +296,9 @@ function connOf(c) {
 
 function renderGame() {
   const d = draft ? draftOpts(state, draft) : null;
-  renderBoard(document.getElementById('board'), d ? d.state : state, d ? d : {});
+  // names rides alongside draftOpts' own options so cell labels can say the
+  // player's name instead of their colour key.
+  renderBoard(document.getElementById('board'), d ? d.state : state, { ...(d || {}), names });
   renderDraftLine(document.getElementById('draftline'), draft, draft ? pname(draft.color) : '');
   renderTracker(document.getElementById('tracker'), state, names);
   // Scores stay hidden until the end — spelling is the focus. During play this
@@ -292,12 +319,15 @@ function renderGame() {
   renderWords(document.getElementById('log'), state, names);
   if (state.phase === 'over') {
     show('over');
-    const f = state.finalScores;
-    document.getElementById('finals').innerHTML =
-      `<p style="margin-bottom:12px">&#127942; <b>${escapeHTML(pname(state.winner))}</b> wins!</p>` +
-      tieBreakLine(state, pname) +
-      rankFinal(state).map(c => `<div class="score"><span><span class="chip ${c}"></span>${escapeHTML(pname(c))}</span><b>${f[c]}</b></div>`).join('') +
-      gameRecapHTML(state, pname);
+    const el = document.getElementById('finals');
+    // Run the reveal once per game: re-broadcasts (reconnects, late state
+    // echoes) must not restart the count-up mid-show.
+    if (el.dataset.revealedFor !== String(state.gameId)) {
+      el.dataset.revealedFor = String(state.gameId);
+      el.innerHTML = finalsRevealHTML(state, pname);
+      animateFinalsReveal(el);
+      Sounds.play('over');
+    }
   }
 }
 

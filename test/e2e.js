@@ -191,6 +191,7 @@ async function playGame(gameNo, numPlayers) {
   if (finalState) {
     check(finalState.winner && finalState.players.includes(finalState.winner), 'winner is a seated player');
     check(finalState.finalScores && Object.keys(finalState.finalScores).length === numPlayers, 'final scores for all players');
+    check(!!finalState.penalties && finalState.players.every((c) => finalState.finalScores[c] === finalState.scores[c] - finalState.penalties[c]), 'finals = captured − explicit penalty');
     const sorted = finalState.players.slice().sort((a, b) => finalState.finalScores[b] - finalState.finalScores[a]);
     check(sorted[0] === finalState.winner || finalState.finalScores[sorted[0]] === finalState.finalScores[finalState.winner], 'winner has top score');
     // Bandwidth: host connection receives every broadcast — the worst case

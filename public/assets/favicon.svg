@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- The game's mark: a gold pyramid, lit on the left face, on the night-sky
+       ground colour the pages use (style.css --gold / body #0c0a16). -->
+  <rect width="64" height="64" rx="13" fill="#0c0a16"/>
+  <path d="M32 9 L57 53 L7 53 Z" fill="#ffd76a"/>
+  <path d="M32 9 L57 53 L32 53 Z" fill="#c2921f"/>
+</svg>

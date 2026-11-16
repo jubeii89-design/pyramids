@@ -15,17 +15,24 @@
   --pyr-mid: #e9e5d8;
   --pyr-dark: #cfc9b6;
   --pyr-shadow: #b3ac96;
+  /* Focus rings only. Violet because every other ring on the board means
+     something already: red, blue, green and gold are the four player
+     colours, gold is also .cell.cand and white is .cell.sel. Its lightness
+     is deliberately mid-scale (~0.2) so the one ring clears 3:1 both on the
+     pale tiles and on the black house tiles - no single colour can do
+     better than that against both ends at once. */
+  --focus: #8b5cf6;
 }
 body {
   font-family: 'Verdana', 'Trebuchet MS', sans-serif;
-  /* Outer space, the real thing: the Milky Way photographed by the Artemis II
-     crew (NASA, public domain — provenance in assets/ASSETS.md), under a
-     purple-tinted darkening wash and a center vignette so the board always
-     sits on the darkest sky. The solid color paints first, so the page is
-     fine before (or without) the photo. */
+  /* The Milky Way photo (provenance in assets/ASSETS.md) under a light 20%
+     darkening: the author wants the photo to show, so the wash and vignette
+     stay at .2 — readability is judged by eye from screenshots, not by
+     darkening the sky. The solid color paints first, so the page is fine
+     before (or without) the photo. */
   background:
-    radial-gradient(1200px 700px at 50% 45%, rgba(0,0,0,.42) 0%, transparent 70%),
-    linear-gradient(180deg, rgba(26,17,38,.55), rgba(10,9,18,.74) 70%),
+    radial-gradient(1200px 700px at 50% 45%, rgba(0,0,0,.2) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(26,17,38,.2), rgba(10,9,18,.2) 70%),
     url('/assets/space-bg.jpg') center / cover no-repeat fixed #0c0a16;
   color: var(--ink);
   min-height: 100vh;
@@ -85,13 +92,49 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #8a6812, 0 6px 12px rgba(0,0,0,.4); }
 .btn.secondary { background: linear-gradient(180deg, #52407a, #3a2c59); color: var(--ink); box-shadow: 0 6px 0 #241a3a, 0 10px 22px rgba(0,0,0,.45); }
 .btn:disabled { opacity: .45; cursor: default; transform: none; }
+/* Icon-sized button that still clears the 44px touch target (M4-01). */
+.btn.mini { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 6px 12px; font-size: 1rem; line-height: 1.1; }
+
+/* ================= FOCUS (M4-01) ================= */
+/* This file used to carry exactly one focus rule - the room-code input's -
+   so a player driving the game from the keyboard could not see which button
+   they were on. One ring for everything, dashed on purpose: .cell.cand is
+   already a solid gold outline and .cell.sel a solid white one, and a solid
+   focus ring would read as 'candidate' or 'selected' instead of 'focused'.
+   `outline`, never box-shadow: .btn keeps its 3D edge in box-shadow (just
+   above) and .cell.runway / .cell.path-hint keep theirs in an inset one, and
+   box-shadow does not stack - a winning focus rule replaces the whole value,
+   so it would silently flatten the button or drop the path hint. Outline and
+   outline-offset also paint outside the layout box, which the tap targets
+   measured in test/tap-build.js depend on. */
+.btn:focus-visible,
+.fb-btn:focus-visible,
+.howto-dialog button:focus-visible,
+.fb-dialog button:focus-visible,
+textarea:focus-visible {
+  outline: 3px dashed var(--focus);
+  outline-offset: 3px;
+}
+/* .wchip is not defined in this file: it is in play.html's inline <style>,
+   which loads AFTER the stylesheet link, so source order is already lost and
+   only specificity can carry this rule. :focus-visible counts as a class, so
+   this selector is (0,3,0) and beats the strongest .wchip rule over there
+   (.wchip.o-red and friends, (0,2,0)) outright rather than tying with it -
+   and those set border-color, not outline, so the ring is never at stake. */
+.wordline .wchip:focus-visible { outline: 3px dashed var(--focus); outline-offset: 3px; }
+/* The announcer board.js appends to document.body. It sets the same clipping
+   inline when it creates the node, so an announcement survives this file
+   failing to load; this is the declarative duplicate. Clipped to 1px and
+   NEVER display:none or visibility:hidden - either of those drops the node
+   out of the accessibility tree, and then nothing is ever announced, which
+   is the element's whole job. */
+.srlive { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* ================= BOARD ================= */
-.boardwrap { min-width: 0; }
-.piece-inspector { min-height: 2.7em; padding: 10px 4px; color: #ead7ac; text-align: center; font-size: .88rem; }
-.draft-controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
-.draft-controls .btn { padding: 11px 16px; font-size: .85rem; }
-.draft-status { padding: 10px 0; min-height: 2.7em; color: #ffd365; }
+/* The board is the container: 1cqw = 1% of board width (~0.104 x cell), so
+   tile text follows the cell size, not the viewport. Every font rule below
+   keeps its vmin clamp as the fallback for browsers without cq units. */
+.boardwrap { min-width: 0; container-type: inline-size; }
 .howto-dialog { border: 2px solid #6b5a33; border-radius: 14px; background: #1d1528; color: #f4e6bd; padding: 18px 20px; max-width: min(92vw, 520px); max-height: 86vh; overflow: auto; }
 .howto-dialog::backdrop { background: rgba(0,0,0,.65); }
 .howto-steps { margin: 12px 0 16px 1.2em; padding: 0; }
@@ -106,18 +149,15 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .recap-row span { color: #b9a87c; }
 .tip { margin-top: 10px; font-size: .9rem; }
 .tip a { color: #ffd365; }
-.fb-btn { position: fixed; right: 12px; bottom: 12px; z-index: 40; padding: 8px 12px; border-radius: 999px; border: 1px solid #6b5a33; background: #241d14; color: #f4e6bd; font-size: .8rem; opacity: .85; }
+.fb-btn { position: fixed; right: 12px; bottom: 12px; z-index: 40; min-height: 44px; padding: 10px 16px; border-radius: 999px; border: 1px solid #6b5a33; background: #241d14; color: #f4e6bd; font-size: .8rem; opacity: .85; }
+/* On a phone the fixed button floats over the board's lower-right corner,
+   so it drops below the page instead (installFeedback appends it to body). */
+@media (max-width: 700px) { .fb-btn { position: static; display: block; width: max-content; margin: 14px auto 24px; } }
 .fb-dialog { border: 2px solid #6b5a33; border-radius: 14px; background: #1d1528; color: #f4e6bd; padding: 18px; max-width: min(92vw, 420px); }
 .fb-dialog::backdrop { background: rgba(0,0,0,.6); }
 .fb-dialog p { margin: 8px 0; color: #b9a87c; font-size: .9rem; }
 .fb-dialog textarea { width: 100%; box-sizing: border-box; background: #120d1a; color: #f4e6bd; border: 1px solid #6b5a33; border-radius: 8px; padding: 8px; font: inherit; }
 .fb-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px; }
-.pickrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 8px; }
-.pick-chip { min-width: 44px; min-height: 44px; padding: 6px 10px; border-radius: 10px; border: 2px solid #6b5a33; background: #241d14; color: #f4e6bd; font: 700 1.1rem Georgia, serif; }
-.pick-chip.picked { border-color: #ffc21a; }
-.pick-chip.picked::after { content: ' \2022'; color: #ffc21a; }
-.pick-chip.active { background: #ffc21a; color: #2a1d05; border-color: #fff0b0; }
-.pick-auto { min-height: 44px; padding: 6px 12px; }
 .cell.cand { outline: 3px solid #ffc21a; outline-offset: -3px; }
 @media (min-width: 901px) { .gamegrid .boardwrap { max-width: min(100%, calc(100vh - 155px)); margin-inline: auto; width: 100%; } }
 .board {
@@ -155,6 +195,7 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
   font-family: Georgia, serif;
   font-weight: bold;
   font-size: clamp(10px, 2.6vmin, 26px);
+  font-size: clamp(10px, 3.4cqw, 40px);
   color: #6d5a33;
   opacity: .85;
   text-shadow: 0 1px 0 rgba(255,255,255,.35);
@@ -208,12 +249,15 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .tile .L {
   font-family: Georgia, serif; font-weight: bold; line-height: 1;
   font-size: clamp(13px, 3.4vmin, 34px);
+  font-size: clamp(13px, 4.8cqw, 60px);
   -webkit-text-stroke: 1px #000;
   paint-order: stroke fill;
 }
 .tile .v, .tile .n {
   position: absolute; font-style: normal; font-weight: bold; line-height: 1;
-  font-size: clamp(7px, 1.5vmin, 13px); color: #2b2418;
+  font-size: clamp(7px, 1.5vmin, 13px);
+  font-size: clamp(8px, 2.2cqw, 28px);
+  color: #2b2418;
 }
 .tile .v { top: 6%; left: 8%; }
 .tile .n { bottom: 6%; right: 8%; color: #5a4a20; }
@@ -225,6 +269,24 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .tile.o-blue .L   { color: var(--blue); }
 .tile.o-green .L  { color: var(--green); }
 .tile.o-yellow .L { color: var(--yellow); }
+/* Owner SHAPE, so colour is never the only signal (M4-01). Dark ink for all
+   four on purpose - the shape carries identity, which survives greyscale and
+   any colour-vision deficiency, and the hue stays as redundant reinforcement.
+   A gold star in var(--yellow) on the tan tile would also be low contrast.
+   Top-right is the one free corner: .v holds top-left, .n bottom-right.
+   Pseudo-element on purpose - a glyph in textContent would break the word-line
+   and tile regexes in the suite. House and hidden tiles get none (house is
+   already structurally different, hidden means the owner is unknown). */
+.tile::after {
+  position: absolute; top: 4%; right: 7%;
+  line-height: 1; color: #2b2418;
+  font-size: clamp(10px, 1.7vmin, 15px);
+  font-size: clamp(10px, 2.4cqw, 30px);
+}
+.tile.o-red::after    { content: '\25CF'; }
+.tile.o-blue::after   { content: '\25A0'; }
+.tile.o-green::after  { content: '\25C6'; }
+.tile.o-yellow::after { content: '\2605'; }
 /* black house squares */
 .tile.o-house { background: linear-gradient(180deg, #3b3842, #232128); border-color: #000; }
 .tile.o-house .L { color: #e8d5a3; -webkit-text-stroke: 0; }
@@ -271,6 +333,12 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .cell.sel { outline: 3px solid #fff; outline-offset: -1px; z-index: 4; border-radius: 4px; }
 .cell.sel .tile { transform: scale(1.06); }
 .cell.path-hint { box-shadow: inset 0 0 0 3px rgba(255,215,106,.85); border-radius: 4px; }
+/* Keyboard focus on a square. The offset is NEGATIVE so the ring sits inside
+   the square: .board has no overflow clip, so an outside ring on an edge cell
+   spills over the board frame. (0,3,0) on purpose - it has to beat .cell.cand
+   and .cell.sel, which are both (0,2,0), and it restates outline-offset
+   because their -3px / -1px would otherwise survive underneath. */
+.board .cell:focus-visible { outline: 3px dashed var(--focus); outline-offset: -4px; }
 
 /* --- Spelling glow: the active word being placed --- */
 .cell.glow {
@@ -291,6 +359,7 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
   display: flex; align-items: center; justify-content: center;
   font-family: Georgia, serif; font-weight: bold;
   font-size: clamp(11px, 2.8vmin, 28px);
+  font-size: clamp(11px, 4.2cqw, 52px);
   color: #fffbe8;
   text-shadow: 0 0 8px #ffd76a, 0 1px 2px #000;
   z-index: 7;
@@ -308,10 +377,16 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .bar-green { background: var(--green); } .bar-yellow { background: var(--yellow); }
 .bar-house { background: #8a8494; }
 
-.chip { display: inline-block; width: 13px; height: 13px; border-radius: 4px; margin-right: 6px; vertical-align: baseline; box-shadow: inset 0 -2px 0 rgba(0,0,0,.3); }
+.chip { display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border-radius: 4px; margin-right: 6px; vertical-align: baseline; box-shadow: inset 0 -2px 0 rgba(0,0,0,.3); }
 .chip.red { background: var(--red); } .chip.blue { background: var(--blue); }
 .chip.green { background: var(--green); } .chip.yellow { background: var(--yellow); }
 .chip.house { background: var(--house); border: 1px solid #55515c; }
+/* The same shape on the swatch: this is where a player learns circle = Red. */
+.chip::after { font-size: 9px; line-height: 1; color: rgba(0,0,0,.78); }
+.chip.red::after    { content: '\25CF'; }
+.chip.blue::after   { content: '\25A0'; }
+.chip.green::after  { content: '\25C6'; }
+.chip.yellow::after { content: '\2605'; }
 
 .panel {
   background: var(--panel);
@@ -334,6 +409,11 @@ input[type=text] {
   letter-spacing: .12em;
 }
 input[type=text]:focus { outline: 3px solid var(--gold); }
+/* The gold ring above stays exactly as it is for pointer focus. This is the
+   keyboard one, so the room-code field matches every other ring on the page,
+   held clear of the input's own 2px border. Same specificity as the rule
+   above (0,2,1), so it must stay below it to win for :focus-visible. */
+input[type=text]:focus-visible { outline: 3px dashed var(--focus); outline-offset: 2px; }
 .toast {
   position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
   background: #47161d; color: #ffd9d9; border: 2px solid #8a2c3a;
@@ -347,13 +427,42 @@ input[type=text]:focus { outline: 3px solid var(--gold); }
 
 /* Results screen: how a tied game was settled */
 .tiebreak { color: var(--sand); font-size: .9rem; margin-bottom: 10px; }
+/* --- M2-05: end-game reveal — captured − left on board = final --- */
+.rv-winner { margin-bottom: 12px; }
+.rv-row { display: flex; text-align: left; align-items: center; gap: 8px; } /* play.html has no .score flex rule of its own */
+.rv-row.mine { background: #3a2e1c; outline: 2px solid var(--gold); }
+.rv-row.mine small { color: var(--gold); }
+.rv-row > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-math { display: flex; gap: 6px; align-items: baseline; color: #b9a87c; flex: none; }
+.rv-math i { font-style: normal; opacity: .7; }
+.rv-cap { color: #d9ffe3; }
+.rv-pen { color: #ff9f8a; }
+.rv-final { font-size: 1.25em; color: var(--gold); min-width: 2.5ch; text-align: right; flex: none; }
+.rv-key { color: #8f8363; font-size: .85rem; margin: 6px 0 2px; }
+.tb-stage { margin-bottom: 10px; }
+.tb-draws { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin: 8px 0; }
+.tb-draw { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: .95rem; }
+.tb-pyr {
+  width: 40px; height: 34px; clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  background: linear-gradient(180deg, var(--pyr-lite), var(--pyr-shadow));
+  display: flex; align-items: flex-end; justify-content: center;
+  font: bold 1rem Georgia, serif; color: #4a4132; padding-bottom: 2px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rv-anim .rv-row { animation: rv-in .45s both; animation-delay: calc(var(--i) * .35s); }
+  .rv-anim .tb-draw { animation: rv-pop .4s both; animation-delay: calc(var(--i) * .45s); }
+  .rv-anim .rv-key, .rv-anim .recap, .rv-anim .tip { animation: rv-in .45s both; animation-delay: 1.6s; }
+}
+@keyframes rv-in { from { opacity: 0; transform: translateY(10px); } }
+@keyframes rv-pop { from { opacity: 0; transform: scale(.4); } }
 
 /* --- Direction hints, face-down tiles, live draft line --- */
 .cell.dir-hint { position: relative; }
 .cell.dir-hint::after {
   content: attr(data-arrow);
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-size: clamp(14px, 4vmin, 38px); font-weight: bold; line-height: 1;
+  font-size: clamp(14px, 4vmin, 38px); font-size: clamp(14px, 5.5cqw, 60px);
+  font-weight: bold; line-height: 1;
   color: #ffd76a; opacity: .4; pointer-events: none; z-index: 7;
   text-shadow: 0 0 4px rgba(0,0,0,.6);
 }
@@ -393,6 +502,13 @@ input[type=text]:focus { outline: 3px solid var(--gold); }
 .fly.o-green  { border-color: var(--green);  color: var(--green); }
 .fly.o-yellow { border-color: var(--yellow); color: var(--yellow); }
 .fly.o-house  { background: linear-gradient(180deg, #3b3842, #232128); border-color: #000; color: #e8d5a3; -webkit-text-stroke: 0; }
+/* Captured tiles in flight are the loudest moment of the game and were
+   distinguished by border colour alone. .fly sizes its font inline, so 40%. */
+.fly::after { position: absolute; top: 4%; right: 7%; font-size: 40%; line-height: 1; color: #2b2418; -webkit-text-stroke: 0; }
+.fly.o-red::after    { content: '\25CF'; }
+.fly.o-blue::after   { content: '\25A0'; }
+.fly.o-green::after  { content: '\25C6'; }
+.fly.o-yellow::after { content: '\2605'; }
 /* A landing pulse on each square the word covers. */
 .cell.land { animation: landpulse .5s ease-out; border-radius: 4px; z-index: 7; }
 @keyframes landpulse {
@@ -406,6 +522,7 @@ input[type=text]:focus { outline: 3px solid var(--gold); }
   max-width: 90%; padding: 10px 22px; border-radius: 12px; text-align: center;
   background: rgba(13,10,6,.92); border: 2px solid var(--gold); color: #ffd76a;
   font: bold clamp(16px, 3vmin, 30px) Georgia, serif;
+  font-size: clamp(16px, 3.6cqw, 40px);
   opacity: 0; pointer-events: none; z-index: 20;
   transition: opacity .25s, transform .25s;
 }

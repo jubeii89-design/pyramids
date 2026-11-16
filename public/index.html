@@ -4,6 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Crossword Pyramids — Spell to Win!</title>
+<meta name="description" content="A party word game for 2–4 players — host it on the big screen, everyone joins from their phones with a QR code or a 4-letter room code.">
+<meta name="theme-color" content="#0c0a16">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Crossword Pyramids">
+<meta property="og:description" content="A party word game — host on the big screen, play from your phones.">
+<!-- Relative on purpose: the deploy domain is not fixed yet, and the big
+     chat apps resolve og:image against the page URL. -->
+<meta property="og:image" content="/assets/og.jpg">
 <link rel="stylesheet" href="/style.css">
 <style>
   .hero { text-align: center; padding: 44px 20px 24px; }
@@ -94,7 +104,7 @@
     <div class="tag">Stack. Steal. Spell to Win!</div>
     <div class="cta">
       <button class="btn" onclick="location.href='/host.html'">&#9650; Host Game</button>
-      <button class="btn secondary" onclick="document.getElementById('join').classList.toggle('open'); document.getElementById('code').focus()">Join Game</button>
+      <button class="btn secondary" id="joinToggle" aria-controls="join" aria-expanded="false">Join Game</button>
       <button class="btn ghost" onclick="document.getElementById('rules').showModal()">&#9650; How to Play</button>
     </div>
     <div class="joinbox panel" id="join">
@@ -182,6 +192,19 @@
     if (code.length === 4) location.href = '/play.html?room=' + code;
   }
   document.getElementById('code').addEventListener('keydown', e => { if (e.key === 'Enter') joinGo(); });
+
+  // Join Game toggles the code box. The old inline handler focused #code
+  // unconditionally, so the click that CLOSED the box focused an input inside a
+  // display:none subtree - a no-op that still blurred the button and left focus
+  // on <body>. Focus follows the box only when it opens; closing it hands focus
+  // back to the button, which is where the keyboard user was.
+  const joinToggle = document.getElementById('joinToggle');
+  joinToggle.addEventListener('click', () => {
+    const open = document.getElementById('join').classList.toggle('open');
+    joinToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) document.getElementById('code').focus();
+    else joinToggle.focus();
+  });
 
   // Decorative game board behind the hero — a plausible mid-game snapshot
   (function () {

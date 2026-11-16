@@ -47,9 +47,30 @@ async function main() {
     const home = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await home.goto(BASE);
     check((await home.title()).includes('Crossword Pyramids'), 'title renders');
+    const homeVp = await home.locator('meta[name=viewport]').getAttribute('content');
+    check(!/maximum-scale|user-scalable/.test(homeVp), 'home page allows pinch-zoom');
     check(await home.locator('.btn', { hasText: 'Host Game' }).isVisible(), 'Host Game button visible');
     await home.locator('.btn', { hasText: 'Join Game' }).click();
     check(await home.locator('#code').isVisible(), 'join code box opens');
+
+    // The Join button is a disclosure for #join, so it has to say so and carry
+    // the focus with it: into the box when it opens, back onto the button when
+    // it closes. Focus dropping to <body> on close is the failure this guards -
+    // a keyboard player would have to tab in from the top of the page again.
+    const joinBtn = home.locator('.btn', { hasText: 'Join Game' });
+    check((await joinBtn.getAttribute('aria-controls')) === 'join', 'Join names the box it controls');
+    check((await joinBtn.getAttribute('aria-expanded')) === 'true', 'Join reports the box as open');
+    check(await home.evaluate(() => document.activeElement === document.getElementById('code')),
+      'opening the box puts the caret in the room-code field');
+    await joinBtn.click();
+    check((await joinBtn.getAttribute('aria-expanded')) === 'false', 'Join reports the box as closed again');
+    const backTo = await home.evaluate(() => {
+      const a = document.activeElement;
+      return { tag: a ? a.tagName : 'none', text: a ? (a.textContent || '').trim() : '' };
+    });
+    check(backTo.tag === 'BUTTON' && /Join Game/.test(backTo.text),
+      `closing the box returns focus to Join, not to the page body (${backTo.tag} "${backTo.text.slice(0, 20)}")`);
+    await joinBtn.click(); // leave it open again: the screenshot below is of the join box
     await home.screenshot({ path: path.join(SHOTS, 'home.png'), fullPage: true });
 
     // --- B: Host + phone join
@@ -67,6 +88,11 @@ async function main() {
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 } }); // iPhone-ish
     await phone.goto(joinUrl); // what scanning the QR does
     check(await phone.locator('#codein').isHidden(), 'room code prefilled from QR link');
+    // KI-10: maximum-scale=1 used to block pinch-zoom on the one surface a
+    // player holds in their hand. The board grid cannot reach 44px cells, so
+    // browser zoom is the magnifier and must stay available.
+    const phVp = await phone.locator('meta[name=viewport]').getAttribute('content');
+    check(/width=device-width/.test(phVp) && !/maximum-scale|user-scalable/.test(phVp), `phone allows pinch-zoom (${phVp})`);
     await phone.fill('#namein', 'Cleo');
     await phone.click('#joinBtn');
     await phone.waitForSelector('#waitview:not(.hidden)');
@@ -99,6 +125,50 @@ async function main() {
     check(/^[1-9]$/.test(await host.locator('#board .tile').first().getAttribute('data-value')), 'tile carries its tip value');
     check((await host.locator('#board .tile .L').count()) === tileCount, 'every tile shows its letter in the centre');
     check((await host.locator('#board .tile .n').count()) === tileCount, 'every tile shows its stack count in a corner');
+
+    // Every cell is a button to a keyboard player, so its aria-label is the only
+    // thing that says what is on the square - and it must name the owner the way
+    // the game names them everywhere else: a display name, or failing that the
+    // colour's own word, never the engine's key. The regex is case-sensitive on
+    // purpose: 'House' and 'Red' are display names, 'house' and 'red' are keys,
+    // and only a key is a bug.
+    const cellLabels = await host.evaluate(() => [...document.querySelectorAll('#board .cell')].map((c) => c.getAttribute('aria-label') || ''));
+    const rawOwner = cellLabels.filter((t) => /\b(red|blue|green|yellow|house)\b/.test(t));
+    check(rawOwner.length === 0, `no cell reads out a raw colour key (${rawOwner.length ? rawOwner[0] : 'none found'})`);
+    // Gold is the one display name that appears nowhere else in the markup, so a
+    // label holding it proves the lookup really ran instead of falling through
+    // to the key - the old code printed the word "yellow" right here. Yellow is
+    // the fourth seat and only two scripted players join, so it is unclaimed and
+    // COLOR_NAMES has to supply the word.
+    check(cellLabels.some((t) => /\bGold\b/.test(t)),
+      `the unclaimed colour's squares read out as Gold (${cellLabels.find((t) => /\bGold\b/.test(t)) || 'no Gold anywhere'})`);
+    // Colour is never the only signal (M4-01): each owner carries a shape in
+    // the tile's free corner. getComputedStyle returns the literal string
+    // 'none' when there is no pseudo-element, so test for a quoted value.
+    const ownerMarks = await host.evaluate(() => {
+      const out = {};
+      for (const t of document.querySelectorAll('#board .tile[data-owner]')) {
+        const cs = getComputedStyle(t, '::after');
+        out[t.dataset.owner] = { glyph: cs.content, px: parseFloat(cs.fontSize) };
+      }
+      return out;
+    });
+    const owners = ['red', 'blue', 'green', 'yellow'].filter((c) => ownerMarks[c]);
+    check(owners.length === 4, `all four colours are on the opening board (${owners.join(',')})`);
+    const marked = owners.filter((c) => /^".+"$/.test(ownerMarks[c].glyph));
+    check(marked.length === owners.length, `every owner's tiles carry a shape (${owners.map((c) => c + ownerMarks[c].glyph).join(' ')})`);
+    check(new Set(owners.map((c) => ownerMarks[c].glyph)).size === owners.length, 'the four owner shapes are all different');
+    check(owners.every((c) => ownerMarks[c].px >= 10), `owner shapes are readable on the TV (${ownerMarks[owners[0]].px.toFixed(1)}px)`);
+    // The swatch shape must be a pseudo-element, never DOM text: #scores feeds
+    // the no-digits gate in section E, and it already prints a real U+25B2
+    // turn marker, so test the invariant (empty swatches) and only the three
+    // shapes this change introduced - not the whole geometric-shapes block.
+    const sc = await host.evaluate(() => ({
+      chips: [...document.querySelectorAll('#scores .chip')].map((c) => c.textContent),
+      text: document.getElementById('scores').textContent,
+    }));
+    check(sc.chips.length >= 2 && sc.chips.every((t) => t === '') && !/[\u25CF\u25A0\u25C6\u2605]/.test(sc.text),
+      `owner shapes are CSS-only - the ${sc.chips.length} score swatches hold no text`);
     check((await host.locator('#board canvas').count()) === 0, 'no 3D canvas');
     check((await host.locator('#tracker .trk').count()) === 5, 'pyramid tracker shows 4 colors + house');
     check((await host.locator('#tracker').textContent()).includes('Gold'), 'Gold color naming in tracker');
@@ -203,6 +273,20 @@ async function main() {
     const phoneTxt = await ph.locator('#scoresmini').textContent();
     check(!/:\s*\d/.test(phoneTxt), 'phone shows no point numbers during play');
 
+    // Landscape: the board is square, so the portrait column pushed Submit
+    // below the fold. Measure the real boxes rather than trusting arithmetic.
+    await ph.setViewportSize({ width: 844, height: 390 });
+    await ph.waitForTimeout(200);
+    const land = await ph.evaluate(() => {
+      const b = document.getElementById('playBtn').getBoundingClientRect();
+      const c = document.querySelector('#board .cell').getBoundingClientRect();
+      return { bottom: b.bottom, h: innerHeight, sy: scrollY, cw: c.width, ch: c.height };
+    });
+    check(land.sy === 0 && land.bottom <= land.h, `Submit is on screen in landscape with no scrolling (bottom ${Math.round(land.bottom)} of ${land.h})`);
+    check(Math.min(land.cw, land.ch) >= 24, `landscape cells clear the 24px WCAG 2.2 AA floor (${land.cw.toFixed(1)}x${land.ch.toFixed(1)})`);
+    await ph.setViewportSize({ width: 390, height: 844 });
+    await ph.waitForTimeout(150);
+
     // Wait for the phone's turn, then tap letters to spell a word
     await ph.waitForFunction(
       () => document.getElementById('turnbanner').classList.contains('mine'),
@@ -280,7 +364,12 @@ async function main() {
         if (over) break;
         for (const p of players) {
           const mine = await p.evaluate(() => state && state.phase === 'playing' && state.current === myColor);
-          if (mine) await p.click('#passBtn');
+          // "mine" can be read from state that is already stale: the previous
+          // pass may have ended the game, and the arriving over-broadcast then
+          // hides this button while the click still waits on it. Bound the
+          // wait; the loop re-checks #over and the final waitForSelector is
+          // the real assertion.
+          if (mine) await p.click('#passBtn', { timeout: 2000 }).catch(() => {});
         }
         await host4.waitForTimeout(200);
       }
@@ -298,7 +387,11 @@ async function main() {
     const winner = (hostFinals.match(/^\s*🏆\s*(.+?)\s*wins!/) || [])[1];
     const firstListed = (await host4.locator('#finals .score span').first().textContent()).trim();
     check(!!winner && firstListed === winner, `winner is listed first (${winner} / ${firstListed})`);
+    // The reveal spells out everyone's math and stages the draw as pyramids.
+    check((await host4.locator('#finals .rv-final').count()) === 3, 'every player gets a captured − penalty = final row');
+    check((await host4.locator('#finals .tb-pyr').count()) >= 2, 'tie-break staged as drawn pyramids');
     check(/settled by a draw/.test(await phones[0].locator('#finals').textContent()), 'phone explains the tie-break too');
+    check((await phones[0].locator('#finals .rv-row.mine').count()) === 1, 'phone highlights your own row in the reveal');
     check(await phones[0].locator('#againBtn').isVisible(), 'phone game over offers Play Again');
     check(await phones[0].locator('#menuBtn').isVisible(), 'phone game over offers Main Menu');
     await phones[0].screenshot({ path: path.join(SHOTS, 'phone-gameover.png') });
