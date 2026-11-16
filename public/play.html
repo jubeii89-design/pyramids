@@ -30,7 +30,7 @@
   /* Owner shape on the letters you are holding, bottom-right (small owns top-left). */
   .wchip::after { position: absolute; bottom: 2px; right: 4px; font: bold .55rem Verdana, sans-serif; color: rgba(0,0,0,.78); }
   .wchip.o-red::after { content: '\25CF'; } .wchip.o-blue::after { content: '\25A0'; }
-  .wchip.o-green::after { content: '\25B2'; } .wchip.o-yellow::after { content: '\2605'; }
+  .wchip.o-green::after { content: '\25C6'; } .wchip.o-yellow::after { content: '\2605'; }
   .wp-row { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px solid #3d2f56; font-size: .92rem; }
   .wp-row.wp-turn .wp-who { color: var(--gold); }
   .wp-row.wp-turn .wp-who::after { content: ' \25B2'; } /* whose turn was gold text alone */
@@ -54,8 +54,11 @@
     /* The board track must be a DEFINITE width: the board is width:100% with no
        intrinsic size, so an auto track collapses to its padding and border. */
     #gameview { display: grid; column-gap: 12px; align-items: start; }
-    #gameview { grid-template-columns: min(56vw, calc(100vh - 24px)) minmax(200px, 1fr); }
-    #gameview { grid-template-columns: min(56vw, calc(100dvh - 24px)) minmax(200px, 1fr); }
+    /* svh, NOT dvh: the dynamic viewport grows as the phone's URL bar hides,
+       which would resize the board under a thumb already aiming at a ~29px
+       cell. svh is the stable small viewport and always fits; the vh line
+       above is only the fallback for browsers without svh. */
+    #gameview { grid-template-columns: min(56vw, calc(100svh - 24px)) minmax(200px, 1fr); }
     /* The board takes the whole height of column 1; the topbar and banner move
        into column 2 above the controls, so no chrome eats the board's budget. */
     #gameview .boardwrap { grid-column: 1; grid-row: 1 / span 3; }

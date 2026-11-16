@@ -243,7 +243,7 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 }
 .tile.o-red::after    { content: '\25CF'; }
 .tile.o-blue::after   { content: '\25A0'; }
-.tile.o-green::after  { content: '\25B2'; }
+.tile.o-green::after  { content: '\25C6'; }
 .tile.o-yellow::after { content: '\2605'; }
 /* black house squares */
 .tile.o-house { background: linear-gradient(180deg, #3b3842, #232128); border-color: #000; }
@@ -337,7 +337,7 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 14p
 .chip::after { font-size: 9px; line-height: 1; color: rgba(0,0,0,.78); }
 .chip.red::after    { content: '\25CF'; }
 .chip.blue::after   { content: '\25A0'; }
-.chip.green::after  { content: '\25B2'; }
+.chip.green::after  { content: '\25C6'; }
 .chip.yellow::after { content: '\2605'; }
 
 .panel {
@@ -454,7 +454,7 @@ input[type=text]:focus { outline: 3px solid var(--gold); }
 .fly::after { position: absolute; top: 4%; right: 7%; font-size: 40%; line-height: 1; color: #2b2418; -webkit-text-stroke: 0; }
 .fly.o-red::after    { content: '\25CF'; }
 .fly.o-blue::after   { content: '\25A0'; }
-.fly.o-green::after  { content: '\25B2'; }
+.fly.o-green::after  { content: '\25C6'; }
 .fly.o-yellow::after { content: '\2605'; }
 /* A landing pulse on each square the word covers. */
 .cell.land { animation: landpulse .5s ease-out; border-radius: 4px; z-index: 7; }

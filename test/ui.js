@@ -131,7 +131,7 @@ async function main() {
       chips: [...document.querySelectorAll('#scores .chip')].map((c) => c.textContent),
       text: document.getElementById('scores').textContent,
     }));
-    check(sc.chips.length >= 2 && sc.chips.every((t) => t === '') && !/[\u25CF\u25A0\u2605]/.test(sc.text),
+    check(sc.chips.length >= 2 && sc.chips.every((t) => t === '') && !/[\u25CF\u25A0\u25C6\u2605]/.test(sc.text),
       `owner shapes are CSS-only - the ${sc.chips.length} score swatches hold no text`);
     check((await host.locator('#board canvas').count()) === 0, 'no 3D canvas');
     check((await host.locator('#tracker .trk').count()) === 5, 'pyramid tracker shows 4 colors + house');

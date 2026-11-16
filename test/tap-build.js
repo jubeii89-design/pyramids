@@ -290,10 +290,13 @@ async function main() {
     check(!!order && !DICT.has(scrambled), `"${scrambled}" is not a word`);
     // Spell the letters in a different order, with the same squares, by sending the build over the socket path the UI uses.
     await tapWord();
-    await ph.evaluate((ord) => { const b = ord.map((i) => build[i]); build.length = 0; build.push(...b); renderGame(); }, order);
-    const word2 = await ph.evaluate(() => currentWord());
+    // Guard the order: with no verified non-word there is nothing to refuse,
+    // and handing undefined to the page would throw there and kill the run -
+    // the same abort-instead-of-fail trap as an unguarded boundingBox().
+    if (order) await ph.evaluate((ord) => { const b = ord.map((i) => build[i]); build.length = 0; build.push(...b); renderGame(); }, order);
+    const word2 = order ? await ph.evaluate(() => currentWord()) : '';
     // A scrambled order can put the word off the board, and then Submit stays off (a client-side guard): nothing to send.
-    if (!DICT.has(word2) && await ph.locator('#playBtn').isEnabled()) {
+    if (order && !DICT.has(word2) && await ph.locator('#playBtn').isEnabled()) {
       await ph.click('#playBtn');
       await ph.waitForSelector('#whybox:not(.hidden)', { timeout: 10000 });
       const why = await ph.locator('#whybox').textContent();
