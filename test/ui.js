@@ -302,15 +302,60 @@ async function main() {
       }));
       return out;
     });
-    const tapCell = (r, c) => ph.evaluate(([rr, cc]) => document.querySelectorAll('#board .cell')[rr * 10 + cc].click(), [r, c]);
-    await tapCell(...picks.tops[0]); await tapCell(...picks.black); await tapCell(...picks.tops[1]);
-    await ph.waitForTimeout(300);
-    check((await ph.locator('#wordline .wchip').count()) === 3, 'tapped letters appear in the word line');
+    // Tap the BLACK square LAST. A square orthogonally beside the black anchor
+    // has its first tap eaten as a direction tap (onCell -> neighbourOf), so the
+    // letter needs a second one. That is what used to happen to the third tap
+    // whenever the opponent's opening word left the anchor directly below one of
+    // these tops: a 2-letter word, Submit off, no glow - 26 of 400 simulated
+    // boards. anchorItem() is null until a black letter is IN the build, and
+    // onCell reads neighbourOf() before its own build.push, so with the black
+    // square last all three taps see a null anchor and no board geometry can
+    // swallow one (0 of 400). Do not reorder this back.
+    // onCell -> renderGame -> renderWordLine is synchronous, so the chip is on
+    // the line when click() returns: read the length in the same call instead of
+    // sleeping on it.
+    const tapCell = (r, c) => ph.evaluate(([rr, cc]) => {
+      document.querySelectorAll('#board .cell')[rr * 10 + cc].click();
+      return build.length;
+    }, [r, c]);
+    if (!picks.black || picks.tops.length < 2) {
+      // Fail, never throw: tapCell(...null) would abort the whole suite.
+      check(false, `board offers a black square and two tops (black ${JSON.stringify(picks.black)}, tops ${JSON.stringify(picks.tops)})`);
+    } else {
+      const order = [picks.tops[0], picks.tops[1], picks.black];
+      const retried = [];
+      for (let i = 0; i < order.length; i++) {
+        // Belt as well as braces: an eaten tap lands on a second one, the same
+        // defence as tapLetter in test/tap-build.js. Asserted below rather than
+        // retried silently, so a regression of the order cannot hide behind it.
+        if ((await tapCell(...order[i])) !== i + 1) { retried.push(order[i].join(',')); await tapCell(...order[i]); }
+      }
+      const chips = await ph.locator('#wordline .wchip').count();
+      if (chips === 3) check(true, 'tapped letters appear in the word line');
+      else {
+        // Give up LOUDLY with the geometry. A bare red here cost a whole session
+        // once: the message carried no number, and 2 chips (a tap eaten as a
+        // direction tap) reads exactly like 0 (a failed lift reset the build).
+        const d = await ph.evaluate((o) => ({
+          taps: o.map(([r, c]) => `${r},${c}=${state.cells[r][c].t ? state.cells[r][c].t.l + '/' + state.cells[r][c].t.o : state.cells[r][c].p + '/printed'}`),
+          anchor: anchorItem() ? `${anchorItem().r},${anchorItem().c}` : 'none',
+          beside: o.filter(([r, c]) => !!neighbourOf(r, c)).map(([r, c]) => `${r},${c}`),
+          word: currentWord(), dir, dirChosen, mine: myTurn(), lifted: [...lifted.keys()],
+        }), order);
+        check(false, `tapped letters appear in the word line (${chips} chips; taps ${d.taps.join(' ')}; anchor ${d.anchor}; beside the anchor ${d.beside.join(' ') || 'none'}; word "${d.word}" ${d.dir}${d.dirChosen ? ' chosen' : ''}; myTurn ${d.mine}; lifted ${d.lifted.join(' ') || 'none'})`);
+      }
+      check(retried.length === 0, `no tap was eaten as a direction tap (${retried.join(' ') || 'none'})`);
+    }
     check((await ph.locator('#board .cell.glow').count()) >= 0, 'board stays interactive');
     check((await ph.locator('#dirH, #dirV').count()) === 0, 'Across/Down buttons are gone from the phone');
     const phoneGlow = await ph.locator('#board .cell.glow').count();
-    await host3.waitForFunction((n) => document.querySelectorAll('#board .cell.glow').length === n, phoneGlow, { timeout: 5000 })
-      .then(() => check(true, `host glow matches the phone (${phoneGlow})`), () => check(false, `host glow matches the phone (${phoneGlow})`));
+    // 15s matches tap-build.js's hostGlowIs: a loaded CI runner can sit behind
+    // the draft relay's rate limit. The timeout is not what makes this reliable
+    // - the server used to drop the final draft of a burst outright, and that
+    // loss never resolved at any timeout. Measured after the fix: 51-356ms.
+    await host3.waitForFunction((n) => document.querySelectorAll('#board .cell.glow').length === n, phoneGlow, { timeout: 15000 })
+      .then(() => check(true, `host glow matches the phone (${phoneGlow})`),
+            async () => check(false, `host glow matches the phone (phone ${phoneGlow}, host ${await host3.locator('#board .cell.glow').count()})`));
     const banner = await ph.locator('#turnbanner').textContent();
     check(/take your time/.test(banner) && !/\d+s/.test(banner), 'no countdown on the phone, just the turn prompt');
     check(!/\d+s/.test(await host3.locator('#scores').textContent()), 'no countdown on the big screen');
@@ -324,9 +369,18 @@ async function main() {
       check(why.trim().length > 10, `refused word explains why (${why.trim().slice(0, 70)}…)`);
       check((await ph.locator('#wordline .wchip').count()) === 3, 'refused word stays in the word line to fix');
       check((await ph.evaluate(() => JSON.stringify(state.cells))) === boardBefore, 'the board is unchanged');
-      check((await host3.locator('#board .cell.glow').count()) === phoneGlow, 'host still mirrors the word after a refusal');
+      const hostAfter = await host3.locator('#board .cell.glow').count();
+      check(hostAfter === phoneGlow, `host still mirrors the word after a refusal (phone ${phoneGlow}, host ${hostAfter})`);
     } else {
-      check(true, 'letters need a black square on the right path before Submit (button stayed off)');
+      // Unreachable with a verified 3-letter build that holds a black letter: the
+      // anchor sits at build index 2, so the word starts two squares before it,
+      // and effectiveDir() flips to Down when Across would not fit. Replaying
+      // that maths over 3000 generated boards (0 to 6 opponent moves in) the
+      // placement was on the board every time. Before the black square
+      // was tapped last, this branch was where the eaten-tap flake hid - it
+      // printed a green tick for a 2-letter word.
+      const why = await ph.evaluate(() => ({ n: build.length, word: currentWord(), dir, p: JSON.stringify(placement()) }));
+      check(false, `Submit is on for a 3-letter word with a black letter (${why.n} letters "${why.word}" ${why.dir}, placement ${why.p})`);
     }
     // Clear drops the host glow too (only meaningful while it is still our turn)
     if (await ph.evaluate(() => myTurn())) {

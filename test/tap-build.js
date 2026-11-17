@@ -191,14 +191,18 @@ async function main() {
     const hostCounts = () => host.evaluate(() => [...document.querySelectorAll('#board .cell')].map((c) => (c.querySelector('.n') || {}).textContent || ''));
     const hostLetters = () => host.evaluate(() => [...document.querySelectorAll('#board .cell')].map((c) => (c.querySelector('.L') || {}).textContent || ''));
     // 15s, not 5: the draft relay is rate-limited and a loaded CI runner can
-    // sit behind that window before the host sees the glow.
+    // sit behind that window before the host sees the glow. It is NOT cover for
+    // a dropped draft - that loss was permanent, and no timeout ever helped.
     const hostGlowIs = async (n) => {
       const ok = await host.waitForFunction((k) => document.querySelectorAll('#board .cell.glow').length === k, n, { timeout: 15000 }).then(() => true, () => false);
       if (!ok) {
         // Say WHY, so this never has to be re-diagnosed from a bare red check.
-        // A stale NON-ZERO host count means the server dropped the last draft:
-        // index.js:370-374 returns on the 50ms throttle / IP limiter with no
-        // trailing send, so the TV mirror keeps whatever it last received.
+        // A stale NON-ZERO host count means the server dropped the last draft
+        // and sent nothing after it, so the TV keeps whatever it last received.
+        // The 50ms burst throttle that used to do exactly that is gone (see the
+        // 'draft' case in server/index.js); only the per-IP limiter can still
+        // drop one, and 200/10s is about two concurrent games behind one
+        // address, so a venue on one WiFi is the case to suspect here.
         const got = await host.evaluate(() => document.querySelectorAll('#board .cell.glow').length);
         const mine = await ph.evaluate(() => document.querySelectorAll('#board .cell.glow').length);
         console.log(`      [diag] wanted ${n} glows, host has ${got}, phone has ${mine} - ${got !== 0 && got !== n ? 'STALE host mirror (dropped final draft)' : 'host never received the draft'}`);

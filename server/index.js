@@ -367,12 +367,17 @@ wss.on('connection', (ws, req) => {
           if (!room || ws.role !== 'player' || !room.state || room.state.phase !== 'playing') return;
           if (room.state.players[room.state.turn] !== ws.color) return;
           if (msg.gameId !== room.gameId || msg.revision !== room.revision) return;
-          if (msg.items.length) {
-            const now = Date.now();
-            if (ws.draftAt && now - ws.draftAt < 50) return;
-            if (!limiter.hit('draft:' + ip, 200, 10 * 1000)) return;
-            ws.draftAt = now;
-          }
+          // Every valid draft is relayed. A 50ms per-socket throttle used to sit
+          // here and dropped the NEWEST draft of a burst with no trailing send.
+          // The phone never re-sends one (draftFlush dedupes on draftLast), so
+          // the TV kept a half-spelled word for the rest of the turn while the
+          // phone showed the whole one. Measured on a real phone page: 2 of 16
+          // three-letter words, the two sends 8ms and 49ms apart - so it only
+          // ever fired on an honest client's jitter. Nothing needs it to bound
+          // the relay: the phone debounces at 120ms, only the player on turn is
+          // mirrored at all, and no socket may exceed 40 messages a second (the
+          // cap above closes it outright), which is the real bound.
+          if (msg.items.length && !limiter.hit('draft:' + ip, 200, 10 * 1000)) return;
           const view = game.draftView(room.state, ws.color, msg);
           if (!view) return;
           room.draft = view;

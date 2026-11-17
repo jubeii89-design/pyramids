@@ -113,12 +113,15 @@ complaints appeared:
 - **Waiting players still only watch.** M3 is untouched: both of its items are
   in the mind map with no status (docs/ai-mindmap.yaml:311-318). The draft
   mirror makes waiting watchable, which is the floor, not the ceiling.
-- **The draft relay still fails quietly.** It returns on a turn, gameId or
-  revision mismatch, on a 50 ms per-socket throttle and on a 200-per-10s
-  per-address limit, and nothing is re-sent (server/index.js:365-381), so a
-  starved mirror stays stale until the player touches the board again. KI-13
-  closed as a test-harness bug; this server half is unchanged, and three or
-  more games behind one address would cross the limit (docs/ai-mindmap.yaml:223).
+- **The draft relay can still fail quietly, but much less often.** The 50 ms
+  per-socket throttle is gone (it dropped the newest draft of a burst with no
+  trailing send, so the TV kept a half-spelled word for the rest of the turn -
+  measured at 2 of 16 words on a real phone page). What remains is the
+  200-per-10s per-address limit, and nothing is re-sent, so a starved mirror
+  still stays stale until the player touches the board again. One room is ~83
+  drafts per 10 s, so three or more concurrent games behind one address cross it
+  and freeze each other's mirrors. That is the open half
+  (docs/ai-mindmap.yaml:223).
 
 ## 2. Locked constraints
 
