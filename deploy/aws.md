@@ -9,6 +9,36 @@ can recover them. The file is not shared state or a backup, so the app must stay
 For the same reason, skip Lambda + API Gateway WebSockets: it would mean moving
 every room and board into DynamoDB. Not worth it for a party game.
 
+## Quick start (about 15 minutes)
+
+1. **Billing guard first:** AWS Billing → Budgets → create a monthly budget
+   with an email alert (e.g. $10).
+2. **Lightsail → Create instance:** Linux/Unix, **OS Only → Ubuntu 24.04 LTS**,
+   the 1 GB RAM plan or larger, any region near your players.
+3. **Networking → Create static IP** and attach it to the instance.
+4. **Networking → IPv4 Firewall:** add **HTTPS (TCP 443)**. SSH (22) and
+   HTTP (80) are open by default; leave 3000 closed.
+5. **DNS:** at duckdns.org, set `crosswordpyramids` to the static IP (or point
+   any domain's A record at it). Wait until it resolves to that IP.
+6. Open the instance's **browser SSH** (the terminal icon) and run:
+
+   ```bash
+   curl -fsSLO https://raw.githubusercontent.com/jubeii89-design/pyramids/main/deploy/lightsail-setup.sh
+   sudo bash lightsail-setup.sh crosswordpyramids.duckdns.org main
+   ```
+
+   It installs Node 22 and Caddy, downloads the game, writes the service and
+   HTTPS config for that name, starts both, and ends by printing
+   `Ready: https://<name>/host.html`. Running it again later updates the game
+   to the newest code on that branch and restarts it.
+
+   With no domain at all, run `sudo bash lightsail-setup.sh` with no
+   arguments: it uses a free `<ip>.sslip.io` name. That name shares
+   certificate rate limits with every other sslip.io user, so the HTTPS
+   certificate can occasionally be refused; a real or DuckDNS name avoids it.
+
+The sections below explain each piece if you would rather do it by hand.
+
 ## Pick the instance
 
 - **Lightsail Linux instance** — often simplest for a single small service; check
