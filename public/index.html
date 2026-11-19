@@ -16,22 +16,46 @@
 <meta property="og:image" content="/assets/og.jpg">
 <link rel="stylesheet" href="/style.css">
 <style>
-  .hero { text-align: center; padding: 44px 20px 24px; }
-  .hero h1 {
-    font-size: clamp(2rem, 6.4vw, 4.4rem);
-    color: var(--gold);
-    text-shadow: 0 4px 0 #6b4e10, 0 10px 30px rgba(0,0,0,.65);
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    /* A cartouche: the oval ring Egyptian scribes drew around a royal name,
-       closed by a bar at one end. */
-    display: inline-block; position: relative;
-    padding: .12em .7em .16em;
-    border: 3px solid var(--gold); border-radius: 1.2em;
-    box-shadow: inset 0 0 0 2px rgba(0,0,0,.5), inset 0 0 0 5px rgba(217,169,58,.35), 0 10px 30px rgba(0,0,0,.45);
-    background: linear-gradient(180deg, rgba(42,33,22,.75), rgba(20,15,9,.75));
+  /* The front page opens on the temple: Ra and Thoth on the left, Isis and
+     Anubis on the right (assets/egypt-hero.jpg), everything else in the dark
+     hall between them. The opaque scene also covers #bgboard here. */
+  .hero {
+    text-align: center; padding: 40px 20px 56px;
+    min-height: min(100svh, 56vw);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background:
+      linear-gradient(180deg, rgba(11,10,8,0) 70%, #0b0a08 100%),
+      radial-gradient(ellipse 30% 55% at 50% 50%, rgba(5,4,3,.45), transparent 80%),
+      url('/assets/egypt-hero.jpg') center / cover no-repeat #0b0a08;
   }
-  .hero h1::after { content: ''; position: absolute; top: 12%; bottom: 12%; right: -.2em; width: .12em; background: var(--gold); border-radius: 2px; }
+  /* The title sits inside the winged cartouche (assets/egypt-frame.webp).
+     The h1 is the container and has no padding, so 1cqw is 1% of the whole
+     frame; .t is placed over the frame's open box (left 25%, right 24%,
+     top 38%, bottom 12% of the artwork). */
+  .hero h1 {
+    position: relative; width: min(92vw, 720px); aspect-ratio: 1400 / 597; margin: 0 auto;
+    background: url('/assets/egypt-frame.webp') center / contain no-repeat;
+    container-type: inline-size;
+    color: var(--gold); text-transform: uppercase; letter-spacing: .04em;
+    text-shadow: 0 2px 0 #4a3608, 0 4px 14px rgba(0,0,0,.8);
+  }
+  .hero h1 .t { position: absolute; left: 25%; right: 24%; top: 38%; bottom: 12%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .hero h1 .t span { display: block; font-size: 6.2cqw; line-height: 1.1; }
+  .hero h1 .t span + span { font-size: 6.7cqw; }
+  .hero .pyr-scene { align-self: stretch; margin-inline: 0; }
+  /* Phones: the whole scene as a banner across the top (the image is
+     2000x1116, so its height is 55.8vw), fading into the page; the pieces,
+     title and buttons follow beneath it. */
+  @media (max-width: 700px) {
+    .hero {
+      min-height: 0; padding-top: 38vw;
+      background:
+        linear-gradient(180deg, rgba(11,10,8,0) 55%, #0b0a08 100%) top center / 100% 56vw no-repeat,
+        url('/assets/egypt-hero.jpg') top center / 100% auto no-repeat,
+        #0b0a08;
+    }
+  }
   .hero .tag { font-size: clamp(1rem, 3vw, 1.5rem); color: var(--sand); font-style: italic; margin-top: 10px; }
   /* hero built from the game pieces */
   .pyr-scene { display: flex; justify-content: center; align-items: center; gap: 14px; margin: 26px auto 6px; perspective: 700px; }
@@ -108,7 +132,7 @@
       <div class="slot" style="width:92px;height:92px"><div class="pyr"><i class="f fn"></i><i class="f fe"></i><i class="f fs"></i><i class="f fw"></i><b class="peak">2</b><span class="pl ink-green" style="font-size:32px">L</span></div></div>
       <div class="slot" style="width:74px;height:74px"><div class="pyr"><i class="f fn"></i><i class="f fe"></i><i class="f fs"></i><i class="f fw"></i><b class="peak">2</b><span class="pl ink-yellow" style="font-size:26px">L</span></div></div>
     </div>
-    <h1>Crossword Pyramids</h1>
+    <h1><span class="t"><span>Crossword</span> <span>Pyramids</span></span></h1>
     <div class="tag">Stack. Steal. Spell to Win!</div>
     <div class="cta">
       <button class="btn" onclick="location.href='/host.html'">&#9650; Host Game</button>

@@ -43,17 +43,25 @@ body {
   min-height: 100vh;
   position: relative;
 }
-/* Hieroglyph columns carved into the two side walls (assets/egypt-column.svg,
-   the project's own drawing). Only on wide screens, and faint, so nothing
-   competes with the board; phones get the plain wall. */
+/* The temple hall (assets/egypt-bg.jpg; phones held upright get the taller
+   egypt-bg-portrait.jpg). A fixed pseudo-element rather than
+   background-attachment: fixed, which iOS ignores. Darkened overall and
+   most of all at the centre, so the board sits on the quietest stone. */
 body::before {
   content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background:
-    url('/assets/egypt-column.svg') left 14px top 0 / 44px auto repeat-y,
-    url('/assets/egypt-column.svg') right 14px top 0 / 44px auto repeat-y;
-  opacity: .2;
+    radial-gradient(ellipse 55% 60% at 50% 55%, rgba(5,4,3,.55), transparent 75%),
+    linear-gradient(180deg, rgba(8,7,5,.45), rgba(8,7,5,.3) 40%, rgba(8,7,5,.5)),
+    url('/assets/egypt-bg.jpg') center / cover no-repeat #0b0a08;
 }
-@media (max-width: 900px) { body::before { display: none; } }
+@media (orientation: portrait) {
+  body::before {
+    background:
+      radial-gradient(ellipse 70% 55% at 50% 50%, rgba(5,4,3,.5), transparent 75%),
+      linear-gradient(180deg, rgba(8,7,5,.45), rgba(8,7,5,.3) 40%, rgba(8,7,5,.5)),
+      url('/assets/egypt-bg-portrait.jpg') center / cover no-repeat #0b0a08;
+  }
+}
 h1, h2, h3 { font-family: var(--display); letter-spacing: .05em; }
 button { font-family: inherit; cursor: pointer; border: none; border-radius: 14px; font-size: 1rem; }
 .btn {
