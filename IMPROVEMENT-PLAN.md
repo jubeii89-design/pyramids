@@ -85,9 +85,8 @@ complaints appeared:
   (docs/ai-mindmap.yaml:168, HANDOFF.md "Not done"). Everything below is still
   theory until one game night happens. That remains the single most important
   fact about this project.
-- **Unresolved rights.** The name, rules text and art provenance are
-  unconfirmed (HANDOFF.md). No amount of code fixes this; it gates anything
-  public or paid.
+- **Rights: resolved.** The author confirmed on 2026-11-19 that the name,
+  rules text and art are theirs (HANDOFF.md).
 - **Accessibility is a complete pass in code and an unverified one in fact.**
   M4-01 is finished (docs/ai-mindmap.yaml:325): the ergonomic and colour half,
   then semantics, keyboard and focus. The sound toggle's `aria-pressed` and
@@ -113,12 +112,15 @@ complaints appeared:
 - **Waiting players still only watch.** M3 is untouched: both of its items are
   in the mind map with no status (docs/ai-mindmap.yaml:311-318). The draft
   mirror makes waiting watchable, which is the floor, not the ceiling.
-- **The draft relay still fails quietly.** It returns on a turn, gameId or
-  revision mismatch, on a 50 ms per-socket throttle and on a 200-per-10s
-  per-address limit, and nothing is re-sent (server/index.js:365-381), so a
-  starved mirror stays stale until the player touches the board again. KI-13
-  closed as a test-harness bug; this server half is unchanged, and three or
-  more games behind one address would cross the limit (docs/ai-mindmap.yaml:223).
+- **The draft relay can still fail quietly, but much less often.** The 50 ms
+  per-socket throttle is gone (it dropped the newest draft of a burst with no
+  trailing send, so the TV kept a half-spelled word for the rest of the turn -
+  measured at 2 of 16 words on a real phone page). What remains is the
+  200-per-10s per-address limit, and nothing is re-sent, so a starved mirror
+  still stays stale until the player touches the board again. One room is ~83
+  drafts per 10 s, so three or more concurrent games behind one address cross it
+  and freeze each other's mirrors. That is the open half
+  (docs/ai-mindmap.yaml:223).
 
 ## 2. Locked constraints
 
@@ -223,8 +225,8 @@ test/ui.js:249-250). Only the controls the suite names are measured. The
   re-proposes it.
 - **No AI opponents** (author decision) and **no monetization** beyond the
   existing optional tip link.
-- And the two gates no code can clear: the **rights question** and the
-  **zero-playtests fact**. The first real milestone after M1 is a table of
+- And the gate no code can clear: the **zero-playtests fact** (the rights
+  question was settled by the author on 2026-11-19; a beta test is planned). The first real milestone after M1 is a table of
   humans, a TV, and the feedback button.
 
 ## 6. Verification

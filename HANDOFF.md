@@ -119,14 +119,17 @@ Newer than the rules list above, and equally binding:
 
 - Never deployed, not once. Zero human playtests: no human has played a full
   game, under test or otherwise. That is still the most important fact here.
-- Rights to the name, rules text and art are unconfirmed; written permission
-  is needed before anything public or paid. Nothing paid is built.
-- Every known issue in `docs/ai-mindmap.yaml` (KI-01..KI-13) is closed, but one
-  left a residue: KI-13 closed as a test-harness bug, and the server behaviour
-  it uncovered stands - the draft relay drops silently on its throttle or the
-  200-per-10s per-address limit and never re-sends (`server/index.js:366-374`),
-  so three or more games behind one address could leave each other's mirrors
-  stale.
+- Rights: the author confirmed on 2026-11-19 that the name, rules text and
+  art are theirs, so rights no longer gate a public or paid release. Nothing
+  paid is built. A human beta test is planned for the days after that date.
+- Every known issue in `docs/ai-mindmap.yaml` (KI-01..KI-13) is closed. KI-13
+  had left a residue in the server, and that half is now fixed too: the draft
+  relay's 50 ms per-socket throttle dropped the newest draft of a burst and sent
+  nothing after it, so the TV mirrored a half-spelled word for the rest of the
+  turn. It is deleted - the phone debounces at 120 ms and every socket is capped
+  at 40 messages a second, so nothing needed it. The 200-per-10s per-address
+  limit remains and still never re-sends, so three or more games behind one
+  address could leave each other's mirrors stale. That is the open half.
 - The accessibility pass (M4-01) is complete in code: tap targets, pinch-zoom,
   landscape and the owner shapes, then the semantics, keyboard and focus third
   - a polite live region so toasts are announced, cell labels that name the

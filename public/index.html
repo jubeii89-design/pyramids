@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Crossword Pyramids — Spell to Win!</title>
 <meta name="description" content="A party word game for 2–4 players — host it on the big screen, everyone joins from their phones with a QR code or a 4-letter room code.">
-<meta name="theme-color" content="#0c0a16">
+<meta name="theme-color" content="#0b0a08">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <meta property="og:type" content="website">
@@ -18,12 +18,20 @@
 <style>
   .hero { text-align: center; padding: 44px 20px 24px; }
   .hero h1 {
-    font-size: clamp(2.2rem, 7vw, 4.6rem);
+    font-size: clamp(2rem, 6.4vw, 4.4rem);
     color: var(--gold);
     text-shadow: 0 4px 0 #6b4e10, 0 10px 30px rgba(0,0,0,.65);
     text-transform: uppercase;
     letter-spacing: .05em;
+    /* A cartouche: the oval ring Egyptian scribes drew around a royal name,
+       closed by a bar at one end. */
+    display: inline-block; position: relative;
+    padding: .12em .7em .16em;
+    border: 3px solid var(--gold); border-radius: 1.2em;
+    box-shadow: inset 0 0 0 2px rgba(0,0,0,.5), inset 0 0 0 5px rgba(217,169,58,.35), 0 10px 30px rgba(0,0,0,.45);
+    background: linear-gradient(180deg, rgba(42,33,22,.75), rgba(20,15,9,.75));
   }
+  .hero h1::after { content: ''; position: absolute; top: 12%; bottom: 12%; right: -.2em; width: .12em; background: var(--gold); border-radius: 2px; }
   .hero .tag { font-size: clamp(1rem, 3vw, 1.5rem); color: var(--sand); font-style: italic; margin-top: 10px; }
   /* hero built from the game pieces */
   .pyr-scene { display: flex; justify-content: center; align-items: center; gap: 14px; margin: 26px auto 6px; perspective: 700px; }
@@ -56,9 +64,9 @@
     transition: transform .15s, border-color .15s;
   }
   .shot:hover { transform: translateY(-4px); border-color: var(--gold); }
-  .shot img { display: block; width: 100%; aspect-ratio: 1 / .92; object-fit: cover; background: #1a1426; }
+  .shot img { display: block; width: 100%; aspect-ratio: 1 / .92; object-fit: cover; background: #14100a; }
   .shot .cap { padding: 14px 16px 16px; }
-  .shot .cap b { display: block; color: var(--gold); font-family: Georgia, serif; font-size: 1.1rem; margin-bottom: 5px; }
+  .shot .cap b { display: block; color: var(--gold); font-family: var(--display); font-size: 1.1rem; margin-bottom: 5px; }
   .shot .cap span { color: var(--sand); font-size: .92rem; line-height: 1.5; }
   /* rules dialog */
   dialog#rules {

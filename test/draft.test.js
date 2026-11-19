@@ -123,16 +123,44 @@ test('draft does not change the game; stale revisions and empty squares are igno
   assert.equal(states[0].state.revision, s.st.revision);
 });
 
-test('bursts under 50 ms are dropped; an empty draft always relays a clear', { timeout: 20000 }, async (t) => {
+// This test used to assert the opposite - 'bursts under 50 ms are dropped' - and
+// so pinned a defect in place as if it were the design. The server dropped a
+// draft arriving within 50ms of the last one and sent nothing afterwards, which
+// left the TV mirroring a half-spelled word for the rest of the turn.
+test('no draft is dropped, and an empty draft relays a clear that lands last', { timeout: 20000 }, async (t) => {
   const s = await setup(t);
-  s.mover.send(s.draft());
-  s.mover.send(s.draft({ items: [s.house[0], s.house[1], s.own] }));
-  s.mover.send(s.draft({ items: [] }));
+  s.mover.send(s.draft({ items: [s.own] }));              // one letter
+  s.mover.send(s.draft({ items: [s.own, s.house[0]] }));  // two
+  s.mover.send(s.draft());                                // the whole 3-letter word
+  s.mover.send(s.draft({ items: [] }));                   // Clear
+  await s.host.wait((m) => m.type === 'draft' && m.items.length === 0);
+  await sleep(200); // long enough for any stray relay to show up out of order
+  assert.deepEqual(
+    s.host.seen.filter((m) => m.type === 'draft').map((m) => m.items.length),
+    [1, 2, 3, 0],
+    'every draft relayed, in order, with the clear last'
+  );
+});
+
+test('the newest draft in a burst is relayed, not lost', { timeout: 20000 }, async (t) => {
+  const s = await setup(t);
+  const newest = [s.house[0], s.house[1], s.own];
+  s.mover.send(s.draft());                   // relayed straight away
+  s.mover.send(s.draft({ items: newest }));  // lands inside the 50 ms window
   await sleep(400);
   const drafts = s.host.seen.filter((m) => m.type === 'draft');
-  assert.equal(drafts.length, 2, 'second non-empty draft dropped, clear passed');
-  assert.equal(drafts[0].items.length, 3);
-  assert.deepEqual(drafts[1].items, []);
+  // Throttling a burst is the point, but the LAST draft has to arrive. A phone
+  // that taps its final letter within 50 ms of the previous one used to have it
+  // silently discarded, and the client never re-sends (it has already recorded
+  // that draft as sent), so the TV kept an incomplete word for the rest of the
+  // turn while the phone showed the full one. Measured on a real phone page:
+  // 2 of 16 three-letter words, the two sends 8 ms and 49 ms apart.
+  const last = drafts[drafts.length - 1];
+  assert.deepEqual(
+    last.items.map((i) => `${i.r},${i.c}`),
+    newest.map((i) => `${i.r},${i.c}`),
+    'the TV ends up showing the word the player actually has'
+  );
 });
 
 test('a draft from an old revision is ignored after a pass', { timeout: 20000 }, async (t) => {
