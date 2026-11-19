@@ -66,7 +66,7 @@ once image 1 exists.
 ## Ornament: no image needed
 
 The hieroglyph frieze and the columns are already drawn in code
-(`public/assets/egypt-frieze.svg`, `public/assets/egypt-column.svg`). They
+(`public/assets/egypt-frieze.svg`; the side-wall columns were dropped once the temple photo arrived). They
 stay crisp at any size, which a generated ornament would not.
 
 ## Expect

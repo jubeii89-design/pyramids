@@ -29,7 +29,8 @@ source of truth; this file only records decisions and where things are.
   `[data-sound-toggle]` button; mute is per device (`localStorage` key
   `cp_muted`) and every path fails silent while the browser's autoplay lock
   holds, so a TV nobody touches is simply quiet rather than broken.
-- `public/assets/` - the Milky Way background, the favicon and apple-touch
+- `public/assets/` - the ancient Egypt theme art (temple backgrounds, the
+  gods, the winged cartouche, Cinzel font), the favicon and apple-touch
   icon, and the link-preview image, with provenance in `ASSETS.md` and
   `SOUNDS.md`; `public/credits.html` carries the credits.
 - Building a word on a phone: tap letters in spelling order; the first black
