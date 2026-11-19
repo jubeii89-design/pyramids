@@ -1,24 +1,34 @@
 # Asset provenance
 
-`space-bg.jpg` is the game's background photograph, chosen by the project
-author from Unsplash and supplied at 2000×1365. The other files in this
-directory (`stage-*.png`, `favicon.svg`, `apple-touch-icon.png`, `og.jpg`)
-are the project's own artwork. `og.jpg` (the link-preview card) composites
-the project's title over `space-bg.jpg`, which the Unsplash License permits;
-`favicon.svg` and `apple-touch-icon.png` are the same original gold-pyramid
-mark drawn for this project.
+The game's look is the ancient Egypt theme. Everything in it is either the
+project's own artwork or openly licensed, listed below.
 
-| File | Source ID | Title | Artist | Source page | Licence | Credit displayed |
-|---|---|---|---|---|---|---|
-| `space-bg.jpg` | Unsplash `E0AHdsENmDg` | "blue and purple galaxy digital wallpaper" (the Milky Way) | Jeremy Thomas (<https://unsplash.com/@jeremythomasphoto>) | <https://unsplash.com/photos/blue-and-purple-galaxy-digital-wallpaper-E0AHdsENmDg> | [Unsplash License](https://unsplash.com/license): free to use for commercial and non-commercial purposes, no permission needed; attribution not required | "Photo by Jeremy Thomas on Unsplash" (credits page) |
+| File | What it is | Source | Licence | Credit displayed |
+|---|---|---|---|---|
+| `egypt-frieze.svg`, `egypt-column.svg` | Hieroglyph ornament: ankh, sun disk, water, djed pillar, reed (panel frieze and side-wall columns) | Drawn for this project by hand in SVG (2026-11-19); the signs themselves are ancient public-domain symbols | The project's own file | None needed |
+| `fonts/cinzel-latin-400-normal.woff2`, `fonts/cinzel-latin-700-normal.woff2` | Cinzel display typeface (headings and buttons) | Natanael Gama / The Cinzel Project Authors, via the `@fontsource/cinzel` 5.3.0 npm package | [SIL Open Font License 1.1](fonts/Cinzel-OFL.txt), which permits bundling and redistribution with the licence file alongside | Credits page |
+| `favicon.svg`, `apple-touch-icon.png` | Gold-pyramid mark | Drawn for this project | The project's own file | None needed |
+| `stage-early.png`, `stage-mid.png`, `stage-late.png` | Board screenshots on the front page | The game itself | The project's own file | None needed |
+| `og.jpg` | Link-preview card: the project's title composited over the photograph below | The project's own composite | Unsplash License (for the photo) | Credits page |
 
-Notes:
+The photograph inside `og.jpg`: Unsplash `E0AHdsENmDg`, "blue and purple
+galaxy digital wallpaper" (the Milky Way) by Jeremy Thomas
+(<https://unsplash.com/@jeremythomasphoto>),
+<https://unsplash.com/photos/blue-and-purple-galaxy-digital-wallpaper-E0AHdsENmDg>,
+under the [Unsplash License](https://unsplash.com/license): free for commercial
+and non-commercial use, attribution not required (given voluntarily). It was
+the space-theme background; the full photo was removed with that theme, and
+`og.jpg` will be rebuilt from the Egypt background once it exists.
 
-- The Unsplash License is **not** an attribution-required or share-alike
-  licence, so this asset stays within the project's licensing bar (see
-  `data/WORDLIST.md`); the credit is given voluntarily, at the author's
-  request.
-- An earlier revision used a NASA photograph (`art002e012588`, public
-  domain); it was replaced by this author-chosen image.
-- **No restricted, share-alike or attribution-required material is included
-  in this directory.**
+## AI-generated art (pending)
+
+The Egypt scenery and gods (`egypt-bg.jpg`, `egypt-bg-portrait.jpg`,
+`egypt-hero.jpg`) will be AI-generated from the prompts in
+`docs/egypt-art-prompts.md`. Each gets a row here with: the tool and plan,
+the terms that grant commercial use, the exact prompt, and the date. AI
+images generally carry no copyright, so they can be used but not exclusively
+owned.
+
+**No restricted, share-alike or attribution-required material is included
+in this directory.** (The SIL OFL travels with its licence file; it places no
+restriction on the game.)
