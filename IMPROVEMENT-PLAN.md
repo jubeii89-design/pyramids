@@ -85,9 +85,8 @@ complaints appeared:
   (docs/ai-mindmap.yaml:168, HANDOFF.md "Not done"). Everything below is still
   theory until one game night happens. That remains the single most important
   fact about this project.
-- **Unresolved rights.** The name, rules text and art provenance are
-  unconfirmed (HANDOFF.md). No amount of code fixes this; it gates anything
-  public or paid.
+- **Rights: resolved.** The author confirmed on 2026-11-19 that the name,
+  rules text and art are theirs (HANDOFF.md).
 - **Accessibility is a complete pass in code and an unverified one in fact.**
   M4-01 is finished (docs/ai-mindmap.yaml:325): the ergonomic and colour half,
   then semantics, keyboard and focus. The sound toggle's `aria-pressed` and
@@ -226,8 +225,8 @@ test/ui.js:249-250). Only the controls the suite names are measured. The
   re-proposes it.
 - **No AI opponents** (author decision) and **no monetization** beyond the
   existing optional tip link.
-- And the two gates no code can clear: the **rights question** and the
-  **zero-playtests fact**. The first real milestone after M1 is a table of
+- And the gate no code can clear: the **zero-playtests fact** (the rights
+  question was settled by the author on 2026-11-19; a beta test is planned). The first real milestone after M1 is a table of
   humans, a TV, and the feedback button.
 
 ## 6. Verification
