@@ -139,7 +139,7 @@ features_existing:  # do not re-propose these; they are built and tested
   - private lift - see the letter under a lifted top (current player only, never usable same turn)
   - live draft mirroring - everyone watches the current player's word form, public letters only
   - structured refusals with stable codes and hints
-  - pass with confirm; auto-skip only for disconnected players (30s)
+  - pass with a two-tap confirm (Pass -> Sure?, 4s window); auto-skip only for disconnected players (30s)
   - play again on the same code - still-connected players straight into a new deal
   - end screen reveal: per-player captured - left-on-board = final rows (host staged with count-up, phone static with your row highlighted), tie-break staged as drawn pyramids; main-menu buttons
   - how-to-play dialog (HOWTO_STEPS, board.js:77) on every page
@@ -206,7 +206,7 @@ known_issues:  # each verified against the code on generated_on; status open unl
     summary: board renderer rebuilds all 100 cells with innerHTML on every state (board.js:159) - blocks animation and breaks screen-reader focus; prerequisite for KI-01
   - id: KI-10
     severity: low
-    status: fixed in M4-01 - maximum-scale dropped from play.html's viewport so pinch-zoom works again; every control on the phone is now >=44x44 (topbar sound + "?" buttons via a shared .btn.mini, word-line chips 44x46, the feedback button, which also stops floating over the board's lower-right corner below 700px). Board cells stay as they are and that is deliberate - 10 across a 390px phone is 32.0px wide by arithmetic, and measured in Chromium the binding dimension is cell HEIGHT, 29.0px at 390px and 26.6px at 360px - both clear WCAG 2.2 SC 2.5.8 Target Size (Minimum), Level AA, which asks for 24x24 CSS px and is tested by whether a solid 24x24 axis-aligned square fits inside the target, so the SMALLER dimension is what counts. The 44px figure is SC 2.5.5 Target Size (Enhanced), Level AAA, not the AA bar. W3C is explicit that the 24px requirement is independent of zoom, so restoring pinch-zoom is an ergonomic win and the literal KI-10 fix, NOT the conformance argument - the cells pass on their own measured size. A magnify/pan mode that would reach the AAA 44px is split out as M4-03
+    status: fixed in M4-01 - maximum-scale dropped from play.html's viewport so pinch-zoom works again; every control on the phone is now >=44x44 (topbar sound + "?" buttons via a shared .btn.mini, word-line chips 44x46, the feedback button, which also stops floating over the board's lower-right corner below 700px). Board cells stay as they are and that is deliberate - 10 across a 390px phone is 32.0px wide by arithmetic, and measured in Chromium the binding dimension is cell HEIGHT, 29.0px at 390px and 26.6px at 360px - both clear WCAG 2.2 SC 2.5.8 Target Size (Minimum), Level AA, which asks for 24x24 CSS px and is tested by whether a solid 24x24 axis-aligned square fits inside the target, so the SMALLER dimension is what counts. The 44px figure is SC 2.5.5 Target Size (Enhanced), Level AAA, not the AA bar. W3C is explicit that the 24px requirement is independent of zoom, so restoring pinch-zoom is an ergonomic win and the literal KI-10 fix, NOT the conformance argument - the cells pass on their own measured size. A magnify/pan mode that would reach the AAA 44px is split out as M4-03. M2-07 then made the portrait board full-bleed with square cells: 36x36 at 390px (was 32x29), 38x38 on a Pixel 7, 27x27 on a 320px iPhone SE (was 25x22)
     summary: phone tap targets ~30px and maximum-scale=1 (play.html:5) - below the 44px guideline and pinch-zoom disabled
   - id: KI-11
     severity: low
@@ -307,6 +307,12 @@ improvement_tree:  # the plan in IMPROVEMENT-PLAN.md as addressable nodes. "do M
       title: atmosphere - outer-space background; a real Milky Way photograph chosen by the author (Jeremy Thomas on Unsplash, provenance in public/assets/ASSETS.md, credit on credits.html) under the pure-CSS twinkling starfield layers (body::before/after, prefers-reduced-motion safe); "in the clouds" variant deferred as a possible theme; author direction 2026-11 - photo must NOT be muted - page wash/vignette and host game-over scrim all at 20% alpha, tune further by eye from screenshots (mid-game dialog backdrops stay dark on purpose, they are focus modals)
       size: S
       acceptance: board, panels and gold text keep full contrast; no images, no JS, no test movement
+    - id: M2-07
+      status: done
+      title: phone is one screen per turn - in portrait Clear/Submit/Pass sit in a bar pinned to the bottom (safe-area aware; in landscape the same bar joins the two-column grid), one-line header and banner, full-bleed board with square cells (.board grid-template-rows, which also squares the TV and landscape boards), two-tap Pass replacing the native confirm(), toasts no longer swallow taps, haptic tick on each letter
+      fixes: KI-10 (cell size, partly)
+      size: M
+      acceptance: on a 320px iPhone SE, iPhone 13 and Pixel 7 the board, word line and all three buttons are on screen on your turn with no scrolling; ui + tap suites green
   M3:  # Everyone plays (P2) - no bored spectators
     - id: M3-01
       title: waiting-player engagement on the existing draft mirror - emoji reactions floating up the TV; one-tap "will it land?" prediction

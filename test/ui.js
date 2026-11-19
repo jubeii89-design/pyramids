@@ -400,7 +400,6 @@ async function main() {
     const phones = [];
     for (const name of ['Cleo', 'Memphis', 'Sais']) {
       const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
-      p.on('dialog', (d) => d.accept()); // the Pass confirm()
       await p.goto(`${BASE}/play.html?room=${code4}`);
       await p.fill('#namein', name);
       await p.click('#joinBtn');
@@ -423,7 +422,8 @@ async function main() {
           // hides this button while the click still waits on it. Bound the
           // wait; the loop re-checks #over and the final waitForSelector is
           // the real assertion.
-          if (mine) await p.click('#passBtn', { timeout: 2000 }).catch(() => {});
+          // Pass is two taps: the first arms it, the second confirms.
+          if (mine) { await p.click('#passBtn', { timeout: 2000 }).catch(() => {}); await p.click('#passBtn', { timeout: 2000 }).catch(() => {}); }
         }
         await host4.waitForTimeout(200);
       }

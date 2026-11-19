@@ -161,6 +161,7 @@ textarea:focus-visible {
 .cell.cand { outline: 3px solid #ffc21a; outline-offset: -3px; }
 @media (min-width: 901px) { .gamegrid .boardwrap { max-width: min(100%, calc(100vh - 155px)); margin-inline: auto; width: 100%; } }
 .board {
+  grid-template-rows: repeat(10, 1fr); /* rows match the 1fr columns: square cells */
   display: grid;
   grid-template-columns: repeat(10, 1fr);
   gap: 2px;
@@ -418,6 +419,7 @@ input[type=text]:focus-visible { outline: 3px dashed var(--focus); outline-offse
   position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
   background: #47161d; color: #ffd9d9; border: 2px solid #8a2c3a;
   padding: 12px 22px; border-radius: 14px; z-index: 50; max-width: 90vw; text-align: center;
+  pointer-events: none; /* never swallow a tap meant for the button beneath */
   font-weight: bold;
   animation: toast-in .18s ease-out;
 }
